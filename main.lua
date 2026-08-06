@@ -1,7 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- Repo: alllazy450-sketch/99night
--- Source Engine: menk9999 Logic + WindUI
+-- FULL AUTO HIT AURA (NO TP / PURE DAMAGE)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -13,11 +12,13 @@ local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
--- State Variables (Logika dari Repo Lama)
+-- State Variables
 local KillAuraEnabled = false
-local KillAuraRadius = 200
+local KillAuraRadius = 500
 
-local AutoBringTreesEnabled = false
+local AutoWoodEnabled = false
+local AutoWoodRadius = 500
+
 local AutoHuntEnabled = false
 local SelectedMob = "Wolf"
 
@@ -25,7 +26,6 @@ local AutoClaimEnabled = false
 local AutoFeedEnabled = false
 
 local SavedBasecampCFrame = nil
-local OriginalTreeCFrames = {}
 
 local toolsDamageIDs = {
     ["Old Axe"] = "1_8982038982",
@@ -63,45 +63,11 @@ local function moveItemToPos(item, position)
     end
 end
 
-local function getMainPart(model)
-    if model.PrimaryPart then return model.PrimaryPart end
-    for _, part in ipairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then return part end
-    end
-    return nil
-end
-
-local function getAllSmallTrees()
-    local trees = {}
-    local function scan(folder)
-        if not folder then return end
-        for _, obj in ipairs(folder:GetChildren()) do
-            if obj:IsA("Model") and obj.Name == "Small Tree" then
-                table.insert(trees, obj)
-            end
-        end
-    end
-
-    local map = Workspace:FindFirstChild("Map")
-    if map then
-        scan(map:FindFirstChild("Foliage"))
-        scan(map:FindFirstChild("Landmarks"))
-    end
-    return trees
-end
-
-local function findTrunk(tree)
-    for _, part in ipairs(tree:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name == "Trunk" then return part end
-    end
-    return nil
-end
-
 -- ==========================================
--- BACKGROUND LOOPS (ENGINE FROM OLD REPO)
+-- BACKGROUND LOOPS (HIT DAMAGE LOOPS)
 -- ==========================================
 
--- 1. Kill Aura Loop
+-- 1. Kill Aura Loop (Nge-hit Mob Tanpa Batas)
 task.spawn(function()
     while true do
         if KillAuraEnabled then
@@ -123,51 +89,37 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.1)
+        task.wait(0.05)
     end
 end)
 
--- 2. Bring Small Trees (Auto Wood)
+-- 2. Auto Wood Hit Loop (Nge-hit Pohon Tanpa Batas Sampai Tumbang)
 task.spawn(function()
-    local treesBrought = false
     while true do
-        if AutoBringTreesEnabled then
-            local hrp = getHRP()
-            if hrp and not treesBrought then
-                local target = CFrame.new(hrp.Position + hrp.CFrame.LookVector * 10)
-                for _, tree in ipairs(getAllSmallTrees()) do
-                    local trunk = findTrunk(tree)
-                    if trunk then
-                        if not OriginalTreeCFrames[tree] then OriginalTreeCFrames[tree] = trunk.CFrame end
-                        tree.PrimaryPart = trunk
-                        trunk.Anchored = false
-                        trunk.CanCollide = false
-                        tree:SetPrimaryPartCFrame(target + Vector3.new(math.random(-5, 5), 0, math.random(-5, 5)))
-                        trunk.Anchored = true
+        if AutoWoodEnabled then
+            pcall(function()
+                local hrp = getHRP()
+                if hrp and remoteEvents then
+                    local tool, damageID = getAnyToolWithDamageID()
+                    if tool and damageID then
+                        remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool)
+                        for _, obj in ipairs(Workspace:GetDescendants()) do
+                            if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name == "Small Tree") then
+                                local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                                if trunk and (trunk.Position - hrp.Position).Magnitude <= AutoWoodRadius then
+                                    remoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(trunk.Position))
+                                end
+                            end
+                        end
                     end
                 end
-                treesBrought = true
-            end
-        else
-            if treesBrought then
-                for tree, cframe in pairs(OriginalTreeCFrames) do
-                    local trunk = findTrunk(tree)
-                    if trunk then
-                        tree.PrimaryPart = trunk
-                        tree:SetPrimaryPartCFrame(cframe)
-                        trunk.Anchored = true
-                        trunk.CanCollide = true
-                    end
-                end
-                OriginalTreeCFrames = {}
-                treesBrought = false
-            end
+            end)
         end
-        task.wait(1)
+        task.wait(0.05)
     end
 end)
 
--- 3. Bring Mobs + Auto Return to Basecamp
+-- 3. Auto Hunt Mob Specific (Hit Target Mob + Return Basecamp)
 task.spawn(function()
     local wasHunting = false
     while true do
@@ -180,20 +132,14 @@ task.spawn(function()
                 end
 
                 pcall(function()
-                    local stackOffsetY = 3
-                    local count = 0
-                    if characterFolder then
-                        for _, model in ipairs(characterFolder:GetChildren()) do
-                            if model.Name == SelectedMob then
-                                local mainPart = getMainPart(model)
-                                if mainPart then
-                                    local targetCFrame = hrp.CFrame + Vector3.new(0, count * stackOffsetY, 0)
-                                    if model.PrimaryPart then
-                                        model:SetPrimaryPartCFrame(targetCFrame)
-                                    else
-                                        mainPart.CFrame = targetCFrame
-                                    end
-                                    count = count + 1
+                    local tool, damageID = getAnyToolWithDamageID()
+                    if tool and damageID and characterFolder then
+                        remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool)
+                        for _, mob in ipairs(characterFolder:GetChildren()) do
+                            if mob.Name == SelectedMob then
+                                local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
+                                if part then
+                                    remoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
                                 end
                             end
                         end
@@ -210,11 +156,11 @@ task.spawn(function()
                 SavedBasecampCFrame = nil
             end
         end
-        task.wait(0.3)
+        task.wait(0.1)
     end
 end)
 
--- 4. Auto Claim & Auto Feed
+-- 4. Auto Claim & Auto Feed Campfire
 task.spawn(function()
     while true do
         pcall(function()
@@ -235,7 +181,7 @@ task.spawn(function()
                 end
             end
         end)
-        task.wait(2)
+        task.wait(1.5)
     end
 end)
 
@@ -247,7 +193,7 @@ local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footag
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Old Repo Engine",
+    Subtitle = "W424 Hub | Infinite Hit Aura",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -263,27 +209,33 @@ local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://1074737317
 MainTab:Section({ Title = "Combat System" })
 
 MainTab:Toggle({
-    Title = "Kill Aura",
+    Title = "Kill Aura (All Mobs)",
     Default = false,
     Callback = function(v) KillAuraEnabled = v end
 })
 
 MainTab:Slider({
     Title = "Kill Aura Range",
-    Min = 50, Max = 500, Default = 200,
+    Min = 50, Max = 1000, Default = 500,
     Callback = function(v) KillAuraRadius = v end
 })
 
-AutoTab:Section({ Title = "Automation Features" })
+AutoTab:Section({ Title = "Hit Farming Features" })
 
 AutoTab:Toggle({
-    Title = "Bring All Small Trees (Auto Wood)",
+    Title = "Auto Farm Wood (Hit Aura Trees)",
     Default = false,
-    Callback = function(v) AutoBringTreesEnabled = v end
+    Callback = function(v) AutoWoodEnabled = v end
+})
+
+AutoTab:Slider({
+    Title = "Auto Wood Range",
+    Min = 50, Max = 1000, Default = 500,
+    Callback = function(v) AutoWoodRadius = v end
 })
 
 AutoTab:Toggle({
-    Title = "Bring Mobs to You (Auto Mob)",
+    Title = "Auto Hunt Mob (Target Hit Aura)",
     Default = false,
     Callback = function(v) AutoHuntEnabled = v end
 })
@@ -337,7 +289,7 @@ PlayerTab:Slider({
 })
 
 WindUI:Notify({
-    Title = "alllazy450 Repo Ready",
-    Content = "Logika Repo Lama Berhasil Diterapkan!",
+    Title = "W424 Hub Updated",
+    Content = "Sistem Hit Damage Aura Tanpa TP Aktif!",
     Duration = 5
 })
