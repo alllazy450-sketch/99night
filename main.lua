@@ -34,8 +34,10 @@ local function getCharacterInfo()
 end
 
 -- ==========================================
--- 1. MAIN TAB & SAFE ZONE
+-- 1. MAIN TAB (SCROLLABLE SECTION)
 -- ==========================================
+local MainSection = Tabs.Main:AddSection("Main Features")
+
 local safezoneBaseplates = {}
 local baseplateSize = Vector3.new(2048, 1, 2048)
 local centerPos = Vector3.new(0, 100, 0)
@@ -56,7 +58,7 @@ for dx = -1, 1 do
     end
 end
 
-Tabs.Main:AddToggle("ShowSafeZone", {
+MainSection:AddToggle("ShowSafeZone", {
     Title = "Show Safe Zone",
     Default = false,
     Callback = function(enabled)
@@ -67,7 +69,6 @@ Tabs.Main:AddToggle("ShowSafeZone", {
     end
 })
 
--- KILL AURA
 local killAuraToggle = false
 local killAuraRadius = 200
 
@@ -115,7 +116,7 @@ local function killAuraLoop()
     end
 end
 
-Tabs.Main:AddToggle("KillAura", {
+MainSection:AddToggle("KillAura", {
     Title = "Kill Aura",
     Default = false,
     Callback = function(state)
@@ -124,21 +125,20 @@ Tabs.Main:AddToggle("KillAura", {
     end
 })
 
-Tabs.Main:AddSlider("KillAuraRadius", {
+MainSection:AddSlider("KillAuraRadius", {
     Title = "Kill Aura Radius",
     Default = 200,
     Min = 20,
     Max = 500,
     Rounding = 0,
-    Callback = function(value)
-        killAuraRadius = value
-    end
+    Callback = function(value) killAuraRadius = value end
 })
 
 -- ==========================================
--- 2. AUTO FARM TAB (WOOD & HUNT MOB)
+-- 2. AUTO FARM TAB (SCROLLABLE SECTIONS)
 -- ==========================================
--- AUTO FARM WOOD
+local WoodSection = Tabs.Auto:AddSection("Auto Farm Wood")
+
 local autoWoodToggle = false
 local autoWoodRadius = 200
 
@@ -165,16 +165,13 @@ local function autoWoodLoop()
             local axe, damageID = getBestAxe()
             if axe and damageID then
                 pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", axe) end)
-                local foliage = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Foliage")
-                if foliage then
-                    for _, tree in ipairs(foliage:GetChildren()) do
-                        if tree:IsA("Model") and (tree.Name == "Small Tree" or tree.Name == "Tree") then
-                            local trunk = tree:FindFirstChild("Trunk") or tree:FindFirstChildWhichIsA("BasePart")
-                            if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
-                                pcall(function()
-                                    remoteEvents.ToolDamageObject:InvokeServer(tree, axe, damageID, CFrame.new(trunk.Position))
-                                end)
-                            end
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Trunk") or obj.Name == "Small Tree") then
+                        local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                        if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
+                            pcall(function()
+                                remoteEvents.ToolDamageObject:InvokeServer(obj, axe, damageID, CFrame.new(trunk.Position))
+                            end)
                         end
                     end
                 end
@@ -184,7 +181,7 @@ local function autoWoodLoop()
     end
 end
 
-Tabs.Auto:AddToggle("AutoWood", {
+WoodSection:AddToggle("AutoWood", {
     Title = "Auto Farm Wood (Auto Equip Axe)",
     Default = false,
     Callback = function(state)
@@ -193,18 +190,17 @@ Tabs.Auto:AddToggle("AutoWood", {
     end
 })
 
-Tabs.Auto:AddSlider("AutoWoodRadius", {
+WoodSection:AddSlider("AutoWoodRadius", {
     Title = "Wood Farm Radius",
     Default = 200,
     Min = 50,
     Max = 500,
     Rounding = 0,
-    Callback = function(value)
-        autoWoodRadius = value
-    end
+    Callback = function(value) autoWoodRadius = value end
 })
 
--- AUTO HUNT MOB (FLY ABOVE)
+local HuntSection = Tabs.Auto:AddSection("Auto Hunt Mob")
+
 local autoHuntToggle = false
 local huntDistance = 15
 local selectedMob = "Bunny"
@@ -244,7 +240,7 @@ local function autoHuntLoop()
     end
 end
 
-Tabs.Auto:AddDropdown("SelectHuntMob", {
+HuntSection:AddDropdown("SelectHuntMob", {
     Title = "Pilih Target Mob",
     Values = huntableMobs,
     Multi = false,
@@ -252,7 +248,7 @@ Tabs.Auto:AddDropdown("SelectHuntMob", {
     Callback = function(value) selectedMob = value end
 })
 
-Tabs.Auto:AddSlider("HuntHeight", {
+HuntSection:AddSlider("HuntHeight", {
     Title = "Ketinggian Terbang (Height)",
     Default = 15,
     Min = 1,
@@ -261,7 +257,7 @@ Tabs.Auto:AddSlider("HuntHeight", {
     Callback = function(value) huntDistance = value end
 })
 
-Tabs.Auto:AddToggle("AutoHunt", {
+HuntSection:AddToggle("AutoHunt", {
     Title = "Auto Farm / Hunt Mob (Fly)",
     Default = false,
     Callback = function(state)
@@ -270,10 +266,18 @@ Tabs.Auto:AddToggle("AutoHunt", {
     end
 })
 
--- AUTO FEED CAMPFIRE & EAT
+local FeedSection = Tabs.Auto:AddSection("Auto Feed & Eat")
+
 local campfireDropPos = Vector3.new(0, 19, 0)
-local campfireFuelItems = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"}
-local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
+local campfireFuelItems = {
+    "Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel",
+    "Bunny Foot", "Bunny Meat", "Wolf Meat", "Bear Meat", "Morsel", "Steak", "Raw Meat"
+}
+local autoEatFoods = {
+    "Cooked Steak", "Cooked Morsel", "Cooked Meat", "Cooked Bunny Meat",
+    "Berry", "Carrot", "Apple", "Cooked Fish"
+}
+
 local itemFolder = workspace:WaitForChild("Items")
 local autoFeedAlways = {}
 local autoEatEnabled = false
@@ -291,15 +295,15 @@ local function moveItemToPos(item, position)
     end)
 end
 
-Tabs.Auto:AddDropdown("AutoFeedCampfire", {
-    Title = "Auto Feed Campfire",
+FeedSection:AddDropdown("AutoFeedCampfire", {
+    Title = "Auto Feed Campfire / Cook",
     Values = campfireFuelItems,
     Multi = true,
     Default = {},
     Callback = function(Value) autoFeedAlways = Value end
 })
 
-Tabs.Auto:AddToggle("AutoEat", {
+FeedSection:AddToggle("AutoEat", {
     Title = "Auto Eat Food (3s Interval)",
     Default = false,
     Callback = function(state) autoEatEnabled = state end
@@ -336,9 +340,11 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 3. ITEM TP & ESP TAB
+-- 3. ITEM TP & ESP TAB (SCROLLABLE SECTION)
 -- ==========================================
-Tabs.ItemTP:AddToggle("ItemESP", {
+local ItemSection = Tabs.ItemTP:AddSection("Item Utilities")
+
+ItemSection:AddToggle("ItemESP", {
     Title = "Item ESP",
     Default = false,
     Callback = function(state)
@@ -348,7 +354,8 @@ Tabs.ItemTP:AddToggle("ItemESP", {
             ["Bolt"] = true, ["Broken Fan"] = true, ["Carrot"] = true, ["Coal"] = true,
             ["Coin Stack"] = true, ["Hologram Emitter"] = true, ["Item Chest"] = true,
             ["Laser Fence Blueprint"] = true, ["Log"] = true, ["Old Flashlight"] = true,
-            ["Old Radio"] = true, ["Sheet Metal"] = true, ["Bandage"] = true, ["Rifle"] = true
+            ["Old Radio"] = true, ["Sheet Metal"] = true, ["Bandage"] = true, ["Rifle"] = true,
+            ["Bunny Meat"] = true, ["Wolf Meat"] = true, ["Bear Meat"] = true
         }
         local function createESP(model)
             if not model:IsA("Model") or not itemNames[model.Name] then return end
@@ -388,10 +395,10 @@ local itemNamesList = {
     "Revolver", "Medkit", "Alien Chest", "Berry", "Bolt", "Broken Fan",
     "Carrot", "Coal", "Coin Stack", "Hologram Emitter", "Item Chest",
     "Laser Fence Blueprint", "Log", "Old Flashlight", "Old Radio",
-    "Sheet Metal", "Bandage", "Rifle"
+    "Sheet Metal", "Bandage", "Rifle", "Bunny Meat", "Wolf Meat", "Bear Meat"
 }
 
-Tabs.ItemTP:AddDropdown("TPToItem", {
+ItemSection:AddDropdown("TPToItem", {
     Title = "Teleport to Item",
     Values = itemNamesList,
     Multi = false,
@@ -421,10 +428,10 @@ local possibleItems = {
     "Morsel","Old Flashlight","Old Radio","Good Sack","Good Axe","Raygun","Giant Sack",
     "Strong Axe","Oil Barrel","Old Car Engine","Rifle","Rifle Ammo","Revolver",
     "Revolver Ammo","Sapling","Sheet Metal","Steak","Wolf Pelt","Gem of the Forest Fragment",
-    "Tyre","Washing Machine","Broken Microwave"
+    "Tyre","Washing Machine","Broken Microwave","Bunny Meat","Wolf Meat","Bear Meat"
 }
 
-Tabs.ItemTP:AddDropdown("BringBulkItem", {
+ItemSection:AddDropdown("BringBulkItem", {
     Title = "Bring Item to You (Bulk)",
     Values = possibleItems,
     Multi = false,
@@ -450,32 +457,36 @@ Tabs.ItemTP:AddDropdown("BringBulkItem", {
 })
 
 -- ==========================================
--- 4. GAME TP TAB
+-- 4. GAME TP TAB (SCROLLABLE SECTION)
 -- ==========================================
+local GameTPSection = Tabs.GameTP:AddSection("Teleports")
+
 local function teleportToTarget(cf)
     local _, hrp = getCharacterInfo()
     if hrp then hrp.CFrame = cf end
 end
 
-Tabs.GameTP:AddButton({
+GameTPSection:AddButton({
     Title = "Teleport to Campsite",
     Callback = function() teleportToTarget(CFrame.new(0, 8, 0)) end
 })
 
-Tabs.GameTP:AddButton({
+GameTPSection:AddButton({
     Title = "Teleport to Safezone",
     Callback = function() teleportToTarget(CFrame.new(0, 110, 0)) end
 })
 
 -- ==========================================
--- 5. MOB TP TAB
+-- 5. MOB TP TAB (SCROLLABLE SECTION)
 -- ==========================================
+local MobSection = Tabs.MobTP:AddSection("Mob Utilities")
+
 local possibleCharacters = {
     "Alpha Wolf","Bear","Lost Child","Lost Child2","Lost Child3","Lost Child4",
     "Wolf","Bunny","Cultist","Alien"
 }
 
-Tabs.MobTP:AddDropdown("BringMob", {
+MobSection:AddDropdown("BringMob", {
     Title = "Bring Mob to You",
     Values = possibleCharacters,
     Multi = false,
@@ -504,9 +515,11 @@ Tabs.MobTP:AddDropdown("BringMob", {
 })
 
 -- ==========================================
--- 6. PLAYER TAB
+-- 6. PLAYER TAB (SCROLLABLE SECTION)
 -- ==========================================
-Tabs.Player:AddSlider("WalkSpeed", {
+local PlayerSection = Tabs.Player:AddSection("LocalPlayer Stats")
+
+PlayerSection:AddSlider("WalkSpeed", {
     Title = "WalkSpeed",
     Default = 16,
     Min = 16,
@@ -518,7 +531,7 @@ Tabs.Player:AddSlider("WalkSpeed", {
     end
 })
 
-Tabs.Player:AddSlider("JumpPower", {
+PlayerSection:AddSlider("JumpPower", {
     Title = "JumpPower",
     Default = 50,
     Min = 50,
@@ -531,10 +544,12 @@ Tabs.Player:AddSlider("JumpPower", {
 })
 
 -- ==========================================
--- 7. VISUALS TAB
+-- 7. VISUALS TAB (SCROLLABLE SECTION)
 -- ==========================================
+local VisualsSection = Tabs.Visuals:AddSection("Visual Options")
+
 local BillboardESPs = {}
-Tabs.Visuals:AddToggle("PlayerESP", {
+VisualsSection:AddToggle("PlayerESP", {
     Title = "Player ESP",
     Default = false,
     Callback = function(state)
