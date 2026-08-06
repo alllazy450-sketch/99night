@@ -1,9 +1,6 @@
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 if not Fluent then warn("Gagal memuat Fluent UI!") return end
 
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-
 local Window = Fluent:CreateWindow({
     Title = "99 Nights in the Forest | W424 Hub",
     SubTitle = "script by lohjc & W424 Team",
@@ -27,8 +24,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
+local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
 
 local function getCharacterInfo()
     local char = LocalPlayer.Character
@@ -42,8 +38,7 @@ end
 -- ==========================================
 local safezoneBaseplates = {}
 local baseplateSize = Vector3.new(2048, 1, 2048)
-local baseY = 100
-local centerPos = Vector3.new(0, baseY, 0)
+local centerPos = Vector3.new(0, 100, 0)
 
 for dx = -1, 1 do
     for dz = -1, 1 do
@@ -94,8 +89,6 @@ local function getAnyToolWithDamageID()
     return nil, nil
 end
 
-local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
-
 local function killAuraLoop()
     while killAuraToggle do
         local _, hrp = getCharacterInfo()
@@ -143,67 +136,208 @@ Tabs.Main:AddSlider("KillAuraRadius", {
 })
 
 -- ==========================================
--- 2. GAME TP TAB
+-- 2. AUTO FARM TAB (WOOD & HUNT MOB)
 -- ==========================================
-local function stringToCFrame(str)
-    local x, y, z = str:match("([^,]+),%s*([^,]+),%s*([^,]+)")
-    return CFrame.new(tonumber(x), tonumber(y), tonumber(z))
+-- AUTO FARM WOOD
+local autoWoodToggle = false
+local autoWoodRadius = 200
+
+local function getBestAxe()
+    local inventory = LocalPlayer:FindFirstChild("Inventory")
+    if not inventory then return nil, nil end
+    local axes = {
+        ["Strong Axe"] = "116_8982038982",
+        ["Good Axe"]   = "112_8982038982",
+        ["Old Axe"]    = "1_8982038982",
+        ["Chainsaw"]   = "647_8992824875"
+    }
+    for axeName, damageID in pairs(axes) do
+        local tool = inventory:FindFirstChild(axeName)
+        if tool then return tool, damageID end
+    end
+    return nil, nil
 end
 
-local function teleportToTarget(cf)
-    local _, hrp = getCharacterInfo()
-    if hrp then hrp.CFrame = cf end
-end
-
-Tabs.GameTP:AddButton({
-    Title = "Teleport to Campsite",
-    Callback = function() teleportToTarget(stringToCFrame("0, 8, 0")) end
-})
-
-Tabs.GameTP:AddButton({
-    Title = "Teleport to Safezone",
-    Callback = function() teleportToTarget(stringToCFrame("0, 110, 0")) end
-})
-
-Tabs.GameTP:AddButton({
-    Title = "Teleport to Stronghold",
-    Callback = function()
-        local targetPart = workspace:FindFirstChild("Map")
-            and workspace.Map:FindFirstChild("Landmarks")
-            and workspace.Map.Landmarks:FindFirstChild("Stronghold")
-            and workspace.Map.Landmarks.Stronghold:FindFirstChild("Functional")
-            and workspace.Map.Landmarks.Stronghold.Functional:FindFirstChild("EntryDoors")
-            and workspace.Map.Landmarks.Stronghold.Functional.EntryDoors:FindFirstChild("DoorRight")
-            and workspace.Map.Landmarks.Stronghold.Functional.EntryDoors.DoorRight:FindFirstChild("Model")
-        if targetPart then
-            local children = targetPart:GetChildren()
-            local destination = children[5]
-            if destination and destination:IsA("BasePart") then
-                teleportToTarget(destination.CFrame + Vector3.new(0, 5, 0))
+local function autoWoodLoop()
+    while autoWoodToggle do
+        local _, hrp = getCharacterInfo()
+        if hrp then
+            local axe, damageID = getBestAxe()
+            if axe and damageID then
+                pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", axe) end)
+                local foliage = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Foliage")
+                if foliage then
+                    for _, tree in ipairs(foliage:GetChildren()) do
+                        if tree:IsA("Model") and (tree.Name == "Small Tree" or tree.Name == "Tree") then
+                            local trunk = tree:FindFirstChild("Trunk") or tree:FindFirstChildWhichIsA("BasePart")
+                            if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
+                                pcall(function()
+                                    remoteEvents.ToolDamageObject:InvokeServer(tree, axe, damageID, CFrame.new(trunk.Position))
+                                end)
+                            end
+                        end
+                    end
+                end
             end
         end
+        task.wait(0.15)
+    end
+end
+
+Tabs.Auto:AddToggle("AutoWood", {
+    Title = "Auto Farm Wood (Auto Equip Axe)",
+    Default = false,
+    Callback = function(state)
+        autoWoodToggle = state
+        if state then task.spawn(autoWoodLoop) end
     end
 })
 
-Tabs.GameTP:AddButton({
-    Title = "Teleport to Diamond Chest",
-    Callback = function()
-        local items = workspace:FindFirstChild("Items")
-        if not items then return end
-        local chest = items:FindFirstChild("Stronghold Diamond Chest")
-        if not chest then return end
-        local chestLid = chest:FindFirstChild("ChestLid")
-        if not chestLid then return end
-        local diamondchest = chestLid:FindFirstChild("Meshes/diamondchest_Cube.002")
-        if diamondchest then teleportToTarget(diamondchest.CFrame + Vector3.new(0, 5, 0)) end
+Tabs.Auto:AddSlider("AutoWoodRadius", {
+    Title = "Wood Farm Radius",
+    Default = 200,
+    Min = 50,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(value)
+        autoWoodRadius = value
     end
 })
+
+-- AUTO HUNT MOB (FLY ABOVE)
+local autoHuntToggle = false
+local huntDistance = 15
+local selectedMob = "Bunny"
+local huntableMobs = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist", "Alien"}
+
+local function autoHuntLoop()
+    while autoHuntToggle do
+        local _, hrp = getCharacterInfo()
+        local characterFolder = workspace:FindFirstChild("Characters")
+        if hrp and characterFolder then
+            local tool, damageID = getAnyToolWithDamageID()
+            local targetMob = nil
+            for _, mob in ipairs(characterFolder:GetChildren()) do
+                if mob:IsA("Model") and mob.Name == selectedMob then
+                    local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
+                    local humanoid = mob:FindFirstChildOfClass("Humanoid")
+                    if part and (not humanoid or humanoid.Health > 0) then
+                        targetMob = mob
+                        break
+                    end
+                end
+            end
+            if targetMob then
+                local mobPart = targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                if mobPart then
+                    if tool then pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end) end
+                    hrp.CFrame = mobPart.CFrame + Vector3.new(0, huntDistance, 0)
+                    if tool and damageID then
+                        pcall(function()
+                            remoteEvents.ToolDamageObject:InvokeServer(targetMob, tool, damageID, CFrame.new(mobPart.Position))
+                        end)
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+Tabs.Auto:AddDropdown("SelectHuntMob", {
+    Title = "Pilih Target Mob",
+    Values = huntableMobs,
+    Multi = false,
+    Default = 1,
+    Callback = function(value) selectedMob = value end
+})
+
+Tabs.Auto:AddSlider("HuntHeight", {
+    Title = "Ketinggian Terbang (Height)",
+    Default = 15,
+    Min = 1,
+    Max = 100,
+    Rounding = 0,
+    Callback = function(value) huntDistance = value end
+})
+
+Tabs.Auto:AddToggle("AutoHunt", {
+    Title = "Auto Farm / Hunt Mob (Fly)",
+    Default = false,
+    Callback = function(state)
+        autoHuntToggle = state
+        if state then task.spawn(autoHuntLoop) end
+    end
+})
+
+-- AUTO FEED CAMPFIRE & EAT
+local campfireDropPos = Vector3.new(0, 19, 0)
+local campfireFuelItems = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"}
+local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
+local itemFolder = workspace:WaitForChild("Items")
+local autoFeedAlways = {}
+local autoEatEnabled = false
+
+local function moveItemToPos(item, position)
+    if not item or not item:IsDescendantOf(workspace) then return end
+    local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+    if not part then return end
+    pcall(function()
+        remoteEvents.RequestStartDraggingItem:FireServer(item)
+        task.wait(0.05)
+        part.CFrame = CFrame.new(position)
+        task.wait(0.05)
+        remoteEvents.StopDraggingItem:FireServer(item)
+    end)
+end
+
+Tabs.Auto:AddDropdown("AutoFeedCampfire", {
+    Title = "Auto Feed Campfire",
+    Values = campfireFuelItems,
+    Multi = true,
+    Default = {},
+    Callback = function(Value) autoFeedAlways = Value end
+})
+
+Tabs.Auto:AddToggle("AutoEat", {
+    Title = "Auto Eat Food (3s Interval)",
+    Default = false,
+    Callback = function(state) autoEatEnabled = state end
+})
+
+task.spawn(function()
+    while true do
+        for itemName, enabled in pairs(autoFeedAlways) do
+            if enabled then
+                for _, item in ipairs(itemFolder:GetChildren()) do
+                    if item.Name == itemName then moveItemToPos(item, campfireDropPos) end
+                end
+            end
+        end
+        task.wait(2)
+    end
+end)
+
+local remoteConsume = remoteEvents:WaitForChild("RequestConsumeItem")
+task.spawn(function()
+    while true do
+        if autoEatEnabled then
+            local available = {}
+            for _, item in ipairs(itemFolder:GetChildren()) do
+                if table.find(autoEatFoods, item.Name) then table.insert(available, item) end
+            end
+            if #available > 0 then
+                local food = available[math.random(1, #available)]
+                pcall(function() remoteConsume:InvokeServer(food) end)
+            end
+        end
+        task.wait(3)
+    end
+end)
 
 -- ==========================================
 -- 3. ITEM TP & ESP TAB
 -- ==========================================
-local itemFolder = workspace:WaitForChild("Items")
-
 Tabs.ItemTP:AddToggle("ItemESP", {
     Title = "Item ESP",
     Default = false,
@@ -216,7 +350,6 @@ Tabs.ItemTP:AddToggle("ItemESP", {
             ["Laser Fence Blueprint"] = true, ["Log"] = true, ["Old Flashlight"] = true,
             ["Old Radio"] = true, ["Sheet Metal"] = true, ["Bandage"] = true, ["Rifle"] = true
         }
-
         local function createESP(model)
             if not model:IsA("Model") or not itemNames[model.Name] then return end
             local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
@@ -273,7 +406,8 @@ Tabs.ItemTP:AddDropdown("TPToItem", {
         end
         if #candidates > 0 then
             local targetPart = candidates[math.random(1, #candidates)]
-            teleportToTarget(targetPart.CFrame + Vector3.new(0, 5, 0))
+            local _, hrp = getCharacterInfo()
+            if hrp then hrp.CFrame = targetPart.CFrame + Vector3.new(0, 5, 0) end
         end
     end
 })
@@ -316,7 +450,25 @@ Tabs.ItemTP:AddDropdown("BringBulkItem", {
 })
 
 -- ==========================================
--- 4. MOB TP TAB
+-- 4. GAME TP TAB
+-- ==========================================
+local function teleportToTarget(cf)
+    local _, hrp = getCharacterInfo()
+    if hrp then hrp.CFrame = cf end
+end
+
+Tabs.GameTP:AddButton({
+    Title = "Teleport to Campsite",
+    Callback = function() teleportToTarget(CFrame.new(0, 8, 0)) end
+})
+
+Tabs.GameTP:AddButton({
+    Title = "Teleport to Safezone",
+    Callback = function() teleportToTarget(CFrame.new(0, 110, 0)) end
+})
+
+-- ==========================================
+-- 5. MOB TP TAB
 -- ==========================================
 local possibleCharacters = {
     "Alpha Wolf","Bear","Lost Child","Lost Child2","Lost Child3","Lost Child4",
@@ -352,80 +504,6 @@ Tabs.MobTP:AddDropdown("BringMob", {
 })
 
 -- ==========================================
--- 5. AUTO FARM TAB
--- ==========================================
-local campfireDropPos = Vector3.new(0, 19, 0)
-local machineDropPos = Vector3.new(21, 16, -5)
-
-local campfireFuelItems = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"}
-local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
-
-local autoFeedAlways = {}
-local autoEatEnabled = false
-
-local function moveItemToPos(item, position)
-    if not item or not item:IsDescendantOf(workspace) then return end
-    local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-    if not part then return end
-    pcall(function()
-        remoteEvents.RequestStartDraggingItem:FireServer(item)
-        task.wait(0.05)
-        part.CFrame = CFrame.new(position)
-        task.wait(0.05)
-        remoteEvents.StopDraggingItem:FireServer(item)
-    end)
-end
-
-Tabs.Auto:AddDropdown("AutoFeedCampfire", {
-    Title = "Auto Feed Campfire",
-    Values = campfireFuelItems,
-    Multi = true,
-    Default = {},
-    Callback = function(Value)
-        autoFeedAlways = Value
-    end
-})
-
-Tabs.Auto:AddToggle("AutoEat", {
-    Title = "Auto Eat Food (3s Interval)",
-    Default = false,
-    Callback = function(state)
-        autoEatEnabled = state
-    end
-})
-
-task.spawn(function()
-    while true do
-        for itemName, enabled in pairs(autoFeedAlways) do
-            if enabled then
-                for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item.Name == itemName then moveItemToPos(item, campfireDropPos) end
-                end
-            end
-        end
-        task.wait(2)
-    end
-end)
-
-local remoteConsume = remoteEvents:WaitForChild("RequestConsumeItem")
-
-task.spawn(function()
-    while true do
-        if autoEatEnabled then
-            local available = {}
-            for _, item in ipairs(itemFolder:GetChildren()) do
-                if table.find(autoEatFoods, item.Name) then table.insert(available, item) end
-            end
-            if #available > 0 then
-                local food = available[math.random(1, #available)]
-                pcall(function() remoteConsume:InvokeServer(food) end)
-            end
-        end
-        task.wait(3)
-    end
-end)
-
--- ==========================================
 -- 6. PLAYER TAB
 -- ==========================================
 Tabs.Player:AddSlider("WalkSpeed", {
@@ -436,9 +514,7 @@ Tabs.Player:AddSlider("WalkSpeed", {
     Rounding = 0,
     Callback = function(Value)
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.WalkSpeed = Value
-        end
+        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end
     end
 })
 
@@ -450,9 +526,7 @@ Tabs.Player:AddSlider("JumpPower", {
     Rounding = 0,
     Callback = function(Value)
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.JumpPower = Value
-        end
+        if char and char:FindFirstChild("Humanoid") then char.Humanoid.JumpPower = Value end
     end
 })
 
@@ -460,7 +534,6 @@ Tabs.Player:AddSlider("JumpPower", {
 -- 7. VISUALS TAB
 -- ==========================================
 local BillboardESPs = {}
-
 Tabs.Visuals:AddToggle("PlayerESP", {
     Title = "Player ESP",
     Default = false,
@@ -492,8 +565,40 @@ Tabs.Visuals:AddToggle("PlayerESP", {
     end
 })
 
+-- ==========================================
+-- 8. FLOATING TOGGLE BUTTON (MOBILE)
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
+
+ScreenGui.Name = "W424_MobileToggle"
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ResetOnSpawn = false
+
+ToggleButton.Name = "OpenCloseBtn"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.Position = UDim2.new(0, 15, 0.5, -25)
+ToggleButton.Size = UDim2.new(0, 50, 0, 50)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "W424"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = ToggleButton
+
+ToggleButton.MouseButton1Click:Connect(function()
+    if Window then
+        Window:Minimize()
+    end
+end)
+
 Fluent:Notify({
     Title = "W424 Hub Loaded",
-    Content = "Script 99 Nights in the Forest berhasil dimuat!",
+    Content = "Script 99 Nights in the Forest Berhasil Dimuat!",
     Duration = 5
 })
