@@ -1,7 +1,7 @@
--- 1. LOAD LOGIKA BACKEND (Ganti URL ini dengan link raw Functions.lua milikmu)
-local Functions = loadstring(game:HttpGet("https://raw.githubusercontent.com/username_kamu/repo_kamu/main/Functions.lua"))()
+-- 1. LOAD LOGIKA BACKEND (Langsung mengarah ke repo 99night milikmu)
+local Functions = loadstring(game:HttpGet("https://raw.githubusercontent.com/alllazy450-sketch/99night/main/functions.lua"))()
 
--- 2. LOAD UI LIBRARY (Menggunakan Orion UI yang sangat ringan untuk Mobile)
+-- 2. LOAD UI LIBRARY (Orion UI Library)
 local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
 local Window = OrionLib:MakeWindow({
     Name = "99 Nights in the Forest | W424 Hub",
