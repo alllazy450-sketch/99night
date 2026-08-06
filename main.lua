@@ -22,9 +22,9 @@ local Tabs = {
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
+local itemFolder = workspace:WaitForChild("Items")
 
 local function getCharacterInfo()
     local char = LocalPlayer.Character
@@ -34,7 +34,7 @@ local function getCharacterInfo()
 end
 
 -- ==========================================
--- 1. MAIN TAB (SCROLLABLE SECTION)
+-- 1. MAIN TAB
 -- ==========================================
 local MainSection = Tabs.Main:AddSection("Main Features")
 
@@ -135,7 +135,7 @@ MainSection:AddSlider("KillAuraRadius", {
 })
 
 -- ==========================================
--- 2. AUTO FARM TAB (SCROLLABLE SECTIONS)
+-- 2. AUTO FARM TAB
 -- ==========================================
 local WoodSection = Tabs.Auto:AddSection("Auto Farm Wood")
 
@@ -165,8 +165,10 @@ local function autoWoodLoop()
             local axe, damageID = getBestAxe()
             if axe and damageID then
                 pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", axe) end)
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Trunk") or obj.Name == "Small Tree") then
+                
+                local mapFolder = workspace:FindFirstChild("Map") or workspace
+                for _, obj in ipairs(mapFolder:GetChildren()) do
+                    if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Trunk") or obj.Name:find("Foliage")) then
                         local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                         if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
                             pcall(function()
@@ -278,8 +280,8 @@ local autoEatFoods = {
     "Berry", "Carrot", "Apple", "Cooked Fish"
 }
 
-local itemFolder = workspace:WaitForChild("Items")
 local autoFeedAlways = {}
+local autoFeedToggle = false
 local autoEatEnabled = false
 
 local function moveItemToPos(item, position)
@@ -296,11 +298,17 @@ local function moveItemToPos(item, position)
 end
 
 FeedSection:AddDropdown("AutoFeedCampfire", {
-    Title = "Auto Feed Campfire / Cook",
+    Title = "Pilih Bahan Makanan/Bakar",
     Values = campfireFuelItems,
     Multi = true,
     Default = {},
     Callback = function(Value) autoFeedAlways = Value end
+})
+
+FeedSection:AddToggle("EnableAutoFeed", {
+    Title = "Enable Auto Feed Campfire",
+    Default = false,
+    Callback = function(state) autoFeedToggle = state end
 })
 
 FeedSection:AddToggle("AutoEat", {
@@ -311,10 +319,12 @@ FeedSection:AddToggle("AutoEat", {
 
 task.spawn(function()
     while true do
-        for itemName, enabled in pairs(autoFeedAlways) do
-            if enabled then
-                for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item.Name == itemName then moveItemToPos(item, campfireDropPos) end
+        if autoFeedToggle then
+            for itemName, enabled in pairs(autoFeedAlways) do
+                if enabled then
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if item.Name == itemName then moveItemToPos(item, campfireDropPos) end
+                    end
                 end
             end
         end
@@ -340,7 +350,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 3. ITEM TP & ESP TAB (SCROLLABLE SECTION)
+-- 3. ITEM TP & ESP TAB
 -- ==========================================
 local ItemSection = Tabs.ItemTP:AddSection("Item Utilities")
 
@@ -457,7 +467,7 @@ ItemSection:AddDropdown("BringBulkItem", {
 })
 
 -- ==========================================
--- 4. GAME TP TAB (SCROLLABLE SECTION)
+-- 4. GAME TP TAB
 -- ==========================================
 local GameTPSection = Tabs.GameTP:AddSection("Teleports")
 
@@ -477,7 +487,7 @@ GameTPSection:AddButton({
 })
 
 -- ==========================================
--- 5. MOB TP TAB (SCROLLABLE SECTION)
+-- 5. MOB TP TAB
 -- ==========================================
 local MobSection = Tabs.MobTP:AddSection("Mob Utilities")
 
@@ -515,7 +525,7 @@ MobSection:AddDropdown("BringMob", {
 })
 
 -- ==========================================
--- 6. PLAYER TAB (SCROLLABLE SECTION)
+-- 6. PLAYER TAB
 -- ==========================================
 local PlayerSection = Tabs.Player:AddSection("LocalPlayer Stats")
 
@@ -544,7 +554,7 @@ PlayerSection:AddSlider("JumpPower", {
 })
 
 -- ==========================================
--- 7. VISUALS TAB (SCROLLABLE SECTION)
+-- 7. VISUALS TAB
 -- ==========================================
 local VisualsSection = Tabs.Visuals:AddSection("Visual Options")
 
