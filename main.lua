@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FIX SLIDER UI & HIT AURA
+-- INPUT NUMBER RANGE EDITION (TYPE YOUR RANGE)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -193,7 +193,7 @@ local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footag
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Fixed UI Sliders",
+    Subtitle = "W424 Hub | Input Text Range Edition",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -214,12 +214,16 @@ MainTab:Toggle({
     Callback = function(v) KillAuraEnabled = v end
 })
 
-MainTab:Slider({
-    Title = "Kill Aura Range",
-    Min = 50,
-    Max = 1000,
-    Value = { Min = 50, Max = 1000, Default = 500 },
-    Callback = function(v) KillAuraRadius = type(v) == "table" and v.Default or v end
+MainTab:Input({
+    Title = "Kill Aura Range (Studs)",
+    Value = "500",
+    Placeholder = "Ketik Range (cth: 1000)",
+    Callback = function(v)
+        local num = tonumber(v)
+        if num then
+            KillAuraRadius = num
+        end
+    end
 })
 
 AutoTab:Section({ Title = "Hit Farming Features" })
@@ -230,12 +234,16 @@ AutoTab:Toggle({
     Callback = function(v) AutoWoodEnabled = v end
 })
 
-AutoTab:Slider({
-    Title = "Auto Wood Range",
-    Min = 50,
-    Max = 1000,
-    Value = { Min = 50, Max = 1000, Default = 500 },
-    Callback = function(v) AutoWoodRadius = type(v) == "table" and v.Default or v end
+AutoTab:Input({
+    Title = "Auto Wood Range (Studs)",
+    Value = "500",
+    Placeholder = "Ketik Range (cth: 10000 buat Max Map)",
+    Callback = function(v)
+        local num = tonumber(v)
+        if num then
+            AutoWoodRadius = num
+        end
+    end
 })
 
 AutoTab:Toggle({
@@ -281,22 +289,21 @@ ItemTab:Dropdown({
     end
 })
 
-PlayerTab:Slider({
+PlayerTab:Input({
     Title = "WalkSpeed",
-    Min = 16,
-    Max = 250,
-    Value = { Min = 16, Max = 250, Default = 16 },
+    Value = "16",
+    Placeholder = "Ketik Kecepatan (cth: 50)",
     Callback = function(v)
+        local num = tonumber(v)
         local char = LocalPlayer and LocalPlayer.Character
-        local val = type(v) == "table" and v.Default or v
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.WalkSpeed = val
+        if num and char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.WalkSpeed = num
         end
     end
 })
 
 WindUI:Notify({
-    Title = "Slider Fixed",
-    Content = "Range Auto Wood & Kill Aura Sekarang Sudah Normal!",
+    Title = "Input System Ready",
+    Content = "Sekarang Kamu Bisa Ketik Bebas Angka Range-nya!",
     Duration = 5
 })
