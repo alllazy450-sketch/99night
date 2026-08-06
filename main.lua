@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | FINAL DENGAN DEBUG TELEPORT
+-- W424 HUB | FINAL DENGAN DEBUG TOOL LENGKAP
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -18,7 +18,7 @@ local KillAuraRadius = 500
 
 local AutoWoodEnabled = false
 local SelectedTreeType = "All Trees"
-local SelectedAxeName = "Old Axe"
+local SelectedAxeName = "Old Axe"  -- default
 
 local AutoHuntEnabled = false
 local SelectedMob = "Wolf"
@@ -55,7 +55,7 @@ local function getHRP()
 end
 
 -- ==========================================
--- EQUIP TOOL (DENGAN DEBUG & HUMANOD:EQUIPTOOL)
+-- EQUIP TOOL (DENGAN PENCARIAN DI BACKPACK)
 -- ==========================================
 local function ensureToolEquipped(toolName)
     local char = LocalPlayer.Character
@@ -69,53 +69,65 @@ local function ensureToolEquipped(toolName)
         end
     end
 
-    -- Cek Inventory
-    local inv = LocalPlayer:FindFirstChild("Inventory")
-    if not inv then
-        warn("Inventory tidak ditemukan!")
-        return nil
-    end
-
+    -- Cek di Inventory, Backpack, StarterGear
+    local containers = {
+        LocalPlayer:FindFirstChild("Inventory"),
+        LocalPlayer:FindFirstChild("Backpack"),
+        LocalPlayer:FindFirstChild("StarterGear")
+    }
+    
+    local allTools = {}
     local tool = nil
-    for _, item in ipairs(inv:GetChildren()) do
-        if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
-            tool = item
-            break
+
+    for _, container in ipairs(containers) do
+        if container then
+            for _, item in ipairs(container:GetChildren()) do
+                if item:IsA("Tool") then
+                    table.insert(allTools, item.Name)
+                    if item.Name == toolName or item.Name:find(toolName) then
+                        tool = item
+                        break
+                    end
+                end
+            end
         end
+        if tool then break end
     end
 
     if not tool then
-        warn("Tool " .. toolName .. " tidak ditemukan di Inventory!")
-        local toolList = {}
-        for _, item in ipairs(inv:GetChildren()) do
-            if item:IsA("Tool") then table.insert(toolList, item.Name) end
-        end
-        warn("Tool yang tersedia: " .. table.concat(toolList, ", "))
+        warn("Tool " .. toolName .. " tidak ditemukan di semua container!")
+        warn("Daftar semua tool yang tersedia: " .. table.concat(allTools, ", "))
         return nil
     end
 
-    -- Equip via remote (coba berbagai cara)
+    -- Jika tool ditemukan, coba equip
     if remoteEvents then
-        local equipRemote = remoteEvents:FindFirstChild("EquipItemHandle") or remoteEvents:FindFirstChild("EquipItem")
-        if equipRemote then
-            pcall(function() equipRemote:FireServer(tool) end)
-            task.wait(0.2)
-            if char:FindFirstChild(toolName) then
-                equippedTool = char:FindFirstChild(toolName)
-                return equippedTool
+        -- Coba berbagai remote event
+        local equipRemotes = {
+            remoteEvents:FindFirstChild("EquipItemHandle"),
+            remoteEvents:FindFirstChild("EquipItem"),
+            remoteEvents:FindFirstChild("EquipTool"),
+            remoteEvents:FindFirstChild("SelectTool")
+        }
+        for _, remote in ipairs(equipRemotes) do
+            if remote then
+                pcall(function() remote:FireServer(tool) end)
+                task.wait(0.15)
+                if char:FindFirstChild(toolName) then
+                    equippedTool = char:FindFirstChild(toolName)
+                    return equippedTool
+                end
+                pcall(function() remote:FireServer(toolName) end)
+                task.wait(0.15)
+                if char:FindFirstChild(toolName) then
+                    equippedTool = char:FindFirstChild(toolName)
+                    return equippedTool
+                end
             end
-            pcall(function() equipRemote:FireServer(toolName) end)
-            task.wait(0.2)
-            if char:FindFirstChild(toolName) then
-                equippedTool = char:FindFirstChild(toolName)
-                return equippedTool
-            end
-            pcall(function() equipRemote:InvokeServer(tool) end)
-            task.wait(0.2)
         end
     end
 
-    -- Metode standar Roblox: Humanoid:EquipTool
+    -- Metode standar: Humanoid:EquipTool
     local humanoid = char:FindFirstChild("Humanoid")
     if humanoid then
         pcall(function() humanoid:EquipTool(tool) end)
@@ -126,8 +138,8 @@ local function ensureToolEquipped(toolName)
         end
     end
 
-    -- Last resort: pindahkan langsung (risiko)
-    warn("Remote dan Humanoid:EquipTool gagal, mencoba pindahkan langsung...")
+    -- Terakhir: paksa pindah (risiko tool jatuh)
+    warn("Semua metode equip gagal, mencoba pindahkan langsung...")
     pcall(function() tool.Parent = char end)
     task.wait(0.2)
     if char:FindFirstChild(toolName) then
@@ -139,7 +151,7 @@ local function ensureToolEquipped(toolName)
 end
 
 -- ==========================================
--- SERANG TARGET (MULTI METODE)
+-- SERANG TARGET
 -- ==========================================
 local function attackTarget(target, tool, damageID)
     if not target or not tool then return false end
@@ -222,7 +234,7 @@ local function getTreeMainPart(tree)
 end
 
 -- ==========================================
--- GET FILTERED TREES (SCAN SELURUH WORKSPACE)
+-- GET FILTERED TREES
 -- ==========================================
 local function getFilteredTrees()
     local trees = {}
@@ -244,7 +256,6 @@ local function getFilteredTrees()
         end
     end
 
-    -- Scan semua folder yang mungkin di Map
     local map = Workspace:FindFirstChild("Map")
     if map then
         local possibleFolders = {"Foliage", "Landmarks", "Trees", "Environment", "Resources"}
@@ -255,7 +266,6 @@ local function getFilteredTrees()
         scan(map)
     end
 
-    -- Jika belum ada, scan seluruh Workspace
     if #trees == 0 then
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Brightwood") or obj.Name:find("Fairy")) then
@@ -263,7 +273,6 @@ local function getFilteredTrees()
             end
         end
     end
-
     return trees
 end
 
@@ -315,7 +324,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- AUTO WOOD (DENGAN DEBUG TELEPORT)
+-- AUTO WOOD
 -- ==========================================
 task.spawn(function()
     while true do
@@ -327,10 +336,9 @@ task.spawn(function()
                     WasWoodFarming = true
                 end
 
-                -- Equip tool (tidak harus berhasil untuk debug teleport)
                 local tool = ensureToolEquipped(SelectedAxeName)
                 if not tool then
-                    warn("Tool tidak ditemukan, tetapi tetap mencoba mencari pohon untuk debug.")
+                    warn("Tool tidak ditemukan, hanya teleport tanpa menyerang.")
                 end
 
                 local treeList = getFilteredTrees()
@@ -343,19 +351,16 @@ task.spawn(function()
                     local mainPart = getTreeMainPart(tree)
                     if not mainPart then continue end
                     
-                    -- Teleport ke pohon
                     local targetCFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
                     print("Teleport ke pohon: " .. tree.Name .. " di " .. tostring(mainPart.Position))
                     hrp.CFrame = targetCFrame
                     task.wait(0.3)
 
                     if not tool then
-                        warn("Tidak ada tool, hanya teleport tanpa menyerang.")
                         task.wait(1)
                         continue
                     end
 
-                    -- Pukul pohon
                     local maxHits = 25
                     local hitCount = 0
                     local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
@@ -503,7 +508,7 @@ end)
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Final Debug",
+    Subtitle = "W424 Hub | Final Debug Tool",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -543,4 +548,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Update Final", Content = "Sekarang ada debug teleport!", Duration = 5 })
+WindUI:Notify({ Title = "Update Final", Content = "Sekarang tool akan terdeteksi dari semua container!", Duration = 5 })
