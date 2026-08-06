@@ -23,8 +23,14 @@ local Tabs = {
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
 local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
 local itemFolder = workspace:WaitForChild("Items")
+
+local isUIMinimized = false
+Window:OnMinimize(function(state)
+    isUIMinimized = state
+end)
 
 local function getCharacterInfo()
     local char = LocalPlayer.Character
@@ -160,15 +166,19 @@ end
 
 local function autoWoodLoop()
     while autoWoodToggle do
-        local _, hrp = getCharacterInfo()
+        local char, hrp = getCharacterInfo()
         if hrp then
             local axe, damageID = getBestAxe()
             if axe and damageID then
                 pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", axe) end)
                 
+                if isUIMinimized then
+                    VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                end
+                
                 local mapFolder = workspace:FindFirstChild("Map") or workspace
-                for _, obj in ipairs(mapFolder:GetChildren()) do
-                    if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Trunk") or obj.Name:find("Foliage")) then
+                for _, obj in ipairs(mapFolder:GetDescendants()) do
+                    if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Trunk") or obj.Name == "Small Tree") then
                         local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                         if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
                             pcall(function()
@@ -179,12 +189,12 @@ local function autoWoodLoop()
                 end
             end
         end
-        task.wait(0.15)
+        task.wait(0.2)
     end
 end
 
 WoodSection:AddToggle("AutoWood", {
-    Title = "Auto Farm Wood (Auto Equip Axe)",
+    Title = "Auto Farm Wood (Auto Swing + Equip)",
     Default = false,
     Callback = function(state)
         autoWoodToggle = state
@@ -201,20 +211,23 @@ WoodSection:AddSlider("AutoWoodRadius", {
     Callback = function(value) autoWoodRadius = value end
 })
 
+-- AUTO HUNT MOB (LOGIKA BARU: TP -> FREEZE -> SWING -> UNFREEZE)
 local HuntSection = Tabs.Auto:AddSection("Auto Hunt Mob")
 
 local autoHuntToggle = false
-local huntDistance = 15
-local selectedMob = "Bunny"
+local huntDistance = 20
+local selectedMob = "Wolf"
 local huntableMobs = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist", "Alien"}
 
 local function autoHuntLoop()
     while autoHuntToggle do
-        local _, hrp = getCharacterInfo()
+        local char, hrp = getCharacterInfo()
         local characterFolder = workspace:FindFirstChild("Characters")
+        
         if hrp and characterFolder then
             local tool, damageID = getAnyToolWithDamageID()
             local targetMob = nil
+            
             for _, mob in ipairs(characterFolder:GetChildren()) do
                 if mob:IsA("Model") and mob.Name == selectedMob then
                     local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
@@ -225,52 +238,82 @@ local function autoHuntLoop()
                     end
                 end
             end
+            
             if targetMob then
                 local mobPart = targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
                 if mobPart then
                     if tool then pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end) end
-                    hrp.CFrame = mobPart.CFrame + Vector3.new(0, huntDistance, 0)
+                    
+                    -- 1. TELEPORT KE ATAS MOB
+                    hrp.CFrame = CFrame.new(mobPart.Position + Vector3.new(0, huntDistance, 0))
+                    
+                    -- 2. FREEZE POSITION (Anchor HRP sementara agar melayang sempurna)
+                    hrp.Anchored = true
+                    
+                    -- 3. SWING & HIT
+                    if isUIMinimized then
+                        VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    end
+                    
                     if tool and damageID then
                         pcall(function()
                             remoteEvents.ToolDamageObject:InvokeServer(targetMob, tool, damageID, CFrame.new(mobPart.Position))
                         end)
                     end
+                    
+                    task.wait(0.12)
+                    
+                    -- 4. UNFREEZE (Buka Kunci)
+                    hrp.Anchored = false
                 end
+            else
+                -- Jika tidak ada mob, unfreeze
+                if hrp.Anchored then hrp.Anchored = false end
             end
         end
         task.wait(0.1)
     end
+    
+    -- Safety unfreeze jika feature di-OFF kan
+    local _, hrp = getCharacterInfo()
+    if hrp and hrp.Anchored then hrp.Anchored = false end
 end
 
 HuntSection:AddDropdown("SelectHuntMob", {
     Title = "Pilih Target Mob",
     Values = huntableMobs,
     Multi = false,
-    Default = 1,
+    Default = 2,
     Callback = function(value) selectedMob = value end
 })
 
 HuntSection:AddSlider("HuntHeight", {
-    Title = "Ketinggian Terbang (Height)",
-    Default = 15,
-    Min = 1,
+    Title = "Ketinggian Teleport/Freeze",
+    Default = 20,
+    Min = 5,
     Max = 100,
     Rounding = 0,
     Callback = function(value) huntDistance = value end
 })
 
 HuntSection:AddToggle("AutoHunt", {
-    Title = "Auto Farm / Hunt Mob (Fly)",
+    Title = "Auto Farm Mob (TP -> Freeze -> Swing)",
     Default = false,
     Callback = function(state)
         autoHuntToggle = state
-        if state then task.spawn(autoHuntLoop) end
+        if state then 
+            task.spawn(autoHuntLoop) 
+        else
+            local _, hrp = getCharacterInfo()
+            if hrp then hrp.Anchored = false end
+        end
     end
 })
 
-local FeedSection = Tabs.Auto:AddSection("Auto Feed & Eat")
+-- AUTO CLAIM & FEED CAMPFIRE
+local FeedSection = Tabs.Auto:AddSection("Auto Claim & Feed Campfire")
 
-local campfireDropPos = Vector3.new(0, 19, 0)
+local safeCampfireOffset = Vector3.new(6, 3, 6) 
 local campfireFuelItems = {
     "Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel",
     "Bunny Foot", "Bunny Meat", "Wolf Meat", "Bear Meat", "Morsel", "Steak", "Raw Meat"
@@ -283,6 +326,7 @@ local autoEatFoods = {
 local autoFeedAlways = {}
 local autoFeedToggle = false
 local autoEatEnabled = false
+local autoClaimItems = false
 
 local function moveItemToPos(item, position)
     if not item or not item:IsDescendantOf(workspace) then return end
@@ -297,8 +341,14 @@ local function moveItemToPos(item, position)
     end)
 end
 
+FeedSection:AddToggle("AutoClaimMeat", {
+    Title = "Auto Claim Meat / Drop Items to Player",
+    Default = false,
+    Callback = function(state) autoClaimItems = state end
+})
+
 FeedSection:AddDropdown("AutoFeedCampfire", {
-    Title = "Pilih Bahan Makanan/Bakar",
+    Title = "Pilih Bahan Bakar/Masak",
     Values = campfireFuelItems,
     Multi = true,
     Default = {},
@@ -306,7 +356,7 @@ FeedSection:AddDropdown("AutoFeedCampfire", {
 })
 
 FeedSection:AddToggle("EnableAutoFeed", {
-    Title = "Enable Auto Feed Campfire",
+    Title = "Enable Auto Feed Campfire (Near Fire)",
     Default = false,
     Callback = function(state) autoFeedToggle = state end
 })
@@ -319,11 +369,30 @@ FeedSection:AddToggle("AutoEat", {
 
 task.spawn(function()
     while true do
+        if autoClaimItems then
+            local _, hrp = getCharacterInfo()
+            if hrp then
+                for _, item in ipairs(itemFolder:GetChildren()) do
+                    if item.Name:find("Meat") or item.Name:find("Pelt") or item.Name:find("Foot") then
+                        moveItemToPos(item, hrp.Position + Vector3.new(0, 2, 0))
+                    end
+                end
+            end
+        end
+        task.wait(1.5)
+    end
+end)
+
+task.spawn(function()
+    while true do
         if autoFeedToggle then
+            local campsite = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Campsite")
+            local targetPos = campsite and (campsite.PrimaryPart and campsite.PrimaryPart.Position + safeCampfireOffset) or Vector3.new(6, 12, 6)
+            
             for itemName, enabled in pairs(autoFeedAlways) do
                 if enabled then
                     for _, item in ipairs(itemFolder:GetChildren()) do
-                        if item.Name == itemName then moveItemToPos(item, campfireDropPos) end
+                        if item.Name == itemName then moveItemToPos(item, targetPos) end
                     end
                 end
             end
