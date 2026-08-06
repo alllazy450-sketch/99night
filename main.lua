@@ -1,6 +1,5 @@
 -- ==========================================
--- W424 HUB | 99 NIGHTS IN THE FOREST
--- FINAL STABLE | TOOL TIDAK JATUH
+-- W424 HUB | FINAL DENGAN DEBUG TELEPORT
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -56,42 +55,86 @@ local function getHRP()
 end
 
 -- ==========================================
--- EQUIP TOOL (TANPA PINDAH PAKSA)
+-- EQUIP TOOL (DENGAN DEBUG & HUMANOD:EQUIPTOOL)
 -- ==========================================
 local function ensureToolEquipped(toolName)
     local char = LocalPlayer.Character
     if not char then return nil end
 
-    -- Sudah di tangan?
-    local tool = char:FindFirstChild(toolName)
-    if tool then
-        equippedTool = tool
-        return tool
+    -- Cek tool di tangan
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Tool") and (child.Name == toolName or child.Name:find(toolName)) then
+            equippedTool = child
+            return child
+        end
     end
 
-    -- Cari di inventory
+    -- Cek Inventory
     local inv = LocalPlayer:FindFirstChild("Inventory")
-    if not inv then return nil end
+    if not inv then
+        warn("Inventory tidak ditemukan!")
+        return nil
+    end
 
-    tool = inv:FindFirstChild(toolName)
-    if not tool then return nil end
+    local tool = nil
+    for _, item in ipairs(inv:GetChildren()) do
+        if item:IsA("Tool") and (item.Name == toolName or item.Name:find(toolName)) then
+            tool = item
+            break
+        end
+    end
 
-    -- Equip via remote (hanya sekali, tanpa paksa pindah)
+    if not tool then
+        warn("Tool " .. toolName .. " tidak ditemukan di Inventory!")
+        local toolList = {}
+        for _, item in ipairs(inv:GetChildren()) do
+            if item:IsA("Tool") then table.insert(toolList, item.Name) end
+        end
+        warn("Tool yang tersedia: " .. table.concat(toolList, ", "))
+        return nil
+    end
+
+    -- Equip via remote (coba berbagai cara)
     if remoteEvents then
         local equipRemote = remoteEvents:FindFirstChild("EquipItemHandle") or remoteEvents:FindFirstChild("EquipItem")
         if equipRemote then
             pcall(function() equipRemote:FireServer(tool) end)
-            task.wait(0.3) -- beri waktu respons
-            -- Cek apakah sudah berpindah ke karakter
-            local newTool = char:FindFirstChild(toolName)
-            if newTool then
-                equippedTool = newTool
-                return newTool
+            task.wait(0.2)
+            if char:FindFirstChild(toolName) then
+                equippedTool = char:FindFirstChild(toolName)
+                return equippedTool
             end
+            pcall(function() equipRemote:FireServer(toolName) end)
+            task.wait(0.2)
+            if char:FindFirstChild(toolName) then
+                equippedTool = char:FindFirstChild(toolName)
+                return equippedTool
+            end
+            pcall(function() equipRemote:InvokeServer(tool) end)
+            task.wait(0.2)
         end
     end
 
-    -- Jika gagal, jangan pindahkan secara paksa!
+    -- Metode standar Roblox: Humanoid:EquipTool
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then
+        pcall(function() humanoid:EquipTool(tool) end)
+        task.wait(0.2)
+        if char:FindFirstChild(toolName) then
+            equippedTool = char:FindFirstChild(toolName)
+            return equippedTool
+        end
+    end
+
+    -- Last resort: pindahkan langsung (risiko)
+    warn("Remote dan Humanoid:EquipTool gagal, mencoba pindahkan langsung...")
+    pcall(function() tool.Parent = char end)
+    task.wait(0.2)
+    if char:FindFirstChild(toolName) then
+        equippedTool = char:FindFirstChild(toolName)
+        return equippedTool
+    end
+
     return nil
 end
 
@@ -139,7 +182,7 @@ local function attackTarget(target, tool, damageID)
 end
 
 -- ==========================================
--- CAMPFIRE POSITION
+-- GET CAMPFIRE POSITION
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -178,6 +221,9 @@ local function getTreeMainPart(tree)
     return nil
 end
 
+-- ==========================================
+-- GET FILTERED TREES (SCAN SELURUH WORKSPACE)
+-- ==========================================
 local function getFilteredTrees()
     local trees = {}
     local function scan(folder)
@@ -198,6 +244,7 @@ local function getFilteredTrees()
         end
     end
 
+    -- Scan semua folder yang mungkin di Map
     local map = Workspace:FindFirstChild("Map")
     if map then
         local possibleFolders = {"Foliage", "Landmarks", "Trees", "Environment", "Resources"}
@@ -207,6 +254,8 @@ local function getFilteredTrees()
         end
         scan(map)
     end
+
+    -- Jika belum ada, scan seluruh Workspace
     if #trees == 0 then
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Brightwood") or obj.Name:find("Fairy")) then
@@ -214,6 +263,7 @@ local function getFilteredTrees()
             end
         end
     end
+
     return trees
 end
 
@@ -265,7 +315,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- AUTO WOOD (DIPERBAIKI)
+-- AUTO WOOD (DENGAN DEBUG TELEPORT)
 -- ==========================================
 task.spawn(function()
     while true do
@@ -277,17 +327,15 @@ task.spawn(function()
                     WasWoodFarming = true
                 end
 
-                -- Equip tool
+                -- Equip tool (tidak harus berhasil untuk debug teleport)
                 local tool = ensureToolEquipped(SelectedAxeName)
                 if not tool then
-                    warn("Gagal equip tool: " .. SelectedAxeName .. ", menunggu...")
-                    task.wait(2)
-                    continue
+                    warn("Tool tidak ditemukan, tetapi tetap mencoba mencari pohon untuk debug.")
                 end
 
-                local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
                 local treeList = getFilteredTrees()
-                
+                print("Jumlah pohon ditemukan: " .. #treeList)
+
                 for _, tree in ipairs(treeList) do
                     if not AutoWoodEnabled then break end
                     if not tree:IsDescendantOf(Workspace) then continue end
@@ -295,19 +343,28 @@ task.spawn(function()
                     local mainPart = getTreeMainPart(tree)
                     if not mainPart then continue end
                     
-                    hrp.CFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
-                    task.wait(0.2)
-                    
+                    -- Teleport ke pohon
+                    local targetCFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
+                    print("Teleport ke pohon: " .. tree.Name .. " di " .. tostring(mainPart.Position))
+                    hrp.CFrame = targetCFrame
+                    task.wait(0.3)
+
+                    if not tool then
+                        warn("Tidak ada tool, hanya teleport tanpa menyerang.")
+                        task.wait(1)
+                        continue
+                    end
+
+                    -- Pukul pohon
                     local maxHits = 25
                     local hitCount = 0
+                    local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
                     while AutoWoodEnabled and tree:IsDescendantOf(Workspace) and getTreeMainPart(tree) and hitCount < maxHits do
-                        -- Cek tool masih di tangan
                         local currentTool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(SelectedAxeName)
                         if not currentTool then
-                            -- Coba equip ulang
                             currentTool = ensureToolEquipped(SelectedAxeName)
                             if not currentTool then
-                                warn("Tool hilang, tidak bisa equip ulang, keluar dari pohon ini.")
+                                warn("Tool hilang, tidak bisa menyerang.")
                                 break
                             end
                             tool = currentTool
@@ -319,6 +376,8 @@ task.spawn(function()
                     end
                     task.wait(0.5)
                 end
+            else
+                warn("HRP tidak ditemukan, menunggu...")
             end
         else
             if WasWoodFarming then
@@ -444,7 +503,7 @@ end)
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Final Stable",
+    Subtitle = "W424 Hub | Final Debug",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -484,4 +543,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Update Final", Content = "Tool tidak akan jatuh lagi!", Duration = 5 })
+WindUI:Notify({ Title = "Update Final", Content = "Sekarang ada debug teleport!", Duration = 5 })
