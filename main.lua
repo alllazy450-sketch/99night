@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FINAL STABLE | TOOL TIDAK HILANG
+-- FINAL STABLE | TOOL TIDAK JATUH
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -55,46 +55,49 @@ local function getHRP()
     return nil
 end
 
--- Equip Tool (dengan cache)
+-- ==========================================
+-- EQUIP TOOL (TANPA PINDAH PAKSA)
+-- ==========================================
 local function ensureToolEquipped(toolName)
     local char = LocalPlayer.Character
     if not char then return nil end
 
+    -- Sudah di tangan?
     local tool = char:FindFirstChild(toolName)
     if tool then
         equippedTool = tool
         return tool
     end
 
+    -- Cari di inventory
     local inv = LocalPlayer:FindFirstChild("Inventory")
     if not inv then return nil end
 
     tool = inv:FindFirstChild(toolName)
     if not tool then return nil end
 
+    -- Equip via remote (hanya sekali, tanpa paksa pindah)
     if remoteEvents then
         local equipRemote = remoteEvents:FindFirstChild("EquipItemHandle") or remoteEvents:FindFirstChild("EquipItem")
         if equipRemote then
             pcall(function() equipRemote:FireServer(tool) end)
-            task.wait(0.2)
-            if char:FindFirstChild(toolName) then
-                equippedTool = char:FindFirstChild(toolName)
-                return equippedTool
+            task.wait(0.3) -- beri waktu respons
+            -- Cek apakah sudah berpindah ke karakter
+            local newTool = char:FindFirstChild(toolName)
+            if newTool then
+                equippedTool = newTool
+                return newTool
             end
         end
     end
 
-    pcall(function() tool.Parent = char end)
-    task.wait(0.2)
-    if char:FindFirstChild(toolName) then
-        equippedTool = char:FindFirstChild(toolName)
-        return equippedTool
-    end
-
+    -- Jika gagal, jangan pindahkan secara paksa!
     return nil
 end
 
--- Attack Target (multi metode)
+-- ==========================================
+-- SERANG TARGET (MULTI METODE)
+-- ==========================================
 local function attackTarget(target, tool, damageID)
     if not target or not tool then return false end
     local mainPart = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") 
@@ -135,7 +138,9 @@ local function attackTarget(target, tool, damageID)
     return success
 end
 
--- Get Campfire Position
+-- ==========================================
+-- CAMPFIRE POSITION
+-- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
     if map then
@@ -212,7 +217,9 @@ local function getFilteredTrees()
     return trees
 end
 
--- Auto Claim
+-- ==========================================
+-- AUTO CLAIM
+-- ==========================================
 local function isClaimableItem(item)
     if not item or not item.Name then return false end
     local name = item.Name
@@ -229,7 +236,9 @@ itemFolder.ChildAdded:Connect(function(child)
     end
 end)
 
--- Kill Aura
+-- ==========================================
+-- KILL AURA
+-- ==========================================
 task.spawn(function()
     while true do
         if KillAuraEnabled then
@@ -255,7 +264,9 @@ task.spawn(function()
     end
 end)
 
--- Auto Wood (DIPERBAIKI - Tool Tetap)
+-- ==========================================
+-- AUTO WOOD (DIPERBAIKI)
+-- ==========================================
 task.spawn(function()
     while true do
         if AutoWoodEnabled then
@@ -266,9 +277,10 @@ task.spawn(function()
                     WasWoodFarming = true
                 end
 
+                -- Equip tool
                 local tool = ensureToolEquipped(SelectedAxeName)
                 if not tool then
-                    warn("Tool tidak ditemukan: " .. SelectedAxeName)
+                    warn("Gagal equip tool: " .. SelectedAxeName .. ", menunggu...")
                     task.wait(2)
                     continue
                 end
@@ -289,12 +301,13 @@ task.spawn(function()
                     local maxHits = 25
                     local hitCount = 0
                     while AutoWoodEnabled and tree:IsDescendantOf(Workspace) and getTreeMainPart(tree) and hitCount < maxHits do
+                        -- Cek tool masih di tangan
                         local currentTool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(SelectedAxeName)
                         if not currentTool then
+                            -- Coba equip ulang
                             currentTool = ensureToolEquipped(SelectedAxeName)
                             if not currentTool then
-                                warn("Tool hilang, coba equip ulang...")
-                                task.wait(1)
+                                warn("Tool hilang, tidak bisa equip ulang, keluar dari pohon ini.")
                                 break
                             end
                             tool = currentTool
@@ -322,7 +335,9 @@ task.spawn(function()
     end
 end)
 
--- Auto Hunt
+-- ==========================================
+-- AUTO HUNT
+-- ==========================================
 task.spawn(function()
     while true do
         if AutoHuntEnabled then
@@ -363,7 +378,9 @@ task.spawn(function()
     end
 end)
 
--- Bulk TP
+-- ==========================================
+-- BULK TP & AUTO FEED
+-- ==========================================
 task.spawn(function()
     while true do
         if BulkTPEnabled then
@@ -386,7 +403,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Feed
 task.spawn(function()
     while true do
         if AutoFeedEnabled then
@@ -408,7 +424,9 @@ task.spawn(function()
     end
 end)
 
--- Character Respawn
+-- ==========================================
+-- RESPAWN HANDLER
+-- ==========================================
 LocalPlayer.CharacterAdded:Connect(function(char)
     WasWoodFarming = false
     WasHunting = false
@@ -466,4 +484,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Update Final", Content = "Tool sekarang tidak hilang!", Duration = 5 })
+WindUI:Notify({ Title = "Update Final", Content = "Tool tidak akan jatuh lagi!", Duration = 5 })
