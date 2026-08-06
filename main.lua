@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FULL IMPROVED ENGINE & CUSTOM FEATURES
+-- ADVANCED DIRECT TP & ERROR-FREE ENGINE
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -73,33 +73,59 @@ local function getCampfirePosition()
             end
         end
     end
-    return Vector3.new(0, 19, 0) -- Default Fallback Position
+    return Vector3.new(0, 19, 0)
 end
 
+-- METODE TELEPORT ITEM BARU (PHYSICS + PIVOT SAFE)
 local function moveItemToPos(item, position)
-    if not item or not item:IsDescendantOf(Workspace) or not remoteEvents then return end
-    local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart") or item:FindFirstChild("Handle")
-    if part then
-        pcall(function()
+    if not item or not item:IsDescendantOf(Workspace) then return end
+    
+    pcall(function()
+        if remoteEvents then
             remoteEvents.RequestStartDraggingItem:FireServer(item)
-            part.CFrame = CFrame.new(position)
+        end
+        
+        if item:IsA("Model") then
+            item:PivotTo(CFrame.new(position))
+        else
+            item.CFrame = CFrame.new(position)
+        end
+        
+        for _, part in ipairs(item:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CFrame = CFrame.new(position)
+                part.Velocity = Vector3.new(0,0,0)
+            end
+        end
+
+        if remoteEvents then
             remoteEvents.StopDraggingItem:FireServer(item)
-        end)
-    end
+        end
+    end)
+end
+
+-- Safe Tree Part Finder
+local function getTreeMainPart(tree)
+    if not tree then return nil end
+    return tree:FindFirstChild("Trunk") 
+        or tree:FindFirstChild("Trunk1") 
+        or tree.PrimaryPart 
+        or tree:FindFirstChildWhichIsA("BasePart")
 end
 
 -- ==========================================
--- REAL-TIME AUTO CLAIM (EVENT LISTENER)
+-- REAL-TIME AUTO CLAIM
 -- ==========================================
 
 local function isClaimableItem(item)
+    if not item or not item.Name then return false end
     local name = item.Name
     return name:find("Meat") or name:find("Pelt") or name == "Bunny Foot" or name == "Log" or name:find("Steak") or name:find("Morsel")
 end
 
 itemFolder.ChildAdded:Connect(function(child)
     if AutoClaimEnabled then
-        task.wait(0.2)
+        task.wait(0.15)
         local hrp = getHRP()
         if hrp and isClaimableItem(child) then
             moveItemToPos(child, hrp.Position + Vector3.new(0, 2, 0))
@@ -111,7 +137,7 @@ end)
 -- BACKGROUND LOOPS
 -- ==========================================
 
--- 1. Extended Kill Aura Loop
+-- 1. Kill Aura Loop
 task.spawn(function()
     while true do
         if KillAuraEnabled then
@@ -137,7 +163,7 @@ task.spawn(function()
     end
 end)
 
--- 2. Accurate Auto Wood TP Loop
+-- 2. Safe Auto Wood Loop
 local function getFilteredTrees()
     local trees = {}
     local function scan(folder)
@@ -182,15 +208,14 @@ task.spawn(function()
                     if not AutoWoodEnabled then break end
                     
                     if tree and tree:IsDescendantOf(Workspace) then
-                        local trunk = tree:FindFirstChild("Trunk") or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
-                        if trunk then
-                            -- Teleport presisi di depan Trunk pohon
-                            hrp.CFrame = CFrame.new(trunk.Position + Vector3.new(0, 0, 3), trunk.Position)
+                        local mainPart = getTreeMainPart(tree)
+                        if mainPart then
+                            hrp.CFrame = CFrame.new(mainPart.Position + Vector3.new(0, 0, 3.5), mainPart.Position)
                             task.wait(0.1)
                             
                             while AutoWoodEnabled and tree and tree:IsDescendantOf(Workspace) do
                                 remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool)
-                                remoteEvents.ToolDamageObject:InvokeServer(tree, tool, damageID, CFrame.new(trunk.Position))
+                                remoteEvents.ToolDamageObject:InvokeServer(tree, tool, damageID, CFrame.new(mainPart.Position))
                                 task.wait(0.12)
                             end
                         end
@@ -243,7 +268,7 @@ task.spawn(function()
     end
 end)
 
--- 4. Bulk Item Teleport Loop (Toggle)
+-- 4. Improved Item Teleport Loop
 task.spawn(function()
     while true do
         if BulkTPEnabled then
@@ -254,18 +279,18 @@ task.spawn(function()
                     local count = 0
                     for _, item in ipairs(itemFolder:GetChildren()) do
                         if item.Name == SelectedBulkItem then
-                            moveItemToPos(item, targetPos + Vector3.new(0, count * 1.5, 0))
+                            moveItemToPos(item, targetPos + Vector3.new(math.random(-1,1), count * 0.5, math.random(-1,1)))
                             count = count + 1
                         end
                     end
                 end
             end)
         end
-        task.wait(1.5)
+        task.wait(1)
     end
 end)
 
--- 5. Configurable Auto Feed Loop
+-- 5. Auto Feed Loop
 task.spawn(function()
     while true do
         if AutoFeedEnabled then
@@ -292,7 +317,7 @@ local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footag
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Fully Improved Edition",
+    Subtitle = "W424 Hub | Direct TP Method Fixed",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -410,7 +435,7 @@ PlayerTab:Input({
 })
 
 WindUI:Notify({
-    Title = "System Updated",
-    Content = "Semua Fitur Baru Berhasil Diterapkan!",
+    Title = "TP Method Replaced",
+    Content = "Sistem Teleport Pivot & Physics Berhasil Diaktifkan!",
     Duration = 5
 })
