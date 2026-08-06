@@ -1,6 +1,3 @@
--- ==========================================
--- LOGIC & BACKEND MODULE (99 NIGHTS) - FIXED
--- ==========================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,7 +8,6 @@ local itemFolder = workspace:WaitForChild("Items", 10)
 
 local Functions = {}
 
--- Variables Global Control
 _G.KillAura = false
 _G.KillAuraRadius = 200
 
@@ -32,7 +28,6 @@ local weapons = {
     ["Chainsaw"] = "647_8992824875"
 }
 
--- Fungsi getHRP Aman (Tanpa Stack Overflow)
 local function getHRP()
     local char = LocalPlayer and LocalPlayer.Character
     if char then
@@ -42,7 +37,7 @@ local function getHRP()
 end
 
 local function getWeapon()
-    local inv = LocalPlayer:FindFirstChild("Inventory")
+    local inv = LocalPlayer and LocalPlayer:FindFirstChild("Inventory")
     if not inv then return nil, nil end
     for wName, dID in pairs(weapons) do
         local t = inv:FindFirstChild(wName)
@@ -61,7 +56,6 @@ local function moveItem(item, pos)
     end)
 end
 
--- 1. LOOP KILL AURA (Safe Wait)
 task.spawn(function()
     while true do
         if _G.KillAura then
@@ -88,7 +82,6 @@ task.spawn(function()
     end
 end)
 
--- 2. LOOP AUTO WOOD
 task.spawn(function()
     while true do
         if _G.AutoWood then
@@ -115,7 +108,6 @@ task.spawn(function()
     end
 end)
 
--- 3. LOOP AUTO HUNT MOB (TP -> FREEZE -> HIT)
 task.spawn(function()
     while true do
         if _G.AutoHunt then
@@ -156,7 +148,6 @@ task.spawn(function()
     end
 end)
 
--- 4. LOOP AUTO CLAIM & FEED
 task.spawn(function()
     while true do
         pcall(function()
