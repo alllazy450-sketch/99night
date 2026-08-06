@@ -1,4 +1,5 @@
-local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
+-- URL WindUI resmi dari GitHub (Bebas Error HTTP 402)
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
@@ -326,6 +327,6 @@ PlayerTab:Slider({
 
 WindUI:Notify({
     Title = "W424 Hub Ready",
-    Content = "Script berhasil dikonversi ke WindUI!",
+    Content = "Script WindUI berhasil dimuat!",
     Duration = 4
 })
