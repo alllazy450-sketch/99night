@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FULL AUTO HIT AURA (NO TP / PURE DAMAGE)
+-- FIX SLIDER UI & HIT AURA
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -64,10 +64,10 @@ local function moveItemToPos(item, position)
 end
 
 -- ==========================================
--- BACKGROUND LOOPS (HIT DAMAGE LOOPS)
+-- BACKGROUND LOOPS
 -- ==========================================
 
--- 1. Kill Aura Loop (Nge-hit Mob Tanpa Batas)
+-- 1. Kill Aura Loop
 task.spawn(function()
     while true do
         if KillAuraEnabled then
@@ -93,7 +93,7 @@ task.spawn(function()
     end
 end)
 
--- 2. Auto Wood Hit Loop (Nge-hit Pohon Tanpa Batas Sampai Tumbang)
+-- 2. Auto Wood Hit Loop
 task.spawn(function()
     while true do
         if AutoWoodEnabled then
@@ -119,7 +119,7 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Hunt Mob Specific (Hit Target Mob + Return Basecamp)
+-- 3. Auto Hunt Mob Specific
 task.spawn(function()
     local wasHunting = false
     while true do
@@ -160,7 +160,7 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Claim & Auto Feed Campfire
+-- 4. Auto Claim & Auto Feed
 task.spawn(function()
     while true do
         pcall(function()
@@ -193,7 +193,7 @@ local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footag
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Infinite Hit Aura",
+    Subtitle = "W424 Hub | Fixed UI Sliders",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -216,8 +216,10 @@ MainTab:Toggle({
 
 MainTab:Slider({
     Title = "Kill Aura Range",
-    Min = 50, Max = 1000, Default = 500,
-    Callback = function(v) KillAuraRadius = v end
+    Min = 50,
+    Max = 1000,
+    Value = { Min = 50, Max = 1000, Default = 500 },
+    Callback = function(v) KillAuraRadius = type(v) == "table" and v.Default or v end
 })
 
 AutoTab:Section({ Title = "Hit Farming Features" })
@@ -230,8 +232,10 @@ AutoTab:Toggle({
 
 AutoTab:Slider({
     Title = "Auto Wood Range",
-    Min = 50, Max = 1000, Default = 500,
-    Callback = function(v) AutoWoodRadius = v end
+    Min = 50,
+    Max = 1000,
+    Value = { Min = 50, Max = 1000, Default = 500 },
+    Callback = function(v) AutoWoodRadius = type(v) == "table" and v.Default or v end
 })
 
 AutoTab:Toggle({
@@ -279,17 +283,20 @@ ItemTab:Dropdown({
 
 PlayerTab:Slider({
     Title = "WalkSpeed",
-    Min = 16, Max = 250, Default = 16,
+    Min = 16,
+    Max = 250,
+    Value = { Min = 16, Max = 250, Default = 16 },
     Callback = function(v)
         local char = LocalPlayer and LocalPlayer.Character
+        local val = type(v) == "table" and v.Default or v
         if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.WalkSpeed = v
+            char.Humanoid.WalkSpeed = val
         end
     end
 })
 
 WindUI:Notify({
-    Title = "W424 Hub Updated",
-    Content = "Sistem Hit Damage Aura Tanpa TP Aktif!",
+    Title = "Slider Fixed",
+    Content = "Range Auto Wood & Kill Aura Sekarang Sudah Normal!",
     Duration = 5
 })
