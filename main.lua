@@ -1,25 +1,23 @@
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-if not Fluent then warn("Gagal memuat Fluent UI!") return end
+local WindUI = loadstring(game:HttpGet("https://tree-hub.vercel.app/api/UI/WindUI"))()
 
-local Window = Fluent:CreateWindow({
-    Title = "99 Nights in the Forest | W424 Hub",
-    SubTitle = "script by lohjc & W424 Team",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
+local Window = WindUI:CreateWindow({
+    Title = "99 Nights in the Forest",
+    Subtitle = "W424 Hub | Mobile Edition",
+    Author = "lohjc & W424 Team",
+    Folder = "W424Hub",
+    Size = UDim2.fromOffset(580, 420),
+    Transparent = true,
+    Theme = "Dark"
 })
 
-local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "home" }),
-    Auto = Window:AddTab({ Title = "Auto Farm", Icon = "sparkles" }),
-    ItemTP = Window:AddTab({ Title = "Item TP / ESP", Icon = "box" }),
-    GameTP = Window:AddTab({ Title = "Game TP", Icon = "map-pin" }),
-    MobTP = Window:AddTab({ Title = "Mob TP", Icon = "skull" }),
-    Player = Window:AddTab({ Title = "Player", Icon = "user" }),
-    Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" })
-}
+-- TABS
+local MainTab   = Window:Tab({ Title = "Main", Icon = "rbxassetid://10723407389" })
+local AutoTab   = Window:Tab({ Title = "Auto Farm", Icon = "rbxassetid://10734950309" })
+local ItemTab   = Window:Tab({ Title = "Item ESP/TP", Icon = "rbxassetid://10723345380" })
+local GameTPTab = Window:Tab({ Title = "Game TP", Icon = "rbxassetid://10734951847" })
+local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
 
+-- SERVICES & VARS
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,91 +25,73 @@ local VirtualUser = game:GetService("VirtualUser")
 local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
 local itemFolder = workspace:WaitForChild("Items")
 
-local isUIMinimized = false
-Window:OnMinimize(function(state)
-    isUIMinimized = state
-end)
-
-local function getCharacterInfo()
+local function getHRP()
     local char = LocalPlayer.Character
-    if not char then return nil, nil end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    return char, hrp
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
 
 -- ==========================================
 -- 1. MAIN TAB
 -- ==========================================
-local MainSection = Tabs.Main:AddSection("Main Features")
+MainTab:Section({ Title = "Safe Zone & Combat" })
 
-local safezoneBaseplates = {}
-local baseplateSize = Vector3.new(2048, 1, 2048)
-local centerPos = Vector3.new(0, 100, 0)
-
+local safezoneParts = {}
 for dx = -1, 1 do
     for dz = -1, 1 do
-        local pos = centerPos + Vector3.new(dx * baseplateSize.X, 0, dz * baseplateSize.Z)
-        local baseplate = Instance.new("Part")
-        baseplate.Name = "SafeZoneBaseplate"
-        baseplate.Size = baseplateSize
-        baseplate.Position = pos
-        baseplate.Anchored = true
-        baseplate.CanCollide = false
-        baseplate.Transparency = 1
-        baseplate.Color = Color3.fromRGB(255, 255, 255)
-        baseplate.Parent = workspace
-        table.insert(safezoneBaseplates, baseplate)
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(2048, 1, 2048)
+        part.Position = Vector3.new(dx * 2048, 100, dz * 2048)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 1
+        part.Parent = workspace
+        table.insert(safezoneParts, part)
     end
 end
 
-MainSection:AddToggle("ShowSafeZone", {
+MainTab:Toggle({
     Title = "Show Safe Zone",
     Default = false,
-    Callback = function(enabled)
-        for _, baseplate in ipairs(safezoneBaseplates) do
-            baseplate.Transparency = enabled and 0.8 or 1
-            baseplate.CanCollide = enabled
+    Callback = function(val)
+        for _, p in ipairs(safezoneParts) do
+            p.Transparency = val and 0.8 or 1
+            p.CanCollide = val
         end
     end
 })
 
 local killAuraToggle = false
 local killAuraRadius = 200
-
-local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
-    ["Good Axe"] = "112_8982038982",
-    ["Strong Axe"] = "116_8982038982",
-    ["Chainsaw"] = "647_8992824875",
-    ["Spear"] = "196_8999010016"
+local weapons = {
+    ["Spear"] = "196_8999010016", ["Strong Axe"] = "116_8982038982",
+    ["Good Axe"] = "112_8982038982", ["Old Axe"] = "1_8982038982",
+    ["Chainsaw"] = "647_8992824875"
 }
 
-local function getAnyToolWithDamageID()
-    local inventory = LocalPlayer:FindFirstChild("Inventory")
-    if not inventory then return nil, nil end
-    for toolName, damageID in pairs(toolsDamageIDs) do
-        local tool = inventory:FindFirstChild(toolName)
-        if tool then return tool, damageID end
+local function getWeapon()
+    local inv = LocalPlayer:FindFirstChild("Inventory")
+    if not inv then return nil, nil end
+    for wName, dID in pairs(weapons) do
+        local t = inv:FindFirstChild(wName)
+        if t then return t, dID end
     end
     return nil, nil
 end
 
-local function killAuraLoop()
-    while killAuraToggle do
-        local _, hrp = getCharacterInfo()
-        if hrp then
-            local tool, damageID = getAnyToolWithDamageID()
-            if tool and damageID then
-                pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                local mobs = workspace:FindFirstChild("Characters")
-                if mobs then
-                    for _, mob in ipairs(mobs:GetChildren()) do
-                        if mob:IsA("Model") then
-                            local part = mob:FindFirstChildWhichIsA("BasePart")
-                            if part and (part.Position - hrp.Position).Magnitude <= killAuraRadius then
-                                pcall(function()
-                                    remoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
-                                end)
+task.spawn(function()
+    while true do
+        if killAuraToggle then
+            local hrp = getHRP()
+            if hrp then
+                local tool, dmgID = getWeapon()
+                if tool and dmgID then
+                    pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
+                    local mobs = workspace:FindFirstChild("Characters")
+                    if mobs then
+                        for _, mob in ipairs(mobs:GetChildren()) do
+                            local p = mob:FindFirstChildWhichIsA("BasePart")
+                            if p and (p.Position - hrp.Position).Magnitude <= killAuraRadius then
+                                pcall(function() remoteEvents.ToolDamageObject:InvokeServer(mob, tool, dmgID, CFrame.new(p.Position)) end)
                             end
                         end
                     end
@@ -120,70 +100,43 @@ local function killAuraLoop()
         end
         task.wait(0.1)
     end
-end
+end)
 
-MainSection:AddToggle("KillAura", {
+MainTab:Toggle({
     Title = "Kill Aura",
     Default = false,
-    Callback = function(state)
-        killAuraToggle = state
-        if state then task.spawn(killAuraLoop) end
-    end
+    Callback = function(v) killAuraToggle = v end
 })
 
-MainSection:AddSlider("KillAuraRadius", {
-    Title = "Kill Aura Radius",
-    Default = 200,
-    Min = 20,
-    Max = 500,
-    Rounding = 0,
-    Callback = function(value) killAuraRadius = value end
+MainTab:Slider({
+    Title = "Kill Aura Range",
+    Min = 50, Max = 500, Default = 200,
+    Callback = function(v) killAuraRadius = v end
 })
 
 -- ==========================================
 -- 2. AUTO FARM TAB
 -- ==========================================
-local WoodSection = Tabs.Auto:AddSection("Auto Farm Wood")
+AutoTab:Section({ Title = "Auto Wood & Mob Hunt" })
 
 local autoWoodToggle = false
 local autoWoodRadius = 200
 
-local function getBestAxe()
-    local inventory = LocalPlayer:FindFirstChild("Inventory")
-    if not inventory then return nil, nil end
-    local axes = {
-        ["Strong Axe"] = "116_8982038982",
-        ["Good Axe"]   = "112_8982038982",
-        ["Old Axe"]    = "1_8982038982",
-        ["Chainsaw"]   = "647_8992824875"
-    }
-    for axeName, damageID in pairs(axes) do
-        local tool = inventory:FindFirstChild(axeName)
-        if tool then return tool, damageID end
-    end
-    return nil, nil
-end
-
-local function autoWoodLoop()
-    while autoWoodToggle do
-        local char, hrp = getCharacterInfo()
-        if hrp then
-            local axe, damageID = getBestAxe()
-            if axe and damageID then
-                pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", axe) end)
-                
-                if isUIMinimized then
+task.spawn(function()
+    while true do
+        if autoWoodToggle then
+            local hrp = getHRP()
+            if hrp then
+                local axe, dmgID = getWeapon()
+                if axe and dmgID then
+                    pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", axe) end)
                     VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                end
-                
-                local mapFolder = workspace:FindFirstChild("Map") or workspace
-                for _, obj in ipairs(mapFolder:GetDescendants()) do
-                    if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Trunk") or obj.Name == "Small Tree") then
-                        local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                        if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
-                            pcall(function()
-                                remoteEvents.ToolDamageObject:InvokeServer(obj, axe, damageID, CFrame.new(trunk.Position))
-                            end)
+                    for _, obj in ipairs(workspace:GetDescendants()) do
+                        if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name == "Small Tree") then
+                            local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart
+                            if trunk and (trunk.Position - hrp.Position).Magnitude <= autoWoodRadius then
+                                pcall(function() remoteEvents.ToolDamageObject:InvokeServer(obj, axe, dmgID, CFrame.new(trunk.Position)) end)
+                            end
                         end
                     end
                 end
@@ -191,208 +144,128 @@ local function autoWoodLoop()
         end
         task.wait(0.2)
     end
-end
+end)
 
-WoodSection:AddToggle("AutoWood", {
-    Title = "Auto Farm Wood (Auto Swing + Equip)",
+AutoTab:Toggle({
+    Title = "Auto Farm Wood",
     Default = false,
-    Callback = function(state)
-        autoWoodToggle = state
-        if state then task.spawn(autoWoodLoop) end
-    end
+    Callback = function(v) autoWoodToggle = v end
 })
-
-WoodSection:AddSlider("AutoWoodRadius", {
-    Title = "Wood Farm Radius",
-    Default = 200,
-    Min = 50,
-    Max = 500,
-    Rounding = 0,
-    Callback = function(value) autoWoodRadius = value end
-})
-
--- AUTO HUNT MOB (LOGIKA BARU: TP -> FREEZE -> SWING -> UNFREEZE)
-local HuntSection = Tabs.Auto:AddSection("Auto Hunt Mob")
 
 local autoHuntToggle = false
-local huntDistance = 20
+local huntHeight = 20
 local selectedMob = "Wolf"
-local huntableMobs = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist", "Alien"}
 
-local function autoHuntLoop()
-    while autoHuntToggle do
-        local char, hrp = getCharacterInfo()
-        local characterFolder = workspace:FindFirstChild("Characters")
-        
-        if hrp and characterFolder then
-            local tool, damageID = getAnyToolWithDamageID()
-            local targetMob = nil
-            
-            for _, mob in ipairs(characterFolder:GetChildren()) do
-                if mob:IsA("Model") and mob.Name == selectedMob then
-                    local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
-                    local humanoid = mob:FindFirstChildOfClass("Humanoid")
-                    if part and (not humanoid or humanoid.Health > 0) then
-                        targetMob = mob
-                        break
+task.spawn(function()
+    while true do
+        if autoHuntToggle then
+            local hrp = getHRP()
+            local mobs = workspace:FindFirstChild("Characters")
+            if hrp and mobs then
+                local tool, dmgID = getWeapon()
+                local target = nil
+                for _, m in ipairs(mobs:GetChildren()) do
+                    if m.Name == selectedMob and m:FindFirstChildWhichIsA("BasePart") then
+                        target = m; break
                     end
                 end
-            end
-            
-            if targetMob then
-                local mobPart = targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
-                if mobPart then
-                    if tool then pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end) end
-                    
-                    -- 1. TELEPORT KE ATAS MOB
-                    hrp.CFrame = CFrame.new(mobPart.Position + Vector3.new(0, huntDistance, 0))
-                    
-                    -- 2. FREEZE POSITION (Anchor HRP sementara agar melayang sempurna)
-                    hrp.Anchored = true
-                    
-                    -- 3. SWING & HIT
-                    if isUIMinimized then
+                if target then
+                    local p = target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
+                    if p then
+                        if tool then pcall(function() remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end) end
+                        hrp.CFrame = CFrame.new(p.Position + Vector3.new(0, huntHeight, 0))
+                        hrp.Anchored = true
                         VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                        if tool and dmgID then
+                            pcall(function() remoteEvents.ToolDamageObject:InvokeServer(target, tool, dmgID, CFrame.new(p.Position)) end)
+                        end
+                        task.wait(0.1)
+                        hrp.Anchored = false
                     end
-                    
-                    if tool and damageID then
-                        pcall(function()
-                            remoteEvents.ToolDamageObject:InvokeServer(targetMob, tool, damageID, CFrame.new(mobPart.Position))
-                        end)
-                    end
-                    
-                    task.wait(0.12)
-                    
-                    -- 4. UNFREEZE (Buka Kunci)
-                    hrp.Anchored = false
+                else
+                    if hrp.Anchored then hrp.Anchored = false end
                 end
-            else
-                -- Jika tidak ada mob, unfreeze
-                if hrp.Anchored then hrp.Anchored = false end
             end
+        else
+            local hrp = getHRP()
+            if hrp and hrp.Anchored then hrp.Anchored = false end
         end
         task.wait(0.1)
     end
-    
-    -- Safety unfreeze jika feature di-OFF kan
-    local _, hrp = getCharacterInfo()
-    if hrp and hrp.Anchored then hrp.Anchored = false end
-end
+end)
 
-HuntSection:AddDropdown("SelectHuntMob", {
-    Title = "Pilih Target Mob",
-    Values = huntableMobs,
-    Multi = false,
-    Default = 2,
-    Callback = function(value) selectedMob = value end
+AutoTab:Dropdown({
+    Title = "Select Mob Target",
+    Values = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist"},
+    Default = "Wolf",
+    Callback = function(v) selectedMob = v end
 })
 
-HuntSection:AddSlider("HuntHeight", {
-    Title = "Ketinggian Teleport/Freeze",
-    Default = 20,
-    Min = 5,
-    Max = 100,
-    Rounding = 0,
-    Callback = function(value) huntDistance = value end
+AutoTab:Slider({
+    Title = "Fly/Freeze Height",
+    Min = 5, Max = 100, Default = 20,
+    Callback = function(v) huntHeight = v end
 })
 
-HuntSection:AddToggle("AutoHunt", {
-    Title = "Auto Farm Mob (TP -> Freeze -> Swing)",
+AutoTab:Toggle({
+    Title = "Auto Hunt Mob (TP + Freeze)",
     Default = false,
-    Callback = function(state)
-        autoHuntToggle = state
-        if state then 
-            task.spawn(autoHuntLoop) 
-        else
-            local _, hrp = getCharacterInfo()
-            if hrp then hrp.Anchored = false end
-        end
-    end
+    Callback = function(v) autoHuntToggle = v end
 })
 
--- AUTO CLAIM & FEED CAMPFIRE
-local FeedSection = Tabs.Auto:AddSection("Auto Claim & Feed Campfire")
+AutoTab:Section({ Title = "Auto Claim & Feed" })
 
-local safeCampfireOffset = Vector3.new(6, 3, 6) 
-local campfireFuelItems = {
-    "Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel",
-    "Bunny Foot", "Bunny Meat", "Wolf Meat", "Bear Meat", "Morsel", "Steak", "Raw Meat"
-}
-local autoEatFoods = {
-    "Cooked Steak", "Cooked Morsel", "Cooked Meat", "Cooked Bunny Meat",
-    "Berry", "Carrot", "Apple", "Cooked Fish"
-}
+local autoClaimMeat = false
+local autoFeedCampfire = false
+local selectedFeeds = {}
 
-local autoFeedAlways = {}
-local autoFeedToggle = false
-local autoEatEnabled = false
-local autoClaimItems = false
-
-local function moveItemToPos(item, position)
+local function moveItem(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return end
-    local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-    if not part then return end
     pcall(function()
         remoteEvents.RequestStartDraggingItem:FireServer(item)
-        task.wait(0.05)
-        part.CFrame = CFrame.new(position)
-        task.wait(0.05)
+        local p = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+        if p then p.CFrame = CFrame.new(pos) end
         remoteEvents.StopDraggingItem:FireServer(item)
     end)
 end
 
-FeedSection:AddToggle("AutoClaimMeat", {
-    Title = "Auto Claim Meat / Drop Items to Player",
+AutoTab:Toggle({
+    Title = "Auto Claim Meat / Drop Items",
     Default = false,
-    Callback = function(state) autoClaimItems = state end
+    Callback = function(v) autoClaimMeat = v end
 })
 
-FeedSection:AddDropdown("AutoFeedCampfire", {
-    Title = "Pilih Bahan Bakar/Masak",
-    Values = campfireFuelItems,
+AutoTab:Toggle({
+    Title = "Enable Auto Feed Campfire",
+    Default = false,
+    Callback = function(v) autoFeedCampfire = v end
+})
+
+AutoTab:Dropdown({
+    Title = "Fuel / Cook Items",
+    Values = {"Log", "Coal", "Biofuel", "Bunny Meat", "Wolf Meat", "Bear Meat"},
     Multi = true,
     Default = {},
-    Callback = function(Value) autoFeedAlways = Value end
-})
-
-FeedSection:AddToggle("EnableAutoFeed", {
-    Title = "Enable Auto Feed Campfire (Near Fire)",
-    Default = false,
-    Callback = function(state) autoFeedToggle = state end
-})
-
-FeedSection:AddToggle("AutoEat", {
-    Title = "Auto Eat Food (3s Interval)",
-    Default = false,
-    Callback = function(state) autoEatEnabled = state end
+    Callback = function(v) selectedFeeds = v end
 })
 
 task.spawn(function()
     while true do
-        if autoClaimItems then
-            local _, hrp = getCharacterInfo()
-            if hrp then
-                for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item.Name:find("Meat") or item.Name:find("Pelt") or item.Name:find("Foot") then
-                        moveItemToPos(item, hrp.Position + Vector3.new(0, 2, 0))
-                    end
+        local hrp = getHRP()
+        if autoClaimMeat and hrp then
+            for _, item in ipairs(itemFolder:GetChildren()) do
+                if item.Name:find("Meat") or item.Name:find("Pelt") or item.Name:find("Foot") then
+                    moveItem(item, hrp.Position + Vector3.new(0, 2, 0))
                 end
             end
         end
-        task.wait(1.5)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if autoFeedToggle then
+        if autoFeedCampfire then
             local campsite = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Campsite")
-            local targetPos = campsite and (campsite.PrimaryPart and campsite.PrimaryPart.Position + safeCampfireOffset) or Vector3.new(6, 12, 6)
-            
-            for itemName, enabled in pairs(autoFeedAlways) do
+            local targetPos = campsite and (campsite.PrimaryPart and campsite.PrimaryPart.Position + Vector3.new(6, 3, 6)) or Vector3.new(6, 12, 6)
+            for itemName, enabled in pairs(selectedFeeds) do
                 if enabled then
                     for _, item in ipairs(itemFolder:GetChildren()) do
-                        if item.Name == itemName then moveItemToPos(item, targetPos) end
+                        if item.Name == itemName then moveItem(item, targetPos) end
                     end
                 end
             end
@@ -401,298 +274,58 @@ task.spawn(function()
     end
 end)
 
-local remoteConsume = remoteEvents:WaitForChild("RequestConsumeItem")
-task.spawn(function()
-    while true do
-        if autoEatEnabled then
-            local available = {}
-            for _, item in ipairs(itemFolder:GetChildren()) do
-                if table.find(autoEatFoods, item.Name) then table.insert(available, item) end
-            end
-            if #available > 0 then
-                local food = available[math.random(1, #available)]
-                pcall(function() remoteConsume:InvokeServer(food) end)
-            end
-        end
-        task.wait(3)
-    end
-end)
-
 -- ==========================================
--- 3. ITEM TP & ESP TAB
+-- 3. ITEM TAB
 -- ==========================================
-local ItemSection = Tabs.ItemTP:AddSection("Item Utilities")
+ItemTab:Section({ Title = "Bring Bulk Items" })
 
-ItemSection:AddToggle("ItemESP", {
-    Title = "Item ESP",
-    Default = false,
-    Callback = function(state)
-        local itemNames = {
-            ["Revolver"] = true, ["Oil Barrel"] = true, ["Chainsaw"] = true, ["Giant Sack"] = true,
-            ["Bunny Foot"] = true, ["MedKit"] = true, ["Alien Chest"] = true, ["Berry"] = true,
-            ["Bolt"] = true, ["Broken Fan"] = true, ["Carrot"] = true, ["Coal"] = true,
-            ["Coin Stack"] = true, ["Hologram Emitter"] = true, ["Item Chest"] = true,
-            ["Laser Fence Blueprint"] = true, ["Log"] = true, ["Old Flashlight"] = true,
-            ["Old Radio"] = true, ["Sheet Metal"] = true, ["Bandage"] = true, ["Rifle"] = true,
-            ["Bunny Meat"] = true, ["Wolf Meat"] = true, ["Bear Meat"] = true
-        }
-        local function createESP(model)
-            if not model:IsA("Model") or not itemNames[model.Name] then return end
-            local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if not part or model:FindFirstChild("ESP") then return end
-
-            local billboard = Instance.new("BillboardGui")
-            billboard.Name = "ESP"
-            billboard.Size = UDim2.new(0, 100, 0, 30)
-            billboard.Adornee = part
-            billboard.AlwaysOnTop = true
-            billboard.StudsOffset = Vector3.new(0, 3, 0)
-
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.TextSize = 14
-            label.BackgroundTransparency = 1
-            label.TextColor3 = Color3.new(1, 1, 1)
-            label.TextStrokeTransparency = 0.5
-            label.Text = model.Name
-            label.Parent = billboard
-            billboard.Parent = model
-        end
-
-        if state then
-            for _, model in ipairs(itemFolder:GetChildren()) do createESP(model) end
-        else
-            for _, model in ipairs(itemFolder:GetChildren()) do
-                local esp = model:FindFirstChild("ESP")
-                if esp then esp:Destroy() end
-            end
-        end
-    end
-})
-
-local itemNamesList = {
-    "Revolver", "Medkit", "Alien Chest", "Berry", "Bolt", "Broken Fan",
-    "Carrot", "Coal", "Coin Stack", "Hologram Emitter", "Item Chest",
-    "Laser Fence Blueprint", "Log", "Old Flashlight", "Old Radio",
-    "Sheet Metal", "Bandage", "Rifle", "Bunny Meat", "Wolf Meat", "Bear Meat"
-}
-
-ItemSection:AddDropdown("TPToItem", {
-    Title = "Teleport to Item",
-    Values = itemNamesList,
-    Multi = false,
-    Default = 1,
+local bulkList = {"Log", "Coal", "Biofuel", "Bunny Meat", "Wolf Meat", "Bear Meat", "Sheet Metal", "Bolt"}
+ItemTab:Dropdown({
+    Title = "Bring Item to Player",
+    Values = bulkList,
     Callback = function(itemName)
-        local candidates = {}
-        for _, model in pairs(itemFolder:GetChildren()) do
-            if model:IsA("Model") and model.Name == itemName then
-                local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if part then table.insert(candidates, part) end
-            end
-        end
-        if #candidates > 0 then
-            local targetPart = candidates[math.random(1, #candidates)]
-            local _, hrp = getCharacterInfo()
-            if hrp then hrp.CFrame = targetPart.CFrame + Vector3.new(0, 5, 0) end
-        end
-    end
-})
-
-local possibleItems = {
-    "Alien Chest","Alpha Wolf Pelt","Anvil Front","Anvil Back","Apple","Bandage",
-    "Bear Corpse","Bear Pelt","Berry","Biofuel","Bolt","Broken Fan","Bunny Foot",
-    "Carrot","Coal","Coin Stack","Cooked Morsel","Cooked Steak","Chainsaw","Cultist",
-    "Cultist Gem","Flower","Fuel Canister","Hologram Emitter","Item Chest",
-    "Laser Fence Blueprint","Leather Body","Iron Body","Thorn Body","Log","MedKit",
-    "Morsel","Old Flashlight","Old Radio","Good Sack","Good Axe","Raygun","Giant Sack",
-    "Strong Axe","Oil Barrel","Old Car Engine","Rifle","Rifle Ammo","Revolver",
-    "Revolver Ammo","Sapling","Sheet Metal","Steak","Wolf Pelt","Gem of the Forest Fragment",
-    "Tyre","Washing Machine","Broken Microwave","Bunny Meat","Wolf Meat","Bear Meat"
-}
-
-ItemSection:AddDropdown("BringBulkItem", {
-    Title = "Bring Item to You (Bulk)",
-    Values = possibleItems,
-    Multi = false,
-    Default = 1,
-    Callback = function(itemName)
-        local _, hrp = getCharacterInfo()
+        local hrp = getHRP()
         if not hrp then return end
         local count = 0
         for _, item in ipairs(itemFolder:GetChildren()) do
             if item.Name == itemName then
-                local targetPart = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-                if targetPart then
-                    pcall(function()
-                        remoteEvents.RequestStartDraggingItem:FireServer(item)
-                        targetPart.CFrame = hrp.CFrame + Vector3.new(0, count * 2, 0)
-                        remoteEvents.StopDraggingItem:FireServer(item)
-                    end)
-                    count = count + 1
-                end
+                moveItem(item, hrp.Position + Vector3.new(0, count * 2, 0))
+                count = count + 1
             end
         end
     end
 })
 
 -- ==========================================
--- 4. GAME TP TAB
+-- 4. GAME TP & PLAYER TAB
 -- ==========================================
-local GameTPSection = Tabs.GameTP:AddSection("Teleports")
-
-local function teleportToTarget(cf)
-    local _, hrp = getCharacterInfo()
-    if hrp then hrp.CFrame = cf end
-end
-
-GameTPSection:AddButton({
+GameTPTab:Button({
     Title = "Teleport to Campsite",
-    Callback = function() teleportToTarget(CFrame.new(0, 8, 0)) end
-})
-
-GameTPSection:AddButton({
-    Title = "Teleport to Safezone",
-    Callback = function() teleportToTarget(CFrame.new(0, 110, 0)) end
-})
-
--- ==========================================
--- 5. MOB TP TAB
--- ==========================================
-local MobSection = Tabs.MobTP:AddSection("Mob Utilities")
-
-local possibleCharacters = {
-    "Alpha Wolf","Bear","Lost Child","Lost Child2","Lost Child3","Lost Child4",
-    "Wolf","Bunny","Cultist","Alien"
-}
-
-MobSection:AddDropdown("BringMob", {
-    Title = "Bring Mob to You",
-    Values = possibleCharacters,
-    Multi = false,
-    Default = 1,
-    Callback = function(characterName)
-        local _, hrp = getCharacterInfo()
-        if not hrp then return end
-        local characterFolder = workspace:FindFirstChild("Characters")
-        if not characterFolder then return end
-        local count = 0
-        for _, model in ipairs(characterFolder:GetChildren()) do
-            if model.Name == characterName then
-                local mainPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if mainPart then
-                    local targetCFrame = hrp.CFrame + Vector3.new(0, count * 3, 0)
-                    if model.PrimaryPart then
-                        model:SetPrimaryPartCFrame(targetCFrame)
-                    else
-                        mainPart.CFrame = targetCFrame
-                    end
-                    count = count + 1
-                end
-            end
-        end
+    Callback = function()
+        local hrp = getHRP()
+        if hrp then hrp.CFrame = CFrame.new(0, 8, 0) end
     end
 })
 
--- ==========================================
--- 6. PLAYER TAB
--- ==========================================
-local PlayerSection = Tabs.Player:AddSection("LocalPlayer Stats")
+GameTPTab:Button({
+    Title = "Teleport to Safe Zone",
+    Callback = function()
+        local hrp = getHRP()
+        if hrp then hrp.CFrame = CFrame.new(0, 110, 0) end
+    end
+})
 
-PlayerSection:AddSlider("WalkSpeed", {
+PlayerTab:Slider({
     Title = "WalkSpeed",
-    Default = 16,
-    Min = 16,
-    Max = 300,
-    Rounding = 0,
-    Callback = function(Value)
+    Min = 16, Max = 250, Default = 16,
+    Callback = function(v)
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end
+        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = v end
     end
 })
 
-PlayerSection:AddSlider("JumpPower", {
-    Title = "JumpPower",
-    Default = 50,
-    Min = 50,
-    Max = 500,
-    Rounding = 0,
-    Callback = function(Value)
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then char.Humanoid.JumpPower = Value end
-    end
-})
-
--- ==========================================
--- 7. VISUALS TAB
--- ==========================================
-local VisualsSection = Tabs.Visuals:AddSection("Visual Options")
-
-local BillboardESPs = {}
-VisualsSection:AddToggle("PlayerESP", {
-    Title = "Player ESP",
-    Default = false,
-    Callback = function(state)
-        if not state then
-            for _, gui in pairs(BillboardESPs) do if gui then gui:Destroy() end end
-            BillboardESPs = {}
-        else
-            for _, plrObj in pairs(Players:GetPlayers()) do
-                if plrObj ~= LocalPlayer and plrObj.Character and plrObj.Character:FindFirstChild("Head") then
-                    local gui = Instance.new("BillboardGui")
-                    gui.Name = "Billboard_ESP"
-                    gui.Adornee = plrObj.Character.Head
-                    gui.Parent = plrObj.Character.Head
-                    gui.Size = UDim2.new(0, 100, 0, 40)
-                    gui.AlwaysOnTop = true
-                    gui.StudsOffset = Vector3.new(0, 2, 0)
-
-                    local label = Instance.new("TextLabel", gui)
-                    label.Size = UDim2.new(1, 0, 1, 0)
-                    label.BackgroundTransparency = 1
-                    label.TextColor3 = Color3.new(1, 1, 1)
-                    label.TextStrokeTransparency = 0.5
-                    label.Text = plrObj.Name
-                    BillboardESPs[plrObj] = gui
-                end
-            end
-        end
-    end
-})
-
--- ==========================================
--- 8. FLOATING TOGGLE BUTTON (MOBILE)
--- ==========================================
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local UICorner = Instance.new("UICorner")
-
-ScreenGui.Name = "W424_MobileToggle"
-ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.ResetOnSpawn = false
-
-ToggleButton.Name = "OpenCloseBtn"
-ToggleButton.Parent = ScreenGui
-ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-ToggleButton.Position = UDim2.new(0, 15, 0.5, -25)
-ToggleButton.Size = UDim2.new(0, 50, 0, 50)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "W424"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 16
-ToggleButton.Active = true
-ToggleButton.Draggable = true
-
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = ToggleButton
-
-ToggleButton.MouseButton1Click:Connect(function()
-    if Window then
-        Window:Minimize()
-    end
-end)
-
-Fluent:Notify({
-    Title = "W424 Hub Loaded",
-    Content = "Script 99 Nights in the Forest Berhasil Dimuat!",
-    Duration = 5
+WindUI:Notify({
+    Title = "W424 Hub Ready",
+    Content = "Script berhasil dikonversi ke WindUI!",
+    Duration = 4
 })
