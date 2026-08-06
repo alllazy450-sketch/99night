@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- ADVANCED AUTO TREE FARM & NEW ITEM DETECTOR
+-- FULL IMPROVED ENGINE & CUSTOM FEATURES
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -14,14 +14,26 @@ local characterFolder = Workspace:WaitForChild("Characters", 10)
 
 -- State Variables
 local KillAuraEnabled = false
-local KillAuraRadius = 500
+local KillAuraRadius = 1000
 
 local AutoWoodEnabled = false
+local SelectedTreeType = "All Trees"
+
 local AutoHuntEnabled = false
 local SelectedMob = "Wolf"
 
+local BulkTPEnabled = false
+local SelectedBulkItem = "Log"
+local TPDestination = "To Player"
+
 local AutoClaimEnabled = false
 local AutoFeedEnabled = false
+local SelectedFeedMaterials = {
+    ["Log"] = true,
+    ["Coal"] = true,
+    ["Biofuel"] = true,
+    ["Fuel Canister"] = true
+}
 
 local SavedBasecampCFrame = nil
 
@@ -49,6 +61,21 @@ local function getAnyToolWithDamageID()
     return nil, nil
 end
 
+local function getCampfirePosition()
+    local map = Workspace:FindFirstChild("Map")
+    if map then
+        local campground = map:FindFirstChild("Campground") or map:FindFirstChild("Campsite")
+        if campground then
+            local mainFire = campground:FindFirstChild("MainFire") or campground.PrimaryPart
+            if mainFire then
+                local part = mainFire:IsA("BasePart") and mainFire or mainFire:FindFirstChildWhichIsA("BasePart")
+                if part then return part.Position + Vector3.new(0, 3, 0) end
+            end
+        end
+    end
+    return Vector3.new(0, 19, 0) -- Default Fallback Position
+end
+
 local function moveItemToPos(item, position)
     if not item or not item:IsDescendantOf(Workspace) or not remoteEvents then return end
     local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart") or item:FindFirstChild("Handle")
@@ -62,7 +89,7 @@ local function moveItemToPos(item, position)
 end
 
 -- ==========================================
--- REAL-TIME AUTO CLAIM (EVENT DETECTION)
+-- REAL-TIME AUTO CLAIM (EVENT LISTENER)
 -- ==========================================
 
 local function isClaimableItem(item)
@@ -70,10 +97,9 @@ local function isClaimableItem(item)
     return name:find("Meat") or name:find("Pelt") or name == "Bunny Foot" or name == "Log" or name:find("Steak") or name:find("Morsel")
 end
 
--- Listener ketika ada item baru yang drop/spawn
 itemFolder.ChildAdded:Connect(function(child)
     if AutoClaimEnabled then
-        task.wait(0.2) -- Beri sedikit jeda agar part ter-render sempurna
+        task.wait(0.2)
         local hrp = getHRP()
         if hrp and isClaimableItem(child) then
             moveItemToPos(child, hrp.Position + Vector3.new(0, 2, 0))
@@ -85,7 +111,7 @@ end)
 -- BACKGROUND LOOPS
 -- ==========================================
 
--- 1. Kill Aura Loop
+-- 1. Extended Kill Aura Loop
 task.spawn(function()
     while true do
         if KillAuraEnabled then
@@ -97,7 +123,7 @@ task.spawn(function()
                         remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool)
                         for _, mob in ipairs(characterFolder:GetChildren()) do
                             if mob:IsA("Model") then
-                                local part = mob:FindFirstChildWhichIsA("BasePart")
+                                local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
                                 if part and (part.Position - hrp.Position).Magnitude <= KillAuraRadius then
                                     remoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
                                 end
@@ -111,18 +137,27 @@ task.spawn(function()
     end
 end)
 
--- 2. Auto Farm Wood (TP ke setiap jenis pohon & Hit sampai tumbang)
-local function getAllTreesInMap()
+-- 2. Accurate Auto Wood TP Loop
+local function getFilteredTrees()
     local trees = {}
     local function scan(folder)
         if not folder then return end
         for _, obj in ipairs(folder:GetDescendants()) do
             if obj:IsA("Model") then
                 local name = obj.Name
-                -- Deteksi Pohon Biasa, Hard Tree, Brightwood, Fairy/Suci
-                if name:find("Tree") or name:find("Brightwood") or name:find("Fairy") or name:find("Suci") then
-                    table.insert(trees, obj)
+                local match = false
+                if SelectedTreeType == "All Trees" then
+                    if name:find("Tree") or name:find("Brightwood") or name:find("Fairy") or name:find("Suci") then match = true end
+                elseif SelectedTreeType == "Small Trees" and name == "Small Tree" then
+                    match = true
+                elseif SelectedTreeType == "Hard Trees" and (name:find("Hard") or name:find("Medium") or name == "Tree") then
+                    match = true
+                elseif SelectedTreeType == "Brightwood Trees" and name:find("Brightwood") then
+                    match = true
+                elseif SelectedTreeType == "Fairy Trees" and (name:find("Fairy") or name:find("Suci")) then
+                    match = true
                 end
+                if match then table.insert(trees, obj) end
             end
         end
     end
@@ -142,22 +177,21 @@ task.spawn(function()
             local tool, damageID = getAnyToolWithDamageID()
             
             if hrp and tool and damageID then
-                local treeList = getAllTreesInMap()
+                local treeList = getFilteredTrees()
                 for _, tree in ipairs(treeList) do
                     if not AutoWoodEnabled then break end
                     
                     if tree and tree:IsDescendantOf(Workspace) then
                         local trunk = tree:FindFirstChild("Trunk") or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
                         if trunk then
-                            -- Teleport dekat ke depan pohon
+                            -- Teleport presisi di depan Trunk pohon
                             hrp.CFrame = CFrame.new(trunk.Position + Vector3.new(0, 0, 3), trunk.Position)
                             task.wait(0.1)
                             
-                            -- Pukul terus-menerus sampai pohon hancur/hilang dari workspace
                             while AutoWoodEnabled and tree and tree:IsDescendantOf(Workspace) do
                                 remoteEvents.EquipItemHandle:FireServer("FireAllClients", tool)
                                 remoteEvents.ToolDamageObject:InvokeServer(tree, tool, damageID, CFrame.new(trunk.Position))
-                                task.wait(0.15)
+                                task.wait(0.12)
                             end
                         end
                     end
@@ -168,7 +202,7 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Hunt Mob
+-- 3. Auto Hunt Mob Loop
 task.spawn(function()
     local wasHunting = false
     while true do
@@ -209,28 +243,44 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Claim Periodic Sweep & Auto Feed
+-- 4. Bulk Item Teleport Loop (Toggle)
 task.spawn(function()
     while true do
-        pcall(function()
-            local hrp = getHRP()
-            if AutoClaimEnabled and hrp and itemFolder then
-                for _, item in ipairs(itemFolder:GetChildren()) do
-                    if isClaimableItem(item) then
-                        moveItemToPos(item, hrp.Position + Vector3.new(0, 2, 0))
+        if BulkTPEnabled then
+            pcall(function()
+                local hrp = getHRP()
+                if itemFolder then
+                    local targetPos = (TPDestination == "To Player" and hrp) and (hrp.Position + Vector3.new(0, 2, 0)) or getCampfirePosition()
+                    local count = 0
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if item.Name == SelectedBulkItem then
+                            moveItemToPos(item, targetPos + Vector3.new(0, count * 1.5, 0))
+                            count = count + 1
+                        end
                     end
                 end
-            end
-            if AutoFeedEnabled and itemFolder then
-                local campfireDropPos = Vector3.new(0, 19, 0)
-                for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item.Name == "Log" or item.Name == "Coal" or item.Name == "Biofuel" then
-                        moveItemToPos(item, campfireDropPos)
-                    end
-                end
-            end
-        end)
+            end)
+        end
         task.wait(1.5)
+    end
+end)
+
+-- 5. Configurable Auto Feed Loop
+task.spawn(function()
+    while true do
+        if AutoFeedEnabled then
+            pcall(function()
+                if itemFolder then
+                    local dropPos = getCampfirePosition()
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if SelectedFeedMaterials[item.Name] then
+                            moveItemToPos(item, dropPos)
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(2)
     end
 end)
 
@@ -242,7 +292,7 @@ local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footag
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Advanced Wood & Realtime Claim",
+    Subtitle = "W424 Hub | Fully Improved Edition",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -265,7 +315,7 @@ MainTab:Toggle({
 
 MainTab:Input({
     Title = "Kill Aura Range (Studs)",
-    Value = "500",
+    Value = "1000",
     Placeholder = "Ketik Range",
     Callback = function(v)
         local num = tonumber(v)
@@ -273,16 +323,23 @@ MainTab:Input({
     end
 })
 
-AutoTab:Section({ Title = "Smart Farm Features" })
+AutoTab:Section({ Title = "Wood & Mob Farming" })
 
 AutoTab:Toggle({
-    Title = "Auto Farm All Trees (TP & Cut)",
+    Title = "Auto Farm Wood (TP & Cut)",
     Default = false,
     Callback = function(v) AutoWoodEnabled = v end
 })
 
+AutoTab:Dropdown({
+    Title = "Target Tree Type",
+    Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"},
+    Default = "All Trees",
+    Callback = function(v) SelectedTreeType = v end
+})
+
 AutoTab:Toggle({
-    Title = "Auto Hunt Mob (Target Hit Aura)",
+    Title = "Auto Hunt Mob",
     Default = false,
     Callback = function(v) AutoHuntEnabled = v end
 })
@@ -293,6 +350,8 @@ AutoTab:Dropdown({
     Default = "Wolf",
     Callback = function(v) SelectedMob = v end
 })
+
+AutoTab:Section({ Title = "Campfire & Claim Settings" })
 
 AutoTab:Toggle({
     Title = "Realtime Auto Claim Items",
@@ -306,22 +365,35 @@ AutoTab:Toggle({
     Callback = function(v) AutoFeedEnabled = v end
 })
 
-ItemTab:Section({ Title = "Bulk Item Teleport" })
+AutoTab:Dropdown({
+    Title = "Campfire Feed Item",
+    Values = {"Log", "Coal", "Biofuel", "Fuel Canister"},
+    Default = "Log",
+    Callback = function(v)
+        SelectedFeedMaterials = {[v] = true}
+    end
+})
+
+ItemTab:Section({ Title = "Item Teleport Toggle" })
+
+ItemTab:Toggle({
+    Title = "Auto Bring Selected Item",
+    Default = false,
+    Callback = function(v) BulkTPEnabled = v end
+})
 
 ItemTab:Dropdown({
-    Title = "Bring Item to Player",
+    Title = "Item Name",
     Values = {"Log", "Coal", "Biofuel", "Bunny Meat", "Wolf Meat", "Bear Meat", "Sheet Metal", "Bolt"},
-    Callback = function(itemName)
-        local hrp = getHRP()
-        if not hrp or not itemFolder then return end
-        local count = 0
-        for _, item in ipairs(itemFolder:GetChildren()) do
-            if item.Name == itemName then
-                moveItemToPos(item, hrp.Position + Vector3.new(0, count * 2, 0))
-                count = count + 1
-            end
-        end
-    end
+    Default = "Log",
+    Callback = function(v) SelectedBulkItem = v end
+})
+
+ItemTab:Dropdown({
+    Title = "Teleport Destination",
+    Values = {"To Player", "To Campfire"},
+    Default = "To Player",
+    Callback = function(v) TPDestination = v end
 })
 
 PlayerTab:Input({
@@ -338,7 +410,7 @@ PlayerTab:Input({
 })
 
 WindUI:Notify({
-    Title = "Updated & Ready",
-    Content = "Sistem Auto Farm Tree & Realtime Claim Siap!",
+    Title = "System Updated",
+    Content = "Semua Fitur Baru Berhasil Diterapkan!",
     Duration = 5
 })
