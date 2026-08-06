@@ -1,12 +1,13 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FIXED VERSION | STABLE & SAFE
+-- FINAL VERSION | STABLE & COMPLETE
 -- ==========================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager") -- optional
 
 local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
@@ -61,32 +62,138 @@ local function getHRP()
     return nil
 end
 
+-- ==========================================
+-- EQUIP TOOL (MULTI METODE)
+-- ==========================================
+
 local function equipSpecificTool(toolName)
-    local char = LocalPlayer and LocalPlayer.Character
-    local inv = LocalPlayer and LocalPlayer:FindFirstChild("Inventory")
+    local char = LocalPlayer.Character
+    if not char then return nil end
     
-    -- Cek apakah sudah di tangan
-    if char then
-        local tool = char:FindFirstChild(toolName)
-        if tool then return tool end
-    end
+    -- Sudah di tangan?
+    local existing = char:FindFirstChild(toolName)
+    if existing then return existing end
     
-    -- Cari di inventory
-    if inv then
-        local tool = inv:FindFirstChild(toolName)
-        if tool and remoteEvents then
-            -- Perbaiki: kirim hanya tool (bukan "FireAllClients")
-            local success, err = pcall(function()
-                remoteEvents.EquipItemHandle:FireServer(tool)
-            end)
-            if not success then
-                warn("Gagal equip tool: ", err)
-            end
-            return tool
+    local inv = LocalPlayer:FindFirstChild("Inventory")
+    if not inv then return nil end
+    
+    local tool = inv:FindFirstChild(toolName)
+    if not tool then return nil end
+    
+    -- Metode 1: Remote EquipItemHandle / EquipItem
+    if remoteEvents then
+        local equipRemote = remoteEvents:FindFirstChild("EquipItemHandle") or remoteEvents:FindFirstChild("EquipItem")
+        if equipRemote then
+            -- Coba kirim tool instance
+            pcall(function() equipRemote:FireServer(tool) end)
+            task.wait(0.1)
+            if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
+            
+            -- Coba kirim nama tool (string)
+            pcall(function() equipRemote:FireServer(toolName) end)
+            task.wait(0.1)
+            if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
         end
     end
+    
+    -- Metode 2: Paksa pindahkan ke karakter (jika diizinkan)
+    pcall(function()
+        tool.Parent = char
+    end)
+    task.wait(0.1)
+    if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
+    
+    -- Metode 3: Coba event "Tool" di ReplicatedStorage
+    local toolEvent = ReplicatedStorage:FindFirstChild("ToolEvent") or ReplicatedStorage:FindFirstChild("Equip")
+    if toolEvent then
+        pcall(function() toolEvent:FireServer(tool) end)
+        task.wait(0.1)
+        if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
+    end
+    
     return nil
 end
+
+-- ==========================================
+-- SERANG POHON / MOB (MULTI METODE)
+-- ==========================================
+
+local function attackTarget(target, tool, damageID)
+    if not target or not tool then return false end
+    
+    local mainPart = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") 
+        or target:FindFirstChild("Trunk") or target:FindFirstChild("MainPart") 
+        or target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
+    if not mainPart then return false end
+    
+    local success = false
+    
+    -- Metode 1: Tool:Activate() (standar)
+    pcall(function()
+        tool:Activate()
+        success = true
+    end)
+    task.wait(0.05)
+    
+    -- Metode 2: Swing remote (jika ada)
+    local swing = tool:FindFirstChild("Swing")
+    if swing then
+        pcall(function()
+            swing:FireServer()
+            success = true
+        end)
+    end
+    
+    -- Metode 3: Coba remote ToolDamageObject
+    if remoteEvents then
+        local damageRemote = remoteEvents:FindFirstChild("ToolDamageObject")
+        if damageRemote then
+            pcall(function()
+                damageRemote:InvokeServer(target, tool, damageID, CFrame.new(mainPart.Position))
+                success = true
+            end)
+        end
+        
+        -- Metode 4: Coba remote "Hit" atau "DealDamage"
+        local hitRemote = remoteEvents:FindFirstChild("Hit") or remoteEvents:FindFirstChild("DealDamage")
+        if hitRemote then
+            pcall(function()
+                hitRemote:FireServer(target, tool)
+                success = true
+            end)
+        end
+    end
+    
+    -- Metode 5: Coba event "Damage" di tool
+    local damageEvent = tool:FindFirstChild("DamageEvent") or tool:FindFirstChild("OnAttack")
+    if damageEvent then
+        pcall(function()
+            damageEvent:FireServer(target)
+            success = true
+        end)
+    end
+    
+    -- Metode 6: Gunakan VirtualInputManager untuk mensimulasikan klik (jika tool memiliki ClickDetector)
+    -- Hanya jika metode lain gagal dan kita yakin aman
+    if not success then
+        pcall(function()
+            local clickDetector = tool:FindFirstChildWhichIsA("ClickDetector")
+            if clickDetector then
+                -- Simulasi klik dengan mouse position (tidak selalu berhasil)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                success = true
+            end
+        end)
+    end
+    
+    return success
+end
+
+-- ==========================================
+-- GET CAMPFIRE POSITION (DIPERBAIKI)
+-- ==========================================
 
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -100,51 +207,98 @@ local function getCampfirePosition()
             end
         end
     end
-    -- Fallback ke area aman
     return Vector3.new(0, 19, 0)
 end
 
 local function moveItemToPos(item, position)
-    -- PENTING: cek item masih ada
-    if not item or not item:IsDescendantOf(Workspace) then
-        return
-    end
+    if not item or not item:IsDescendantOf(Workspace) then return end
     
     pcall(function()
         if remoteEvents then
             remoteEvents.RequestStartDraggingItem:FireServer(item)
         end
-        
-        -- Tunggu sebentar agar drag aktif
         task.wait(0.05)
-        
         local targetPart = item.PrimaryPart or item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
         if targetPart and targetPart:IsDescendantOf(Workspace) then
             targetPart.CFrame = CFrame.new(position)
             targetPart.Velocity = Vector3.new(0, 0, 0)
         end
-        
         if remoteEvents then
             remoteEvents.StopDraggingItem:FireServer(item)
         end
     end)
 end
 
+-- ==========================================
+-- GET TREE MAIN PART (DIPERBAIKI)
+-- ==========================================
+
 local function getTreeMainPart(tree)
     if not tree or not tree:IsDescendantOf(Workspace) then return nil end
-    -- Coba berbagai kemungkinan nama bagian
     local part = tree:FindFirstChild("Trunk") 
         or tree:FindFirstChild("Trunk1") 
         or tree:FindFirstChild("MainPart")
-        or tree:FindFirstChild("Head")  -- untuk pohon unik
+        or tree:FindFirstChild("Head")
         or tree.PrimaryPart 
         or tree:FindFirstChildWhichIsA("BasePart")
-    
-    -- Pastikan part adalah BasePart dan masih ada
     if part and part:IsA("BasePart") and part:IsDescendantOf(Workspace) then
         return part
     end
     return nil
+end
+
+-- ==========================================
+-- GET FILTERED TREES (DIPERBAIKI)
+-- ==========================================
+
+local function getFilteredTrees()
+    local trees = {}
+    local function scan(folder)
+        if not folder then return end
+        for _, obj in ipairs(folder:GetDescendants()) do
+            if obj:IsA("Model") and obj:IsDescendantOf(Workspace) then
+                local name = obj.Name
+                local match = false
+                if SelectedTreeType == "All Trees" then
+                    if name:find("Tree") or name:find("Brightwood") or name:find("Fairy") or name:find("Suci") then 
+                        match = true 
+                    end
+                elseif SelectedTreeType == "Small Trees" and name == "Small Tree" then
+                    match = true
+                elseif SelectedTreeType == "Hard Trees" and (name:find("Hard") or name:find("Medium") or name == "Tree") then
+                    match = true
+                elseif SelectedTreeType == "Brightwood Trees" and name:find("Brightwood") then
+                    match = true
+                elseif SelectedTreeType == "Fairy Trees" and (name:find("Fairy") or name:find("Suci")) then
+                    match = true
+                end
+                if match and getTreeMainPart(obj) then
+                    table.insert(trees, obj)
+                end
+            end
+        end
+    end
+
+    local map = Workspace:FindFirstChild("Map")
+    if map then
+        local possibleFolders = {"Foliage", "Landmarks", "Trees", "Environment", "Resources"}
+        for _, folderName in ipairs(possibleFolders) do
+            local folder = map:FindFirstChild(folderName)
+            if folder then scan(folder) end
+        end
+        scan(map)
+    end
+    -- Fallback: cari di seluruh Workspace
+    if #trees == 0 then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Brightwood") or obj.Name:find("Fairy")) then
+                if getTreeMainPart(obj) then
+                    table.insert(trees, obj)
+                end
+            end
+        end
+    end
+    return trees
 end
 
 -- ==========================================
@@ -161,8 +315,7 @@ end
 
 itemFolder.ChildAdded:Connect(function(child)
     if AutoClaimEnabled then
-        task.wait(0.3) -- beri waktu item stabil
-        -- Cek ulang apakah item masih ada dan layak
+        task.wait(0.3)
         if child and child:IsDescendantOf(Workspace) and isClaimableItem(child) then
             local hrp = getHRP()
             if hrp then
@@ -192,7 +345,7 @@ task.spawn(function()
                                 if part and part:IsDescendantOf(Workspace) then
                                     local dist = (part.Position - hrp.Position).Magnitude
                                     if dist <= KillAuraRadius then
-                                        remoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
+                                        attackTarget(mob, tool, damageID)
                                     end
                                 end
                             end
@@ -201,80 +354,34 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.15) -- jeda lebih aman
+        task.wait(0.15)
     end
 end)
 
 -- ==========================================
--- AUTO WOOD (DIPERBAIKI)
+-- AUTO WOOD (DIPERBAIKI DENGAN MULTI ATTACK)
 -- ==========================================
-
-local function getFilteredTrees()
-    local trees = {}
-    local function scan(folder)
-        if not folder then return end
-        for _, obj in ipairs(folder:GetDescendants()) do
-            if obj:IsA("Model") and obj:IsDescendantOf(Workspace) then
-                local name = obj.Name
-                local match = false
-                if SelectedTreeType == "All Trees" then
-                    if name:find("Tree") or name:find("Brightwood") or name:find("Fairy") or name:find("Suci") then 
-                        match = true 
-                    end
-                elseif SelectedTreeType == "Small Trees" and name == "Small Tree" then
-                    match = true
-                elseif SelectedTreeType == "Hard Trees" and (name:find("Hard") or name:find("Medium") or name == "Tree") then
-                    match = true
-                elseif SelectedTreeType == "Brightwood Trees" and name:find("Brightwood") then
-                    match = true
-                elseif SelectedTreeType == "Fairy Trees" and (name:find("Fairy") or name:find("Suci")) then
-                    match = true
-                end
-                if match then
-                    -- Pastikan pohon memiliki bagian yang bisa dipukul
-                    if getTreeMainPart(obj) then
-                        table.insert(trees, obj)
-                    end
-                end
-            end
-        end
-    end
-
-    local map = Workspace:FindFirstChild("Map")
-    if map then
-        -- Cari di semua folder yang mungkin
-        local possibleFolders = {"Foliage", "Landmarks", "Trees", "Environment", "Resources"}
-        for _, folderName in ipairs(possibleFolders) do
-            local folder = map:FindFirstChild(folderName)
-            if folder then
-                scan(folder)
-            end
-        end
-        -- Scan langsung di Map kalau ada
-        scan(map)
-    end
-    return trees
-end
 
 task.spawn(function()
     while true do
         if AutoWoodEnabled then
             local hrp = getHRP()
             if hrp then
-                -- Simpan posisi awal hanya jika sebelumnya tidak farming
                 if not WasWoodFarming then
                     SavedWoodBasecampCFrame = hrp.CFrame
                     WasWoodFarming = true
                 end
 
                 local tool = equipSpecificTool(SelectedAxeName)
-                local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
                 if not tool then
-                    task.wait(1)
+                    warn("Tool tidak ditemukan: " .. SelectedAxeName)
+                    task.wait(2)
                     continue
                 end
 
+                local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
                 local treeList = getFilteredTrees()
+                
                 for _, tree in ipairs(treeList) do
                     if not AutoWoodEnabled then break end
                     if not tree:IsDescendantOf(Workspace) then continue end
@@ -286,31 +393,24 @@ task.spawn(function()
                     hrp.CFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
                     task.wait(0.2)
                     
-                    -- Pukul pohon sampai habis
-                    local maxHits = 30
+                    -- Pukul sampai pohon hilang atau maksimal 25 pukulan
+                    local maxHits = 25
                     local hitCount = 0
                     while AutoWoodEnabled and tree:IsDescendantOf(Workspace) and getTreeMainPart(tree) and hitCount < maxHits do
+                        -- Pastikan tool masih di tangan
                         local currentTool = equipSpecificTool(SelectedAxeName)
-                        if currentTool then
-                            -- Pukul dengan swing
-                            local swing = currentTool:FindFirstChild("Swing")
-                            if swing then
-                                pcall(function() swing:FireServer() end)
-                            end
-                            -- Damage remote
-                            pcall(function()
-                                remoteEvents.ToolDamageObject:InvokeServer(tree, currentTool, damageID, CFrame.new(mainPart.Position))
-                            end)
-                        end
-                        task.wait(0.25)
+                        if not currentTool then break end
+                        
+                        -- Lakukan serangan
+                        attackTarget(tree, currentTool, damageID)
+                        
+                        task.wait(0.2)
                         hitCount = hitCount + 1
                     end
-                    -- Jeda antar pohon
                     task.wait(0.3)
                 end
             end
         else
-            -- Kembali ke basecamp saat dimatikan
             if WasWoodFarming then
                 local hrp = getHRP()
                 if hrp and SavedWoodBasecampCFrame then
@@ -346,14 +446,14 @@ task.spawn(function()
                             if mob:IsA("Model") and mob.Name == SelectedMob and mob:IsDescendantOf(Workspace) then
                                 local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
                                 if part and part:IsDescendantOf(Workspace) then
-                                    remoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
+                                    attackTarget(mob, tool, damageID)
                                 end
                             end
                         end
                     end
                 end)
             end
-            task.wait(0.4) -- jeda lebih panjang
+            task.wait(0.4)
         else
             if WasHunting then
                 local hrp = getHRP()
@@ -384,7 +484,7 @@ task.spawn(function()
                         if item.Name == SelectedBulkItem and item:IsDescendantOf(Workspace) then
                             moveItemToPos(item, targetPos + Vector3.new(math.random(-1,1), count * 0.5, math.random(-1,1)))
                             count = count + 1
-                            if count >= 5 then break end -- batasi per loop agar tidak overload
+                            if count >= 5 then break end
                         end
                     end
                 end
@@ -423,29 +523,29 @@ end)
 -- PENANGANAN KARAKTER MATI
 -- ==========================================
 
-Players.LocalPlayer.CharacterAdded:Connect(function(char)
-    -- Reset state agar tidak error
+LocalPlayer.CharacterAdded:Connect(function(char)
     WasWoodFarming = false
     WasHunting = false
     SavedWoodBasecampCFrame = nil
     SavedMobBasecampCFrame = nil
-    -- Notifikasi
-    WindUI:Notify({
-        Title = "Respawn",
-        Content = "Karakter baru terdeteksi, state direset.",
-        Duration = 3
-    })
+    if WindUI then
+        WindUI:Notify({
+            Title = "Respawn",
+            Content = "Karakter baru terdeteksi, state direset.",
+            Duration = 3
+        })
+    end
 end)
 
 -- ==========================================
--- WIND UI (TETAP SAMA)
+-- WIND UI
 -- ==========================================
 
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Fixed Version",
+    Subtitle = "W424 Hub | Final Fix",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -570,7 +670,7 @@ PlayerTab:Input({
 })
 
 WindUI:Notify({
-    Title = "Update Finished",
-    Content = "Semua error telah diperbaiki!",
+    Title = "Update Final",
+    Content = "Semua metode serangan dan equip telah ditambahkan!",
     Duration = 5
 })
