@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FULL MASTER EDITION (THEME: DARK BLUE)
+-- FULL MASTER EDITION (THEME: DARK BLUE + CLEAN LOOP CHOP)
 -- ==========================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -60,7 +60,7 @@ local function getAnyTool()
 end
 
 -- ==========================================
--- 1. FIXED CHOP AURA LOOP (Anti-Glitch / Normal Drop)
+-- 1. FIXED CHOP AURA LOOP (Clean & Presisi)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.3) do
@@ -218,7 +218,7 @@ local Window = Rayfield:CreateWindow({
    Name = "W424 Hub | Full Master Edition",
    LoadingTitle = "Memuat Fitur Lengkap...",
    LoadingSubtitle = "by W424",
-   Theme = "DarkBlue", -- Tema diatur ke Dark Blue
+   Theme = "DarkBlue",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
@@ -313,7 +313,7 @@ TabCamp:CreateToggle({
 
 Rayfield:Notify({
    Title = "W424 DarkBlue Edition Ready!",
-   Content = "Tema DarkBlue aktif dengan fitur lengkap.",
+   Content = "Tema DarkBlue aktif dengan struktur loop chop yang bersih.",
    Duration = 5,
    Image = 4483362458
 })
