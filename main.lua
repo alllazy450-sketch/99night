@@ -1,19 +1,25 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- ULTIMATE FLUENT EDITION (MOBILE FIXED, NO 404)
+-- WINDUI BOREAL EDITION (MOBILE OPTIMIZED)
 -- ==========================================
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+-- Mengambil WindUI Boreal (atau fallback ke versi standar WindUI jika error 404)
+local successUI, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/orialdev/windui-boreal/main/main.lua"))()
+end)
+
+if not successUI or not WindUI then
+    -- Fallback ke original WindUI jika repo boreal tidak ditemukan
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/main.lua"))()
+end
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local RemotesFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
-local characterFolder = Workspace:WaitForChild("Characters", 10)
 
 -- ==========================================
 -- GLOBAL STATE
@@ -36,8 +42,6 @@ local toolsDamageIDs = {
     ["Spear"] = "196_8999010016",
     ["Sword"] = "12_8982038982"
 }
-
-local equippedTool = nil
 
 -- ==========================================
 -- UTILITY FUNCTIONS & ROBUST PHYSICS
@@ -129,8 +133,9 @@ local function moveItemToPos(item, position)
 end
 
 -- ==========================================
--- 1. CHOP AURA ENGINE
+-- ENGINE LOOPS (AURA & AUTOMATION)
 -- ==========================================
+-- 1. Chop Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.ChopAura then
@@ -156,9 +161,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- 2. KILL AURA ENGINE
--- ==========================================
+-- 2. Kill Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.KillAura then
@@ -184,9 +187,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- 3. AUTO CLAIM / BRING DROPS
--- ==========================================
+-- 3. Auto Claim
 task.spawn(function()
     while task.wait(0.5) do
         if getgenv().W424.AutoClaim then
@@ -204,9 +205,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- 4. AUTO FEED CAMPFIRE
--- ==========================================
+-- 4. Auto Feed
 task.spawn(function()
     while task.wait(1) do
         if getgenv().W424.AutoFeed then
@@ -227,9 +226,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- 5. AUTO LOOT CHEST
--- ==========================================
+-- 5. Auto Loot Chest
 task.spawn(function()
     while task.wait(0.5) do
         if getgenv().W424.AutoLootChest then
@@ -263,49 +260,77 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- FLUENT UI SETUP (MOBILE DIMENSIONS FIXED)
+-- WINDUI BOREAL SETUP
 -- ==========================================
-local Window = Fluent:CreateWindow({
+local Window = WindUI:CreateWindow({
     Title = "W424 Hub | 99 Nights",
-    SubTitle = "Mobile Edition",
-    TabWidth = 110, -- Lebar tab diperkecil agar tidak memotong layar
-    Size = UDim2.new(0, 420, 0, 280), -- Ukuran proporsional HP
-    Acrylic = false,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
+    Icon = "rbxassetid://10618928818", 
+    Author = "Mobile Edition",
+    Size = UDim2.new(0, 420, 0, 320),
+    Transparent = true,
+    Theme = "Dark"
 })
 
-local Tabs = {
-    Combat = Window:AddTab({ Title = "Combat", Icon = "swords" }),
-    Farm = Window:AddTab({ Title = "Farming", Icon = "leaf" }),
-    Automation = Window:AddTab({ Title = "Autos", Icon = "box" })
-}
+local CombatTab = Window:Tab({ Title = "Combat & Farm", Icon = "swords" })
+local AutoTab = Window:Tab({ Title = "Automation", Icon = "box" })
 
 -- TAB: COMBAT
-Tabs.Combat:AddDropdown("WeaponSelect", {
+CombatTab:Dropdown({
     Title = "Select Weapon/Axe",
-    Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw", "Spear"},
-    Default = getgenv().W424.SelectedAxe,
+    Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw", "Spear", "Sword"},
+    Value = getgenv().W424.SelectedAxe,
     Callback = function(v) getgenv().W424.SelectedAxe = v end
 })
 
-Tabs.Combat:AddToggle("ChopAura", { Title = "Chop Aura (Radius)", Default = getgenv().W424.ChopAura }):OnChanged(function(v) getgenv().W424.ChopAura = v end)
-Tabs.Combat:AddSlider("ChopRadius", { Title = "Chop Radius", Min = 10, Max = 60, Default = getgenv().W424.ChopRadius, Callback = function(v) getgenv().W424.ChopRadius = v end })
+CombatTab:Toggle({
+    Title = "Chop Aura (Radius)",
+    Value = getgenv().W424.ChopAura,
+    Callback = function(v) getgenv().W424.ChopAura = v end
+})
 
-Tabs.Combat:AddToggle("KillAura", { Title = "Kill Aura (Mob)", Default = getgenv().W424.KillAura }):OnChanged(function(v) getgenv().W424.KillAura = v end)
-Tabs.Combat:AddSlider("KillRadius", { Title = "Kill Radius", Min = 10, Max = 60, Default = getgenv().W424.KillRadius, Callback = function(v) getgenv().W424.KillRadius = v end })
+CombatTab:Slider({
+    Title = "Chop Radius",
+    Min = 10,
+    Max = 60,
+    Value = getgenv().W424.ChopRadius,
+    Callback = function(v) getgenv().W424.ChopRadius = v end
+})
 
--- TAB: FARMING
-Tabs.Farm:AddToggle("AutoWood", { Title = "Auto Wood (Radius)", Default = getgenv().W424.AutoWood }):OnChanged(function(v) getgenv().W424.AutoWood = v end)
-Tabs.Farm:AddToggle("AutoHunt", { Title = "Auto Hunt (Radius)", Default = getgenv().W424.AutoHunt }):OnChanged(function(v) getgenv().W424.AutoHunt = v end)
+CombatTab:Toggle({
+    Title = "Kill Aura (Mob)",
+    Value = getgenv().W424.KillAura,
+    Callback = function(v) getgenv().W424.KillAura = v end
+})
+
+CombatTab:Slider({
+    Title = "Kill Radius",
+    Min = 10,
+    Max = 60,
+    Value = getgenv().W424.KillRadius,
+    Callback = function(v) getgenv().W424.KillRadius = v end
+})
 
 -- TAB: AUTOMATION
-Tabs.Automation:AddToggle("AutoClaim", { Title = "Auto Claim Drops", Default = getgenv().W424.AutoClaim }):OnChanged(function(v) getgenv().W424.AutoClaim = v end)
-Tabs.Automation:AddToggle("AutoFeed", { Title = "Auto Feed Campfire", Default = getgenv().W424.AutoFeed }):OnChanged(function(v) getgenv().W424.AutoFeed = v end)
-Tabs.Automation:AddToggle("AutoLootChest", { Title = "Auto Loot Chests", Default = getgenv().W424.AutoLootChest }):OnChanged(function(v) getgenv().W424.AutoLootChest = v end)
+AutoTab:Toggle({
+    Title = "Auto Claim Drops",
+    Value = getgenv().W424.AutoClaim,
+    Callback = function(v) getgenv().W424.AutoClaim = v end
+})
+
+AutoTab:Toggle({
+    Title = "Auto Feed Campfire",
+    Value = getgenv().W424.AutoFeed,
+    Callback = function(v) getgenv().W424.AutoFeed = v end
+})
+
+AutoTab:Toggle({
+    Title = "Auto Loot Chests",
+    Value = getgenv().W424.AutoLootChest,
+    Callback = function(v) getgenv().W424.AutoLootChest = v end
+})
 
 -- ==========================================
--- SUPER BUBBLE TOGGLE (100% MUNCUL)
+-- SUPER BUBBLE TOGGLE (ANTI HILANG)
 -- ==========================================
 pcall(function()
     local CoreGui = game:GetService("CoreGui")
@@ -314,34 +339,32 @@ pcall(function()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "W424_Toggle"
     ScreenGui.Parent = CoreGui
-    ScreenGui.DisplayOrder = 2147483647 -- Pastikan selalu di atas
+    ScreenGui.DisplayOrder = 2147483647
     ScreenGui.ResetOnSpawn = false
 
     local ToggleBtn = Instance.new("TextButton")
     ToggleBtn.Parent = ScreenGui
     ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
     ToggleBtn.Position = UDim2.new(0, 15, 0.25, 0)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     ToggleBtn.Text = "UI"
-    ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
+    ToggleBtn.TextColor3 = Color3.fromRGB(0, 200, 255)
     ToggleBtn.Font = Enum.Font.GothamBold
     ToggleBtn.TextSize = 14
     ToggleBtn.Active = true
     ToggleBtn.Draggable = true
 
-    local UICorner = Instance.new("UICorner", ToggleBtn)
-    UICorner.CornerRadius = UDim.new(1, 0)
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
     
     local UIStroke = Instance.new("UIStroke", ToggleBtn)
-    UIStroke.Color = Color3.fromRGB(0, 255, 150)
+    UIStroke.Color = Color3.fromRGB(0, 200, 255)
     UIStroke.Thickness = 2
 
+    -- WindUI secara bawaan biasanya bisa di-hide dengan menutup frame utamanya
     ToggleBtn.MouseButton1Down:Connect(function()
-        -- Trigger tombol minimize bawaan Fluent UI secara instan
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
+        local windContainer = CoreGui:FindFirstChild("WindUI") or CoreGui:FindFirstChild("WindUIBoreal")
+        if windContainer then
+            windContainer.Enabled = not windContainer.Enabled
+        end
     end)
 end)
-
-Fluent:Notify({ Title = "W424 Loaded", Content = "99 night in forest test!", Duration = 3 })
