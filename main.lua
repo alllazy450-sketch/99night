@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- ULTIMATE MASTER EDITION (REBUILT & IMPROVED AURA)
+-- MASTER EDITION: RAYFIELD UI + SPY AURA + INDEX SELECTOR
 -- ==========================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -18,117 +18,50 @@ local itemFolder = Workspace:WaitForChild("Items", 10)
 -- ==========================================
 getgenv().W424 = {
     ChopAura = false,
-    ChopRadius = 100,
-    BlinkHit = true, -- Fitur baru: Bypass server-side agar kayu pasti drop
-    
+    ChopRadius = 150,
     KillAura = false,
-    KillRadius = 100,
-    
-    AutoClaim = false,
+    KillRadius = 150,
+    SelectedItem = "All", -- Default tarik semua atau item spesifik
+    AutoBringSelected = false,
     AutoBringChest = false
 }
 
--- Mapping ID Kapak & Senjata
-local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
-    ["Good Axe"] = "112_8982038982",
-    ["Strong Axe"] = "116_8982038982",
-    ["Chainsaw"] = "647_8992824875",
-    ["Spear"] = "196_8999010016"
+-- Kamus Terjemahan/Indeks Item (English -> Display Name)
+local itemList = {
+    ["Log"] = "Khúc Gỗ",
+    ["Item Chest"] = "Rương Vật Phẩm",
+    ["MedKit"] = "Hộp Cứu Thương",
+    ["Revolver"] = "Súng Lục",
+    ["Chainsaw"] = "Cưa Máy",
+    ["Spear"] = "Tombak/Spear"
 }
 
-local function getAnyToolWithDamageID()
-    local char = LocalPlayer.Character
-    if char then
-        for _, child in ipairs(char:GetChildren()) do
-            if child:IsA("Tool") and toolsDamageIDs[child.Name] then
-                return child, toolsDamageIDs[child.Name]
-            end
-        end
-    end
-    
-    local inv = LocalPlayer:FindFirstChild("Inventory")
-    if inv then
-        for toolName, damageID in pairs(toolsDamageIDs) do
-            local tool = inv:FindFirstChild(toolName)
-            if tool then
-                return tool, damageID
-            end
-        end
-    end
-    return nil, nil
-end
-
-local function equipTool(tool)
-    if tool and RemotesFolder and RemotesFolder:FindFirstChild("EquipItemHandle") then
-        pcall(function()
-            RemotesFolder.EquipItemHandle:FireServer("FireAllClients", tool)
-        end)
-    end
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and tool and tool.Parent ~= char then
-        pcall(function() char.Humanoid:EquipTool(tool) end)
-    end
-end
-
 -- ==========================================
--- IMPROVED PHYSICS & HIT EXECUTION (BYPASS DROP)
--- ==========================================
-local function executeHit(target, tool, damageID, targetPart)
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp or not targetPart then return end
-
-    local damageRemote = RemotesFolder:FindFirstChild("ToolDamageObject")
-    if not damageRemote then return end
-
-    local originalCFrame = hrp.CFrame
-    local distance = (hrp.Position - targetPart.Position).Magnitude
-
-    -- Jika jarak jauh dan BlinkHit aktif, teleport kilat sesaat agar server mengesahkan item drop
-    if distance > 20 and getgenv().W424.BlinkHit then
-        hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, 3)
-        task.wait(0.05)
-        
-        pcall(function()
-            damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position))
-        end)
-        
-        task.wait(0.05)
-        hrp.CFrame = originalCFrame
-    else
-        pcall(function()
-            damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position))
-        end)
-    end
-end
-
--- ==========================================
--- 1. IMPROVED CHOP AURA LOOP (Lebih Luas & Presisi)
+-- 1. CHOP AURA LOOP (Menggunakan Temuan Remote Spy: DestroyObject)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.15) do
+    while task.wait(0.2) do
         if getgenv().W424.ChopAura then
             pcall(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if not hrp then return end
 
-                local tool, damageID = getAnyToolWithDamageID()
-                if tool and damageID then
-                    equipTool(tool)
-
-                    local map = Workspace:FindFirstChild("Map")
-                    local foliage = map and map:FindFirstChild("Foliage")
-                    
-                    if foliage then
-                        for _, tree in ipairs(foliage:GetChildren()) do
-                            if not getgenv().W424.ChopAura then break end
+                local map = Workspace:FindFirstChild("Map")
+                local foliage = map and map:FindFirstChild("Foliage")
+                
+                if foliage then
+                    for _, tree in ipairs(foliage:GetChildren()) do
+                        if not getgenv().W424.ChopAura then break end
+                        
+                        local part = tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1") or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
+                        if part and (part.Position - hrp.Position).Magnitude <= getgenv().W424.ChopRadius then
                             
-                            -- Deteksi multi-part agar semua jenis pohon terbaca luas
-                            local part = tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1") or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
-                            if part and (part.Position - hrp.Position).Magnitude <= getgenv().W424.ChopRadius then
-                                executeHit(tree, tool, damageID, part)
-                                task.wait(0.05)
+                            local destroyEvent = RemotesFolder and RemotesFolder:FindFirstChild("DestroyObject")
+                            if destroyEvent and firesignal then
+                                firesignal(destroyEvent.OnClientEvent, tree, part.CFrame)
                             end
+                            
+                            task.wait(0.05)
                         end
                     end
                 end
@@ -141,26 +74,24 @@ end)
 -- 2. KILL AURA LOOP
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.15) do
+    while task.wait(0.2) do
         if getgenv().W424.KillAura then
             pcall(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if not hrp then return end
 
-                local tool, damageID = getAnyToolWithDamageID()
-                if tool and damageID then
-                    equipTool(tool)
-
-                    local charactersFolder = Workspace:FindFirstChild("Characters")
-                    if charactersFolder then
-                        for _, mob in ipairs(charactersFolder:GetChildren()) do
-                            if not getgenv().W424.KillAura then break end
-                            if mob:IsA("Model") and mob ~= LocalPlayer.Character then
-                                local part = mob:FindFirstChildWhichIsA("BasePart")
-                                if part and (part.Position - hrp.Position).Magnitude <= getgenv().W424.KillRadius then
-                                    executeHit(mob, tool, damageID, part)
-                                    task.wait(0.05)
+                local charactersFolder = Workspace:FindFirstChild("Characters")
+                if charactersFolder then
+                    for _, mob in ipairs(charactersFolder:GetChildren()) do
+                        if not getgenv().W424.KillAura then break end
+                        if mob:IsA("Model") and mob ~= LocalPlayer.Character then
+                            local part = mob:FindFirstChildWhichIsA("BasePart")
+                            if part and (part.Position - hrp.Position).Magnitude <= getgenv().W424.KillRadius then
+                                local destroyEvent = RemotesFolder and RemotesFolder:FindFirstChild("DestroyObject")
+                                if destroyEvent and firesignal then
+                                    firesignal(destroyEvent.OnClientEvent, mob, part.CFrame)
                                 end
+                                task.wait(0.05)
                             end
                         end
                     end
@@ -171,34 +102,38 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 3. AUTO CLAIM DROPS & CHEST MANAGER
+-- 3. INDEX & REAL-TIME BRING ITEM LOOP
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.4) do
         local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not hrp or not itemFolder then continue end
 
         local startDrag = RemotesFolder:FindFirstChild("RequestStartDraggingItem")
         local stopDrag = RemotesFolder:FindFirstChild("StopDraggingItem")
 
-        -- Auto Claim Drops (Kayu, Item, dll)
-        if getgenv().W424.AutoClaim then
+        -- Bring Item Berdasarkan Indeks Pilihan User (Mencegah Lag/Crash)
+        if getgenv().W424.AutoBringSelected then
             pcall(function()
                 for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item:IsA("Model") and not item.Name:find("Chest") then
-                        local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-                        if part and startDrag and stopDrag then
-                            startDrag:FireServer(item)
-                            part.CFrame = hrp.CFrame + Vector3.new(0, 1.5, 0)
-                            part.Velocity = Vector3.zero
-                            stopDrag:FireServer(item)
+                    if item:IsA("Model") then
+                        local targetMatch = (getgenv().W424.SelectedItem == "All") or (item.Name:lower():find(getgenv().W424.SelectedItem:lower()))
+                        
+                        if targetMatch then
+                            local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+                            if part and startDrag and stopDrag then
+                                startDrag:FireServer(item)
+                                part.CFrame = hrp.CFrame + Vector3.new(0, 1.5, 0)
+                                part.Velocity = Vector3.zero
+                                stopDrag:FireServer(item)
+                            end
                         end
                     end
                 end
             end)
         end
 
-        -- Auto Bring & Open Chest
+        -- Auto Bring & Open Chests
         if getgenv().W424.AutoBringChest then
             pcall(function()
                 for _, chest in ipairs(itemFolder:GetChildren()) do
@@ -210,7 +145,6 @@ task.spawn(function()
                             main.Velocity = Vector3.zero
                             stopDrag:FireServer(chest)
 
-                            -- Buka proximity prompt peti secara otomatis
                             for _, obj in ipairs(chest:GetDescendants()) do
                                 if obj:IsA("ProximityPrompt") then
                                     pcall(function() obj.RequiresLineOfSight = false end)
@@ -226,34 +160,27 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- RAYFIELD UI INTERFACE (STABLE & MOBILE SAFE)
+-- RAYFIELD UI INTERFACE SETUP
 -- ==========================================
 local Window = Rayfield:CreateWindow({
-   Name = "W424 Hub | 99 Nights",
-   LoadingTitle = "Memuat Master Sistem...",
-   LoadingSubtitle = "Ultimate Edition",
+   Name = "W424 Hub | Master Edition",
+   LoadingTitle = "Memuat Fitur...",
+   LoadingSubtitle = "by W424",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
-local TabMain = Window:CreateTab("Aura & Farming", 4483362458)
-local TabLoot = Window:CreateTab("Loot & Automation", 4483362458)
+local TabMain = Window:CreateTab("Aura & Combat", 4483362458)
+local TabLoot = Window:CreateTab("Index & Looting", 4483362458)
 
--- TAB 1: AURA & FARMING
-TabMain:CreateSection("Wood Farming (Improved)")
+-- TAB 1: AURA
+TabMain:CreateSection("Aura Automation (Spy Method)")
 
 TabMain:CreateToggle({
-   Name = "Auto Farm Wood (Chop Aura)",
+   Name = "Chop Aura (Pohon Otomatis)",
    CurrentValue = getgenv().W424.ChopAura,
-   Flag = "ChopAuraTog",
+   Flag = "ChopTog",
    Callback = function(Value) getgenv().W424.ChopAura = Value end,
-})
-
-TabMain:CreateToggle({
-   Name = "Enable Blink Hit (Fix Kayu Tidak Drop)",
-   CurrentValue = getgenv().W424.BlinkHit,
-   Flag = "BlinkHitTog",
-   Callback = function(Value) getgenv().W424.BlinkHit = Value end,
 })
 
 TabMain:CreateSlider({
@@ -266,12 +193,10 @@ TabMain:CreateSlider({
    Callback = function(Value) getgenv().W424.ChopRadius = Value end,
 })
 
-TabMain:CreateSection("Combat Automation")
-
 TabMain:CreateToggle({
-   Name = "Kill Aura (Mob / Characters)",
+   Name = "Kill Aura (Mob Otomatis)",
    CurrentValue = getgenv().W424.KillAura,
-   Flag = "KillAuraTog",
+   Flag = "KillTog",
    Callback = function(Value) getgenv().W424.KillAura = Value end,
 })
 
@@ -285,14 +210,29 @@ TabMain:CreateSlider({
    Callback = function(Value) getgenv().W424.KillRadius = Value end,
 })
 
--- TAB 2: LOOT & AUTOMATION
-TabLoot:CreateSection("Item & Chest Manager")
+-- TAB 2: INDEX & LOOTING
+TabLoot:CreateSection("Index Item Selector (Anti-Lag)")
+
+local optionsList = {"All"}
+for engName, _ in pairs(itemList) do
+    table.insert(optionsList, engName)
+end
+
+TabLoot:CreateDropdown({
+   Name = "Pilih Item yang Ingin Ditarik",
+   Options = optionsList,
+   CurrentOption = "All",
+   Flag = "ItemDropdown",
+   Callback = function(Option)
+      getgenv().W424.SelectedItem = Option
+   end,
+})
 
 TabLoot:CreateToggle({
-   Name = "Auto Claim Drops (Log/Items)",
-   CurrentValue = getgenv().W424.AutoClaim,
-   Flag = "ClaimTog",
-   Callback = function(Value) getgenv().W424.AutoClaim = Value end,
+   Name = "Auto Bring Selected Item",
+   CurrentValue = getgenv().W424.AutoBringSelected,
+   Flag = "BringSelTog",
+   Callback = function(Value) getgenv().W424.AutoBringSelected = Value end,
 })
 
 TabLoot:CreateToggle({
@@ -303,8 +243,8 @@ TabLoot:CreateToggle({
 })
 
 Rayfield:Notify({
-   Title = "W424 Hub Master Loaded!",
-   Content = "Chop Aura (Blink Physics) & Kill Aura aktif!",
+   Title = "W424 Master Hub Ready!",
+   Content = "Fitur Chop Aura Spy & Index Selector aktif.",
    Duration = 5,
    Image = 4483362458
 })
