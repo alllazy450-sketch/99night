@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FULL CHOP AURA & STABLE MOBILE UI
+-- CLEAN FLUENT UI & STABLE CHOP AURA
 -- ==========================================
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -90,12 +90,15 @@ task.spawn(function()
     end
 end)
 
--- UI SETUP
+-- UI SETUP (STANDAR AMAN FLUENT)
 local Window = Fluent:CreateWindow({
     Title = "99 Nights | W424 Hub",
     SubTitle = "Chop Aura Edition",
-    Size = UDim2.fromOffset(500, 350),
-    Theme = "Dark"
+    TabWidth = 160,
+    Size = UDim2.fromOffset(480, 320),
+    Acrylic = false,
+    Theme = "Dark",
+    MinimizeKey = Enum.Keycode.LeftControl
 })
 
 local Tabs = {
@@ -107,7 +110,7 @@ Tabs.Aura:AddToggle("ChopAura", { Title = "Enable Chop Aura", Default = false })
 Tabs.Aura:AddSlider("Range", { Title = "Aura Radius", Default = 30, Min = 10, Max = 60, Callback = function(v) ChopAuraRadius = v end })
 Tabs.Auto:AddToggle("Claim", { Title = "Auto Claim Items", Default = false }):OnChanged(function(v) AutoClaimEnabled = v end)
 
--- FIXED MOBILE BUBBLE TOGGLE
+-- MOBILE TOGGLE BUTTON AMAN
 pcall(function()
     local CoreGui = game:GetService("CoreGui")
     if CoreGui:FindFirstChild("W424_MobileToggle") then CoreGui.W424_MobileToggle:Destroy() end
@@ -121,23 +124,27 @@ pcall(function()
     local ToggleBtn = Instance.new("TextButton")
     ToggleBtn.Name = "W424Btn"
     ToggleBtn.Parent = ScreenGui
-    ToggleBtn.Size = UDim2.fromOffset(60, 60)
-    ToggleBtn.Position = UDim2.new(0, 20, 0.4, 0)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    ToggleBtn.Text = "MENU"
+    ToggleBtn.Size = UDim2.fromOffset(50, 50)
+    ToggleBtn.Position = UDim2.new(0, 15, 0.35, 0)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    ToggleBtn.Text = "UI"
     ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
+    ToggleBtn.Font = Enum.Font.SourceSansBold
+    ToggleBtn.TextSize = 16
     ToggleBtn.Active = true
     ToggleBtn.Draggable = true
 
     local UICorner = Instance.new("UICorner", ToggleBtn)
     UICorner.CornerRadius = UDim.new(1, 0)
 
-    local windowVisible = true
+    local isOpen = true
     ToggleBtn.MouseButton1Down:Connect(function()
-        windowVisible = not windowVisible
-        Fluent:ToggleWindow(windowVisible)
+        isOpen = not isOpen
+        pcall(function()
+            Fluent:ToggleWindow()
+        end)
     end)
 end)
 
 UIReady = true
-Fluent:Notify({ Title = "Ready", Content = "Tekan tombol MENU untuk buka/tutup UI", Duration = 3 })
+Fluent:Notify({ Title = "Success", Content = "Script berhasil dimuat tanpa error!", Duration = 3 })
