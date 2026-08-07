@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FLUENT UI EDITION (ANTI-ERROR & STABLE)
+-- CHOP AURA TREE EDITION (NO TP FARM)
 -- ==========================================
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -18,6 +18,9 @@ local characterFolder = Workspace:WaitForChild("Characters", 10)
 local UIReady = false
 
 -- State Variables
+local ChopAuraEnabled = false
+local ChopAuraRadius = 30
+
 local AutoTapEnabled = false
 local TapInterval = 0.2
 
@@ -25,9 +28,6 @@ local AutoWoodEnabled = false
 local AutoCarrotEnabled = false
 local SelectedTreeType = "All Trees"
 local SelectedAxeName = "Old Axe"
-
-local KillAuraEnabled = false
-local KillAuraRadius = 500
 
 local AutoClaimEnabled = false 
 local AutoFeedEnabled = false
@@ -117,6 +117,75 @@ local function triggerPhysicalSwing(treeTarget)
         end
     end
 end
+
+-- ==========================================
+-- TREE SCANNER HELPER
+-- ==========================================
+local function getTreeMainPart(tree)
+    if not tree or not tree:IsDescendantOf(Workspace) then return nil end
+    local part = tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1") or tree:FindFirstChild("MainPart")
+        or tree:FindFirstChild("Head") or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
+    if part and part:IsA("BasePart") and part:IsDescendantOf(Workspace) then return part end
+    return nil
+end
+
+local function getFilteredTrees()
+    local trees = {}
+    local function scan(folder)
+        if not folder then return end
+        for _, obj in ipairs(folder:GetDescendants()) do
+            if obj:IsA("Model") and obj:IsDescendantOf(Workspace) then
+                local name = obj.Name
+                local match = false
+                if SelectedTreeType == "All Trees" then
+                    if name:find("Tree") or name:find("Brightwood") or name:find("Fairy") or name:find("Suci") then match = true end
+                elseif SelectedTreeType == "Small Trees" and name == "Small Tree" then match = true
+                elseif SelectedTreeType == "Hard Trees" and (name:find("Hard") or name:find("Medium") or name == "Tree") then match = true
+                elseif SelectedTreeType == "Brightwood Trees" and name:find("Brightwood") then match = true
+                elseif SelectedTreeType == "Fairy Trees" and (name:find("Fairy") or name:find("Suci")) then match = true
+                end
+                if match and getTreeMainPart(obj) then table.insert(trees, obj) end
+            end
+        end
+    end
+
+    local map = Workspace:FindFirstChild("Map")
+    if map then
+        local possibleFolders = {"Foliage", "Landmarks", "Trees", "Environment", "Resources"}
+        for _, folderName in ipairs(possibleFolders) do
+            local folder = map:FindFirstChild(folderName)
+            if folder then scan(folder) end
+        end
+        scan(map)
+    end
+    return trees
+end
+
+-- ==========================================
+-- CHOP AURA ENGINE (FEAT)
+-- ==========================================
+task.spawn(function()
+    while true do
+        if UIReady and ChopAuraEnabled then
+            local hrp = getHRP()
+            if hrp then
+                for _, tree in ipairs(getFilteredTrees()) do
+                    if not ChopAuraEnabled then break end
+                    if not tree:IsDescendantOf(Workspace) then continue end
+
+                    local trunk = getTreeMainPart(tree)
+                    if trunk then
+                        local distance = (trunk.Position - hrp.Position).Magnitude
+                        if distance <= ChopAuraRadius then
+                            triggerPhysicalSwing(tree)
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+end)
 
 -- ==========================================
 -- ITEM MOVER & CLAIM
@@ -215,46 +284,6 @@ task.spawn(function()
     end
 end)
 
-local function getTreeMainPart(tree)
-    if not tree or not tree:IsDescendantOf(Workspace) then return nil end
-    local part = tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1") or tree:FindFirstChild("MainPart")
-        or tree:FindFirstChild("Head") or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
-    if part and part:IsA("BasePart") and part:IsDescendantOf(Workspace) then return part end
-    return nil
-end
-
-local function getFilteredTrees()
-    local trees = {}
-    local function scan(folder)
-        if not folder then return end
-        for _, obj in ipairs(folder:GetDescendants()) do
-            if obj:IsA("Model") and obj:IsDescendantOf(Workspace) then
-                local name = obj.Name
-                local match = false
-                if SelectedTreeType == "All Trees" then
-                    if name:find("Tree") or name:find("Brightwood") or name:find("Fairy") or name:find("Suci") then match = true end
-                elseif SelectedTreeType == "Small Trees" and name == "Small Tree" then match = true
-                elseif SelectedTreeType == "Hard Trees" and (name:find("Hard") or name:find("Medium") or name == "Tree") then match = true
-                elseif SelectedTreeType == "Brightwood Trees" and name:find("Brightwood") then match = true
-                elseif SelectedTreeType == "Fairy Trees" and (name:find("Fairy") or name:find("Suci")) then match = true
-                end
-                if match and getTreeMainPart(obj) then table.insert(trees, obj) end
-            end
-        end
-    end
-
-    local map = Workspace:FindFirstChild("Map")
-    if map then
-        local possibleFolders = {"Foliage", "Landmarks", "Trees", "Environment", "Resources"}
-        for _, folderName in ipairs(possibleFolders) do
-            local folder = map:FindFirstChild(folderName)
-            if folder then scan(folder) end
-        end
-        scan(map)
-    end
-    return trees
-end
-
 task.spawn(function()
     while true do
         if UIReady and AutoTapEnabled then triggerPhysicalSwing(nil) end
@@ -352,7 +381,7 @@ end)
 -- ==========================================
 local Window = Fluent:CreateWindow({
     Title = "99 Nights in the Forest",
-    SubTitle = "W424 Hub | Fluent Edition",
+    SubTitle = "W424 Hub | Chop Aura Edition",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 420),
     Theme = "Dark"
@@ -360,6 +389,7 @@ local Window = Fluent:CreateWindow({
 
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
+    Aura = Window:AddTab({ Title = "Chop Aura", Icon = "zap" }),
     Auto = Window:AddTab({ Title = "Auto Farm", Icon = "axe" }),
     Item = Window:AddTab({ Title = "Item TP", Icon = "box" }),
     Player = Window:AddTab({ Title = "Player", Icon = "user" })
@@ -368,6 +398,22 @@ local Tabs = {
 Tabs.Main:AddToggle("AutoTap", { Title = "Auto Click / Tap Swing", Default = false }):OnChanged(function(v)
     if UIReady then AutoTapEnabled = v end
 end)
+
+-- CHOP AURA TAB
+Tabs.Aura:AddToggle("ChopAuraToggle", { Title = "Enable Chop Tree Aura (No TP)", Default = false }):OnChanged(function(v)
+    if UIReady then ChopAuraEnabled = v end
+end)
+
+Tabs.Aura:AddSlider("AuraRange", {
+    Title = "Chop Aura Range (Studs)",
+    Default = 30,
+    Min = 10,
+    Max = 80,
+    Rounding = 0,
+    Callback = function(v)
+        if UIReady then ChopAuraRadius = v end
+    end
+})
 
 Tabs.Auto:AddDropdown("SelectAxe", {
     Title = "Select Axe / Tool",
@@ -442,10 +488,54 @@ Tabs.Player:AddInput("WalkSpeedInput", {
     end
 })
 
+-- MOBILE BUBBLE TOGGLE
+pcall(function()
+    local CoreGui = game:GetService("CoreGui")
+    if CoreGui:FindFirstChild("W424_MobileToggle") then
+        CoreGui.W424_MobileToggle:Destroy()
+    end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "W424_MobileToggle"
+    ScreenGui.Parent = CoreGui
+    ScreenGui.ResetOnSpawn = false
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Name = "W424Btn"
+    ToggleBtn.Parent = ScreenGui
+    ToggleBtn.Size = UDim2.fromOffset(50, 50)
+    ToggleBtn.Position = UDim2.new(0, 15, 0.4, 0)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.Text = "W424"
+    ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
+    ToggleBtn.Font = Enum.Font.SourceSansBold
+    ToggleBtn.TextSize = 16
+    ToggleBtn.Active = true
+    ToggleBtn.Draggable = true
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 25)
+    UICorner.Parent = ToggleBtn
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = Color3.fromRGB(0, 255, 150)
+    UIStroke.Thickness = 2
+    UIStroke.Parent = ToggleBtn
+
+    local isMin = false
+    ToggleBtn.MouseButton1Click:Connect(function()
+        isMin = not isMin
+        if Fluent then
+            Fluent:ToggleWindow(not isMin)
+        end
+    end)
+end)
+
 UIReady = true
 
 Fluent:Notify({
-    Title = "Fluent UI Loaded",
-    Content = "Script siap digunakan tanpa error!",
+    Title = "Chop Aura Implemented",
+    Content = "Tab Chop Aura siap diuji coba!",
     Duration = 5
 })
