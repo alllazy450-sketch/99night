@@ -1,7 +1,9 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- ULTIMATE STABLE & SAFE UIREADY ENGINE
+-- FLUENT UI EDITION (ANTI-ERROR & STABLE)
 -- ==========================================
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -12,10 +14,10 @@ local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
--- FLAG PENGUNCI (Mencegah Auto-Trigger Callback WindUI)
+-- FLAG PENGUNCI
 local UIReady = false
 
--- State Variables (MUTLAK OFF DI AWAL)
+-- State Variables
 local AutoTapEnabled = false
 local TapInterval = 0.2
 
@@ -54,7 +56,7 @@ local function getHRP()
 end
 
 -- ==========================================
--- AUTO EQUIP SYSTEM
+-- AUTO EQUIP & SWING SYSTEM
 -- ==========================================
 local function ensureToolEquipped(toolName)
     local char = LocalPlayer.Character
@@ -91,9 +93,6 @@ local function ensureToolEquipped(toolName)
     return char:FindFirstChildOfClass("Tool")
 end
 
--- ==========================================
--- SWING ENGINE
--- ==========================================
 local function triggerPhysicalSwing(treeTarget)
     local tool = ensureToolEquipped(SelectedAxeName)
     if not tool then return end
@@ -120,7 +119,7 @@ local function triggerPhysicalSwing(treeTarget)
 end
 
 -- ==========================================
--- SAFE ITEM MOVER
+-- ITEM MOVER & CLAIM
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -160,7 +159,7 @@ local function isClaimableItem(item)
 end
 
 -- ==========================================
--- REALTIME CLAIM & FEED LOOPS
+-- LOOPS
 -- ==========================================
 if itemFolder then
     itemFolder.ChildAdded:Connect(function(child)
@@ -216,9 +215,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AUTO FARM LOOPS
--- ==========================================
 local function getTreeMainPart(tree)
     if not tree or not tree:IsDescendantOf(Workspace) then return nil end
     local part = tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1") or tree:FindFirstChild("MainPart")
@@ -261,9 +257,7 @@ end
 
 task.spawn(function()
     while true do
-        if UIReady and AutoTapEnabled then
-            triggerPhysicalSwing(nil)
-        end
+        if UIReady and AutoTapEnabled then triggerPhysicalSwing(nil) end
         task.wait(TapInterval)
     end
 end)
@@ -302,9 +296,7 @@ task.spawn(function()
         else
             if WasWoodFarming then
                 local hrp = getHRP()
-                if hrp and SavedWoodBasecampCFrame then
-                    hrp.CFrame = SavedWoodBasecampCFrame
-                end
+                if hrp and SavedWoodBasecampCFrame then hrp.CFrame = SavedWoodBasecampCFrame end
                 WasWoodFarming = false
                 SavedWoodBasecampCFrame = nil
             end
@@ -356,54 +348,104 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- WIND UI INTERFACE
+-- FLUENT UI INTERFACE
 -- ==========================================
-local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
-local Window = WindUI:CreateWindow({
+local Window = Fluent:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | UIReady Engine",
-    Author = "alllazy450-sketch",
-    Folder = "W424Hub",
+    SubTitle = "W424 Hub | Fluent Edition",
+    TabWidth = 160,
     Size = UDim2.fromOffset(580, 420),
-    Transparent = true,
     Theme = "Dark"
 })
 
-local MainTab   = Window:Tab({ Title = "Main", Icon = "rbxassetid://10723407389" })
-local AutoTab   = Window:Tab({ Title = "Auto Farm", Icon = "rbxassetid://10734950309" })
-local ItemTab   = Window:Tab({ Title = "Item TP", Icon = "rbxassetid://10723345380" })
-local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "home" }),
+    Auto = Window:AddTab({ Title = "Auto Farm", Icon = "axe" }),
+    Item = Window:AddTab({ Title = "Item TP", Icon = "box" }),
+    Player = Window:AddTab({ Title = "Player", Icon = "user" })
+}
 
-MainTab:Section({ Title = "Auto Tap / Swing Trigger" })
-MainTab:Toggle({ Title = "Auto Click / Tap Swing", Default = false, Callback = function(v) if UIReady then AutoTapEnabled = v end end })
-MainTab:Input({ Title = "Tap Speed Interval (Detik)", Value = "0.2", Placeholder = "Ketik Detik", Callback = function(v) if UIReady then local num = tonumber(v) if num then TapInterval = num end end end })
+Tabs.Main:AddToggle("AutoTap", { Title = "Auto Click / Tap Swing", Default = false }):OnChanged(function(v)
+    if UIReady then AutoTapEnabled = v end
+end)
 
-AutoTab:Section({ Title = "Wood & Carrot Farming" })
-AutoTab:Dropdown({ Title = "Select Axe / Tool", Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw"}, Default = "Old Axe", Callback = function(v) if UIReady then SelectedAxeName = v end end })
-AutoTab:Dropdown({ Title = "Target Tree Type", Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"}, Default = "All Trees", Callback = function(v) if UIReady then SelectedTreeType = v end end })
-AutoTab:Toggle({ Title = "Auto Farm Wood (TP & Cut)", Default = false, Callback = function(v) if UIReady then AutoWoodEnabled = v end end })
-AutoTab:Toggle({ Title = "Auto Farm Carrots", Default = false, Callback = function(v) if UIReady then AutoCarrotEnabled = v end end })
+Tabs.Auto:AddDropdown("SelectAxe", {
+    Title = "Select Axe / Tool",
+    Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw"},
+    Default = "Old Axe",
+    Callback = function(v) if UIReady then SelectedAxeName = v end end
+})
 
-AutoTab:Section({ Title = "Campfire Settings" })
-AutoTab:Toggle({ Title = "Realtime Auto Claim Items", Default = false, Callback = function(v) if UIReady then AutoClaimEnabled = v end end })
-AutoTab:Toggle({ Title = "Auto Cook Meat", Default = false, Callback = function(v) if UIReady then AutoCookEnabled = v end end })
-AutoTab:Toggle({ Title = "Auto Feed Campfire", Default = false, Callback = function(v) if UIReady then AutoFeedEnabled = v end end })
-AutoTab:Dropdown({ Title = "Campfire Feed Item", Values = {"Log", "Coal", "Biofuel", "Fuel Canister"}, Default = "Log", Callback = function(v) if UIReady then SelectedFeedMaterials = {[v] = true} end end })
+Tabs.Auto:AddDropdown("SelectTree", {
+    Title = "Target Tree Type",
+    Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"},
+    Default = "All Trees",
+    Callback = function(v) if UIReady then SelectedTreeType = v end end
+})
 
-ItemTab:Section({ Title = "Item Teleport Toggle" })
-ItemTab:Toggle({ Title = "Auto Bring Selected Item", Default = false, Callback = function(v) if UIReady then BulkTPEnabled = v end end })
-ItemTab:Dropdown({ Title = "Item Name", Values = {"Log", "Coal", "Biofuel", "Meat", "Bunny Foot", "Pelt", "Sheet Metal", "Bolt"}, Default = "Log", Callback = function(v) if UIReady then SelectedBulkItem = v end end })
-ItemTab:Dropdown({ Title = "Teleport Destination", Values = {"To Player", "To Campfire"}, Default = "To Player", Callback = function(v) if UIReady then TPDestination = v end end })
+Tabs.Auto:AddToggle("AutoWood", { Title = "Auto Farm Wood (TP & Cut)", Default = false }):OnChanged(function(v)
+    if UIReady then AutoWoodEnabled = v end
+end)
 
-PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepatan", Callback = function(v)
-    if UIReady then
-        local num = tonumber(v)
-        local char = LocalPlayer and LocalPlayer.Character
-        if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
+Tabs.Auto:AddToggle("AutoCarrot", { Title = "Auto Farm Carrots", Default = false }):OnChanged(function(v)
+    if UIReady then AutoCarrotEnabled = v end
+end)
+
+Tabs.Auto:AddToggle("AutoClaim", { Title = "Realtime Auto Claim Items", Default = false }):OnChanged(function(v)
+    if UIReady then AutoClaimEnabled = v end
+end)
+
+Tabs.Auto:AddToggle("AutoCook", { Title = "Auto Cook Meat", Default = false }):OnChanged(function(v)
+    if UIReady then AutoCookEnabled = v end
+end)
+
+Tabs.Auto:AddToggle("AutoFeed", { Title = "Auto Feed Campfire", Default = false }):OnChanged(function(v)
+    if UIReady then AutoFeedEnabled = v end
+end)
+
+Tabs.Auto:AddDropdown("FeedItem", {
+    Title = "Campfire Feed Item",
+    Values = {"Log", "Coal", "Biofuel", "Fuel Canister"},
+    Default = "Log",
+    Callback = function(v) if UIReady then SelectedFeedMaterials = {[v] = true} end end
+})
+
+Tabs.Item:AddToggle("BulkTP", { Title = "Auto Bring Selected Item", Default = false }):OnChanged(function(v)
+    if UIReady then BulkTPEnabled = v end
+end)
+
+Tabs.Item:AddDropdown("ItemName", {
+    Title = "Item Name",
+    Values = {"Log", "Coal", "Biofuel", "Meat", "Bunny Foot", "Pelt", "Sheet Metal", "Bolt"},
+    Default = "Log",
+    Callback = function(v) if UIReady then SelectedBulkItem = v end end
+})
+
+Tabs.Item:AddDropdown("TPDest", {
+    Title = "Teleport Destination",
+    Values = {"To Player", "To Campfire"},
+    Default = "To Player",
+    Callback = function(v) if UIReady then TPDestination = v end end
+})
+
+Tabs.Player:AddInput("WalkSpeedInput", {
+    Title = "WalkSpeed",
+    Default = "16",
+    Placeholder = "Ketik Kecepatan",
+    Numeric = true,
+    Callback = function(v)
+        if UIReady then
+            local num = tonumber(v)
+            local char = LocalPlayer and LocalPlayer.Character
+            if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
+        end
     end
 })
 
--- KUNCI DIBUKA HANYA SETELAH UI FINISHED INITIALIZING
 UIReady = true
 
-WindUI:Notify({ Title = "Execution Ready", Content = "Script berhasil di-load tanpa bug auto-start!", Duration = 5 })
+Fluent:Notify({
+    Title = "Fluent UI Loaded",
+    Content = "Script siap digunakan tanpa error!",
+    Duration = 5
+})
