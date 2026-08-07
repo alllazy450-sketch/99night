@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- CUSTOM PURE LUA EDITION (100% MOBILE SAFE)
+-- PURE LUA EDITION (100% ANTI CRASH/REQUIRE/404)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -8,13 +8,12 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
 
 local RemotesFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 
 -- ==========================================
--- GLOBAL STATE & PHYSICS ENGINE
+-- GLOBAL STATE
 -- ==========================================
 getgenv().W424 = {
     ChopAura = false, ChopRadius = 25, SelectedAxe = "Old Axe",
@@ -27,6 +26,9 @@ local toolsDamageIDs = {
     ["Strong Axe"] = "116_8982038982", ["Sword"] = "12_8982038982"
 }
 
+-- ==========================================
+-- UTILITY FUNCTIONS
+-- ==========================================
 local function getHRP()
     local char = LocalPlayer.Character
     return char and char:FindFirstChild("HumanoidRootPart")
@@ -64,7 +66,6 @@ end
 -- ==========================================
 -- ENGINE LOOPS
 -- ==========================================
--- Chop Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.ChopAura then
@@ -87,7 +88,6 @@ task.spawn(function()
     end
 end)
 
--- Kill Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.KillAura then
@@ -124,22 +124,27 @@ ScreenGui.ResetOnSpawn = false
 
 -- Panel Utama
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 350)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Size = UDim2.new(0, 280, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+local UIStroke = Instance.new("UIStroke", MainFrame)
+UIStroke.Color = Color3.fromRGB(0, 255, 150)
+UIStroke.Thickness = 2
 
 -- Header
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Size = UDim2.new(1, -40, 0, 40)
+Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "W424 Hub | Mobile Edition"
+Title.Text = "W424 Hub | Mobile Safe"
 Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MainFrame
 
 local CloseBtn = Instance.new("TextButton")
@@ -154,8 +159,8 @@ Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
 
 -- Kontainer Tombol
 local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1, -20, 1, -50)
-Scroll.Position = UDim2.new(0, 10, 0, 40)
+Scroll.Size = UDim2.new(1, -20, 1, -55)
+Scroll.Position = UDim2.new(0, 10, 0, 45)
 Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarThickness = 4
 Scroll.Parent = MainFrame
@@ -166,7 +171,7 @@ UIList.Padding = UDim.new(0, 8)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
 
 -- Fungsi Buat Tombol Toggle
-local function createToggle(name, text, stateKey)
+local function createToggle(text, stateKey)
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, -10, 0, 40)
     Btn.BackgroundColor3 = getgenv().W424[stateKey] and Color3.fromRGB(0, 150, 100) or Color3.fromRGB(40, 40, 40)
@@ -189,14 +194,16 @@ local function createToggle(name, text, stateKey)
     end)
 end
 
-createToggle("Btn1", "Chop Aura (25 Studs)", "ChopAura")
-createToggle("Btn2", "Kill Aura (25 Studs)", "KillAura")
-createToggle("Btn3", "Auto Claim Drops", "AutoClaim")
+createToggle("Chop Aura (25 Studs)", "ChopAura")
+createToggle("Kill Aura (25 Studs)", "KillAura")
+createToggle("Auto Claim Drops", "AutoClaim")
+createToggle("Auto Feed Campfire", "AutoFeed")
+createToggle("Auto Loot Chest", "AutoLootChest")
 
--- Tombol Buka/Tutup Melayang
+-- Tombol Melayang (Anti Hilang)
 local ToggleMenu = Instance.new("TextButton")
 ToggleMenu.Size = UDim2.new(0, 50, 0, 50)
-ToggleMenu.Position = UDim2.new(0, 10, 0.3, 0)
+ToggleMenu.Position = UDim2.new(0, 10, 0.4, 0)
 ToggleMenu.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 ToggleMenu.Text = "UI"
 ToggleMenu.TextColor3 = Color3.fromRGB(0, 255, 150)
@@ -205,6 +212,9 @@ ToggleMenu.TextSize = 16
 ToggleMenu.Parent = ScreenGui
 ToggleMenu.Draggable = true
 Instance.new("UICorner", ToggleMenu).CornerRadius = UDim.new(1, 0)
+local FloatStroke = Instance.new("UIStroke", ToggleMenu)
+FloatStroke.Color = Color3.fromRGB(0, 255, 150)
+FloatStroke.Thickness = 2
 
 CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false end)
 ToggleMenu.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
