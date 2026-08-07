@@ -1,40 +1,26 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- ULTIMATE REWRITE V5 (BYPASS PHYSICS & 1K+ RADIUS)
+-- RAYFIELD ULTIMATE EDITION (BUG-FREE MOBILE)
 -- ==========================================
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local RemotesFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 
 -- ==========================================
--- GLOBAL STATE & SETTINGS
+-- GLOBAL STATE
 -- ==========================================
 getgenv().W424 = {
-    -- Auto Wood
-    AutoWood = false,
-    WoodRadius = 50, -- Bisa diset sampai 5000 via UI
-    BlinkHit = true, -- Teleport sekilas untuk bypass server-side drop
-    
-    -- Auto Hunt Mob
-    AutoHunt = false,
-    HuntRadius = 50,
-    TargetMob = "Bunny",
-    
-    -- Auto Chest & Claim
-    AutoBringChest = false,
-    AutoClaimDrops = false,
-    
-    -- Auto Feed Campfire
-    AutoFeed = false,
-    FeedMaterial = "Log"
+    AutoWood = false, WoodRadius = 50, BlinkHit = true,
+    AutoHunt = false, HuntRadius = 50, TargetMob = "Bunny",
+    AutoBringChest = false, AutoClaimDrops = false,
+    AutoFeed = false, FeedMaterial = "Log"
 }
 
 -- Mapping ID Kapak/Senjata agar valid di server
@@ -42,12 +28,11 @@ local function getDamageID(toolName)
     if toolName:find("Good") then return "112_" .. tostring(LocalPlayer.UserId) end
     if toolName:find("Strong") then return "116_" .. tostring(LocalPlayer.UserId) end
     if toolName:find("Sword") then return "12_" .. tostring(LocalPlayer.UserId) end
-    -- Default / Old Axe
     return "1_" .. tostring(LocalPlayer.UserId)
 end
 
 -- ==========================================
--- ROBUST UTILITY FUNCTIONS
+-- UTILITY & PHYSICS ENGINE
 -- ==========================================
 local function getHRP()
     local char = LocalPlayer.Character
@@ -78,9 +63,6 @@ local function getEquippedWeapon()
     return nil
 end
 
--- ==========================================
--- PHYSICS & HIT ENGINE (BYPASS SERVER SIDE)
--- ==========================================
 local function executeHit(target, tool, targetPart)
     local hrp = getHRP()
     if not hrp or not targetPart then return end
@@ -90,96 +72,26 @@ local function executeHit(target, tool, targetPart)
 
     local damageID = getDamageID(tool.Name)
     local originalCFrame = hrp.CFrame
-
-    -- Jika jarak terlalu jauh, lakukan Blink (Ghost Hit) agar item DROP disahkan server
     local distance = (hrp.Position - targetPart.Position).Magnitude
+    
+    -- Ghost Hit/Blink Physics Bypass
     if distance > 20 and getgenv().W424.BlinkHit then
-        hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, 3) -- Teleport 3 stud di depan target
-        task.wait(0.05) -- Tunggu server mendaftarkan posisi baru
+        hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, 3) 
+        task.wait(0.05) 
         
-        -- Eksekusi Hit dengan CFrame yang sangat presisi
         pcall(function()
             damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position))
         end)
         
         task.wait(0.05)
-        hrp.CFrame = originalCFrame -- Kembali ke posisi awal
+        hrp.CFrame = originalCFrame 
     else
-        -- Jika dekat, langsung pukul murni (Pure Aura)
         pcall(function()
             damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position))
         end)
     end
 end
 
--- ==========================================
--- 1. AUTO FARM WOOD (IMPROVED DETECTION)
--- ==========================================
-task.spawn(function()
-    while task.wait(0.15) do
-        if getgenv().W424.AutoWood then
-            pcall(function()
-                local hrp = getHRP()
-                local tool = getEquippedWeapon()
-                if not hrp or not tool then return end
-                
-                local foliage = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
-                if foliage then
-                    for _, v in ipairs(foliage:GetChildren()) do
-                        if not getgenv().W424.AutoWood then break end
-                        
-                        -- Deteksi lebih luas untuk jenis part pohon
-                        local mainPart = v:FindFirstChild("Trunk") or v:FindFirstChild("Trunk1") or v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
-                        if mainPart then
-                            local dist = (hrp.Position - mainPart.Position).Magnitude
-                            if dist <= getgenv().W424.WoodRadius then
-                                executeHit(v, tool, mainPart)
-                                task.wait(0.1) -- Jeda antar tebangan agar tidak di-kick
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- ==========================================
--- 2. AUTO HUNT MOB (AURA / BLINK)
--- ==========================================
-task.spawn(function()
-    while task.wait(0.15) do
-        if getgenv().W424.AutoHunt then
-            pcall(function()
-                local hrp = getHRP()
-                local tool = getEquippedWeapon()
-                if not hrp or not tool then return end
-
-                local targetName = getgenv().W424.TargetMob
-                local enemiesFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs") or Workspace
-
-                for _, v in ipairs(enemiesFolder:GetChildren()) do
-                    if not getgenv().W424.AutoHunt then break end
-                    
-                    if v:IsA("Model") and v.Name:find(targetName) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                        local mainPart = v:FindFirstChild("HumanoidRootPart") or v.PrimaryPart
-                        if mainPart then
-                            local dist = (hrp.Position - mainPart.Position).Magnitude
-                            if dist <= getgenv().W424.HuntRadius then
-                                executeHit(v, tool, mainPart)
-                                task.wait(0.1)
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- ==========================================
--- 3. BRING CHEST & CLAIM DROPS (ADVANCED)
--- ==========================================
 local function dragItemToPlayer(item, targetPos)
     pcall(function()
         local startDrag = RemotesFolder:FindFirstChild("RequestStartDraggingItem")
@@ -198,28 +110,78 @@ local function dragItemToPlayer(item, targetPos)
     end)
 end
 
+-- ==========================================
+-- ENGINE LOOPS
+-- ==========================================
+-- 1. Chop Aura
+task.spawn(function()
+    while task.wait(0.15) do
+        if getgenv().W424.AutoWood then
+            pcall(function()
+                local hrp = getHRP()
+                local tool = getEquippedWeapon()
+                if not hrp or not tool then return end
+                
+                local foliage = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
+                if foliage then
+                    for _, v in ipairs(foliage:GetChildren()) do
+                        if not getgenv().W424.AutoWood then break end
+                        local mainPart = v:FindFirstChild("Trunk") or v:FindFirstChild("Trunk1") or v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                        if mainPart and (hrp.Position - mainPart.Position).Magnitude <= getgenv().W424.WoodRadius then
+                            executeHit(v, tool, mainPart)
+                            task.wait(0.1) 
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 2. Kill Aura Mob
+task.spawn(function()
+    while task.wait(0.15) do
+        if getgenv().W424.AutoHunt then
+            pcall(function()
+                local hrp = getHRP()
+                local tool = getEquippedWeapon()
+                if not hrp or not tool then return end
+
+                local targetName = getgenv().W424.TargetMob
+                local enemiesFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs") or Workspace
+
+                for _, v in ipairs(enemiesFolder:GetChildren()) do
+                    if not getgenv().W424.AutoHunt then break end
+                    if v:IsA("Model") and v.Name:find(targetName) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                        local mainPart = v:FindFirstChild("HumanoidRootPart") or v.PrimaryPart
+                        if mainPart and (hrp.Position - mainPart.Position).Magnitude <= getgenv().W424.HuntRadius then
+                            executeHit(v, tool, mainPart)
+                            task.wait(0.1)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 3. Chest & Claim Drops
 task.spawn(function()
     while task.wait(0.5) do
         local hrp = getHRP()
         if not hrp or not itemFolder then continue end
 
-        -- Fitur Bring Chest & Buka Otomatis[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
         if getgenv().W424.AutoBringChest then
             pcall(function()
                 for _, item in ipairs(itemFolder:GetChildren()) do
                     if not getgenv().W424.AutoBringChest then break end
-                    
                     if item.Name:find("Chest") then
                         local main = item:FindFirstChild("Main") or item.PrimaryPart
                         if main then
-                            -- Cari ProximityPrompt di dalam Chest
                             for _, obj in ipairs(main:GetDescendants()) do
                                 if obj:IsA("ProximityPrompt") then
-                                    -- Bawa peti ke pemain dulu
                                     dragItemToPlayer(item, hrp.Position + Vector3.new(0, 2, 2))
                                     task.wait(0.1)
-                                    
-                                    -- Bypass Line of Sight & Buka
                                     obj.RequiresLineOfSight = false
                                     fireproximityprompt(obj)
                                     task.wait(0.3)
@@ -231,12 +193,10 @@ task.spawn(function()
             end)
         end
 
-        -- Fitur Auto Claim Drops (Kayu, Coin, dll)
         if getgenv().W424.AutoClaimDrops then
             pcall(function()
                 for _, item in ipairs(itemFolder:GetChildren()) do
                     if not item.Name:find("Chest") and item:IsA("Model") then
-                        -- Bawa semua item drop langsung ke HRP pemain
                         dragItemToPlayer(item, hrp.Position + Vector3.new(0, 1.5, 0))
                     end
                 end
@@ -245,9 +205,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- 4. AUTO FEED CAMPFIRE
--- ==========================================
+-- 4. Auto Feed
 task.spawn(function()
     while task.wait(1) do
         if getgenv().W424.AutoFeed then
@@ -260,7 +218,7 @@ task.spawn(function()
                 for _, item in ipairs(inv:GetChildren()) do
                     if item.Name:lower():find(feedMat:lower()) then
                         burnRemote:FireServer(item)
-                        task.wait(0.3) -- Jeda agar tidak spam remote
+                        task.wait(0.3) 
                     end
                 end
             end)
@@ -269,112 +227,114 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- FLUENT UI INTERFACE
+-- RAYFIELD UI INTERFACE (NO BUBBLE NEEDED)
 -- ==========================================
-local Window = Fluent:CreateWindow({
-    Title = "W424 Hub | 99 Nights",
-    SubTitle = "Ultimate Edition (Bypass Physics)",
-    TabWidth = 140,
-    Size = UDim2.new(0, 520, 0, 360),
-    Acrylic = false,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
+-- Rayfield otomatis menyediakan tombol/ikon melayang di tengah atas layar untuk buka/tutup!
+local Window = Rayfield:CreateWindow({
+   Name = "W424 Hub | 99 Nights",
+   LoadingTitle = "Memuat Fitur...",
+   LoadingSubtitle = "Ultimate Edition",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false
 })
 
-local Tabs = {
-    Farm = Window:AddTab({ Title = "Aura & Farming", Icon = "zap" }),
-    Loot = Window:AddTab({ Title = "Loot & Feed", Icon = "box" })
-}
+local TabFarm = Window:CreateTab("Aura Farming", 4483362458)
+local TabLoot = Window:CreateTab("Loot & Automation", 4483362458)
 
--- TAB: AURA & FARMING
-Tabs.Farm:AddParagraph({ Title = "Wood Farming Engine", Content = "Blink Hit memastikan kayu 100% drop walaupun dari jauh." })
+-- Tab 1: Farming
+TabFarm:CreateSection("Wood Farming")
 
-Tabs.Farm:AddToggle("AutoWood", {Title = "Auto Farm Wood (Aura)", Default = getgenv().W424.AutoWood}):OnChanged(function(v) getgenv().W424.AutoWood = v end)
-
-Tabs.Farm:AddToggle("BlinkHit", {Title = "Enable Blink Hit (Bypass Server-Side)", Default = getgenv().W424.BlinkHit}):OnChanged(function(v) getgenv().W424.BlinkHit = v end)
-
--- Slider dengan Input, bisa diketik sampai 5000+
-Tabs.Farm:AddSlider("WoodRadius", {
-    Title = "Wood Aura Radius (Studs)",
-    Min = 10,
-    Max = 5000, 
-    Default = getgenv().W424.WoodRadius,
-    Callback = function(v) getgenv().W424.WoodRadius = v end
+TabFarm:CreateToggle({
+   Name = "Auto Farm Wood (Aura)",
+   CurrentValue = getgenv().W424.AutoWood,
+   Flag = "AutoWoodTog", 
+   Callback = function(Value) getgenv().W424.AutoWood = Value end,
 })
 
-Tabs.Farm:AddParagraph({ Title = "Mob Hunting Engine", Content = "" })
-Tabs.Farm:AddToggle("AutoHunt", {Title = "Auto Kill Mob (Aura)", Default = getgenv().W424.AutoHunt}):OnChanged(function(v) getgenv().W424.AutoHunt = v end)
-
-Tabs.Farm:AddDropdown("TargetMob", {
-    Title = "Select Target Mob",
-    Values = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Deer", "Cultist", "Boss"},
-    Default = getgenv().W424.TargetMob,
-    Callback = function(v) getgenv().W424.TargetMob = v end
+TabFarm:CreateToggle({
+   Name = "Enable Blink Hit (Bypass Server-Side)",
+   CurrentValue = getgenv().W424.BlinkHit,
+   Flag = "BlinkTog",
+   Callback = function(Value) getgenv().W424.BlinkHit = Value end,
 })
 
-Tabs.Farm:AddSlider("HuntRadius", {
-    Title = "Kill Aura Radius (Studs)",
-    Min = 10,
-    Max = 5000, 
-    Default = getgenv().W424.HuntRadius,
-    Callback = function(v) getgenv().W424.HuntRadius = v end
+-- Format Slider Rayfield sangat aman untuk Mobile
+TabFarm:CreateSlider({
+   Name = "Wood Aura Radius",
+   Range = {10, 5000},
+   Increment = 10,
+   Suffix = "Studs",
+   CurrentValue = getgenv().W424.WoodRadius,
+   Flag = "WoodRad",
+   Callback = function(Value) getgenv().W424.WoodRadius = Value end,
 })
 
--- TAB: LOOT & FEED
-Tabs.Loot:AddParagraph({ Title = "Chest & Drops Manager", Content = "" })
+TabFarm:CreateSection("Mob Hunting")
 
-Tabs.Loot:AddToggle("AutoChest", {Title = "Auto Bring & Open Chests", Default = getgenv().W424.AutoBringChest}):OnChanged(function(v) getgenv().W424.AutoBringChest = v end)
-Tabs.Loot:AddToggle("AutoClaim", {Title = "Auto Bring All Drops (Wood/Items)", Default = getgenv().W424.AutoClaimDrops}):OnChanged(function(v) getgenv().W424.AutoClaimDrops = v end)
-
-Tabs.Loot:AddParagraph({ Title = "Campfire Manager", Content = "" })
-
-Tabs.Loot:AddToggle("AutoFeed", {Title = "Auto Feed Campfire", Default = getgenv().W424.AutoFeed}):OnChanged(function(v) getgenv().W424.AutoFeed = v end)
-
-Tabs.Loot:AddDropdown("FeedMaterial", {
-    Title = "Feed Material Index",
-    Values = {"Log", "Stick", "Coal", "Fiber", "Meat", "Fish"},
-    Default = getgenv().W424.FeedMaterial,
-    Callback = function(v) getgenv().W424.FeedMaterial = v end
+TabFarm:CreateToggle({
+   Name = "Auto Kill Mob (Aura)",
+   CurrentValue = getgenv().W424.AutoHunt,
+   Flag = "AutoHuntTog",
+   Callback = function(Value) getgenv().W424.AutoHunt = Value end,
 })
 
--- ==========================================
--- SUPER BUBBLE UI (FLOATING TOGGLE)
--- ==========================================
-pcall(function()
-    local CoreGui = game:GetService("CoreGui")
-    if CoreGui:FindFirstChild("W424_Toggle") then CoreGui.W424_Toggle:Destroy() end
+TabFarm:CreateDropdown({
+   Name = "Select Target Mob",
+   Options = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Deer", "Cultist", "Boss"},
+   CurrentOption = {getgenv().W424.TargetMob},
+   MultipleOptions = false,
+   Flag = "MobDrop",
+   Callback = function(Option) getgenv().W424.TargetMob = Option[1] end,
+})
 
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "W424_Toggle"
-    ScreenGui.Parent = CoreGui
-    ScreenGui.DisplayOrder = 2147483647 
-    ScreenGui.ResetOnSpawn = false
+TabFarm:CreateSlider({
+   Name = "Kill Aura Radius",
+   Range = {10, 5000},
+   Increment = 10,
+   Suffix = "Studs",
+   CurrentValue = getgenv().W424.HuntRadius,
+   Flag = "HuntRad",
+   Callback = function(Value) getgenv().W424.HuntRadius = Value end,
+})
 
-    local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Parent = ScreenGui
-    ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-    ToggleBtn.Position = UDim2.new(0, 15, 0.25, 0)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    ToggleBtn.Text = "UI"
-    ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
-    ToggleBtn.Font = Enum.Font.GothamBold
-    ToggleBtn.TextSize = 16
-    ToggleBtn.Active = true
-    ToggleBtn.Draggable = true
-    
-    local UICorner = Instance.new("UICorner", ToggleBtn)
-    UICorner.CornerRadius = UDim.new(1, 0)
-    
-    local UIStroke = Instance.new("UIStroke", ToggleBtn)
-    UIStroke.Color = Color3.fromRGB(0, 255, 150)
-    UIStroke.Thickness = 2.5
+-- Tab 2: Loot & Feed
+TabLoot:CreateSection("Chest & Drops Manager")
 
-    -- Menghubungkan tombol melayang dengan minimize key bawaan Fluent UI
-    ToggleBtn.MouseButton1Down:Connect(function()
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
-    end)
-end)
+TabLoot:CreateToggle({
+   Name = "Auto Bring & Open Chests",
+   CurrentValue = getgenv().W424.AutoBringChest,
+   Flag = "ChestTog",
+   Callback = function(Value) getgenv().W424.AutoBringChest = Value end,
+})
 
-Fluent:Notify({ Title = "System Matang", Content = "Blink Physics & 5000+ Radius Aktif!", Duration = 4 })
+TabLoot:CreateToggle({
+   Name = "Auto Bring All Drops (Wood/Items)",
+   CurrentValue = getgenv().W424.AutoClaimDrops,
+   Flag = "ClaimTog",
+   Callback = function(Value) getgenv().W424.AutoClaimDrops = Value end,
+})
+
+TabLoot:CreateSection("Campfire Manager")
+
+TabLoot:CreateToggle({
+   Name = "Auto Feed Campfire",
+   CurrentValue = getgenv().W424.AutoFeed,
+   Flag = "FeedTog",
+   Callback = function(Value) getgenv().W424.AutoFeed = Value end,
+})
+
+TabLoot:CreateDropdown({
+   Name = "Feed Material Index",
+   Options = {"Log", "Stick", "Coal", "Fiber", "Meat", "Fish"},
+   CurrentOption = {getgenv().W424.FeedMaterial},
+   MultipleOptions = false,
+   Flag = "MatDrop",
+   Callback = function(Option) getgenv().W424.FeedMaterial = Option[1] end,
+})
+
+Rayfield:Notify({
+   Title = "W424 Hub Loaded!",
+   Content = "Semua error telah diatasi. Selamat bermain!",
+   Duration = 5,
+   Image = 4483362458
+})
