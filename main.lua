@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FULL FEATURED ENGINE (BUGFIXED & STABLE)
+-- FIX SYNTAX ERROR & FULL FEATURES
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -199,11 +199,9 @@ task.spawn(function()
                 for _, item in ipairs(itemFolder:GetChildren()) do
                     if item:IsDescendantOf(Workspace) then
                         local name = item.Name
-                        -- Auto Cook Daging ke Campfire
                         if AutoCookEnabled and name:lower():find("meat") and not name:lower():find("cooked") then
                             moveItemToPos(item, firePos)
                         end
-                        -- Auto Feed Kayu/Bahan Bakar
                         if AutoFeedEnabled and SelectedFeedMaterials[name] then
                             moveItemToPos(item, firePos)
                         end
@@ -364,7 +362,7 @@ end)
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Pro Fixed Edition",
+    Subtitle = "W424 Hub | Fixed & Ready",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -375,7 +373,7 @@ local Window = WindUI:CreateWindow({
 local MainTab   = Window:Tab({ Title = "Main", Icon = "rbxassetid://10723407389" })
 local AutoTab   = Window:Tab({ Title = "Auto Farm", Icon = "rbxassetid://10734950309" })
 local ItemTab   = Window:Tab({ Title = "Item TP", Icon = "rbxassetid://10723345380" })
-local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
+PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
 
 MainTab:Section({ Title = "Auto Tap / Swing Trigger" })
 MainTab:Toggle({ Title = "Auto Click / Tap Swing", Default = false, Callback = function(v) AutoTapEnabled = v end })
@@ -404,4 +402,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Update Final", Content = "Bug syntax diperbaiki! Auto Cook & Carrot Farm aktif!", Duration = 5 })
+WindUI:Notify({ Title = "Update Berhasil", Content = "Syntax error GetService berhasil diperbaiki!", Duration = 5 })
