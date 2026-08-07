@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- ULTIMATE STABLE & ROBUST ENGINE (FIXED)
+-- FIX ITEM TP & REALTIME AUTO CLAIM
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -14,15 +14,11 @@ local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
 -- State Variables
-local KillAuraEnabled = false
-local KillAuraRadius = 500
+local AutoTapEnabled = false
+local TapInterval = 0.15
 
 local AutoWoodEnabled = false
 local SelectedTreeType = "All Trees"
-local SelectedAxeName = "Old Axe"
-
-local AutoHuntEnabled = false
-local SelectedMob = "Wolf"
 
 local BulkTPEnabled = false
 local SelectedBulkItem = "Log"
@@ -30,21 +26,10 @@ local TPDestination = "To Player"
 
 local AutoClaimEnabled = false
 local AutoFeedEnabled = false
-local SelectedFeedMaterials = {["Log"] = true, ["Coal"] = true, ["Biofuel"] = true, ["Fuel Canister"] = true}
+local SelectedFeedMaterials = {["Log"] = true, ["Coal"] = true, ["Biofuel"] = true}
 
 local SavedWoodBasecampCFrame = nil
-local SavedMobBasecampCFrame = nil
 local WasWoodFarming = false
-local WasHunting = false
-local equippedTool = nil
-
-local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
-    ["Good Axe"] = "112_8982038982",
-    ["Strong Axe"] = "116_8982038982",
-    ["Chainsaw"] = "647_8992824875",
-    ["Spear"] = "196_8999010016"
-}
 
 -- Utility Functions
 local function getHRP()
@@ -55,101 +40,35 @@ local function getHRP()
     return nil
 end
 
--- ==========================================
--- EQUIP TOOL (ROBUST & SMART CHECK)
--- ==========================================
-local function ensureToolEquipped(toolName)
+local function getHeldTool()
     local char = LocalPlayer.Character
     if not char then return nil end
-
-    -- 1. UTAMA: Cek jika tool SUDAH DIPEGANG di Character
-    for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("Tool") then
-            if child.Name == toolName or child.Name:lower():find(toolName:lower()) then
-                equippedTool = child
-                return child
-            end
-        end
-    end
-
-    -- 2. Cek jika karakter sedang memegang sembarang Tool (fallback cepat)
-    local heldTool = char:FindFirstChildOfClass("Tool")
-    if heldTool and (heldTool.Name:lower():find("axe") or heldTool.Name:lower():find("saw")) then
-        equippedTool = heldTool
-        return heldTool
-    end
-
-    -- 3. Cari di Inventory jika belum di tangan
-    local inv = LocalPlayer:FindFirstChild("Inventory")
-    local tool = nil
-    if inv then
-        tool = inv:FindFirstChild(toolName)
-        if not tool then
-            for _, item in ipairs(inv:GetChildren()) do
-                if item.Name:lower():find(toolName:lower()) then
-                    tool = item
-                    break
-                end
-            end
-        end
-    end
-
-    -- Jika tidak ada di inventory & tidak di tangan, kembalikan Tool yang sedang dipegang (jika ada)
-    if not tool then
-        return heldTool
-    end
-
-    -- 4. Kirim Remote Equip jika item terdeteksi di Inventory
-    if remoteEvents then
-        local equipRemote = remoteEvents:FindFirstChild("EquipItemHandle") or remoteEvents:FindFirstChild("EquipItem")
-        if equipRemote then
-            pcall(function() equipRemote:FireServer(tool) end)
-            task.wait(0.2)
-            
-            local newTool = char:FindFirstChildOfClass("Tool")
-            if newTool then
-                equippedTool = newTool
-                return newTool
-            end
-        end
-    end
-
     return char:FindFirstChildOfClass("Tool")
 end
 
 -- ==========================================
--- SERANG TARGET (ATTACK ENGINE)
+-- PHYSICAL SWING / TRIGGER FUNCTION
 -- ==========================================
-local function attackTarget(target, tool, damageID)
-    if not target or not tool then return false end
-    local mainPart = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") 
-        or target:FindFirstChild("Trunk") or target:FindFirstChild("MainPart") 
-        or target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
-    if not mainPart then return false end
+local function triggerPhysicalSwing()
+    local tool = getHeldTool()
+    if not tool then return end
 
-    local success = false
-    pcall(function() tool:Activate() success = true end)
+    pcall(function() tool:Activate() end)
 
-    local swing = tool:FindFirstChild("Swing")
-    if swing then pcall(function() swing:FireServer() success = true end) end
-
-    if remoteEvents then
-        local damageRemote = remoteEvents:FindFirstChild("ToolDamageObject")
-        if damageRemote then
-            pcall(function() damageRemote:InvokeServer(target, tool, damageID, CFrame.new(mainPart.Position)) success = true end)
-        end
-        local hitRemote = remoteEvents:FindFirstChild("Hit") or remoteEvents:FindFirstChild("DealDamage")
-        if hitRemote then pcall(function() hitRemote:FireServer(target, tool) success = true end) end
+    local swingRemote = tool:FindFirstChild("Swing") or tool:FindFirstChild("Attack")
+    if swingRemote and swingRemote:IsA("RemoteEvent") then
+        pcall(function() swingRemote:FireServer() end)
     end
 
-    local damageEvent = tool:FindFirstChild("DamageEvent") or tool:FindFirstChild("OnAttack")
-    if damageEvent then pcall(function() damageEvent:FireServer(target) success = true end) end
-
-    return success
+    pcall(function()
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        task.wait(0.02)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    end)
 end
 
 -- ==========================================
--- CAMPFIRE & ITEM MOVER
+-- DIRECT ITEM TP ENGINE (PHYSICS + REMOTE)
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -168,18 +87,129 @@ end
 
 local function moveItemToPos(item, position)
     if not item or not item:IsDescendantOf(Workspace) then return end
+    
     pcall(function()
-        if remoteEvents then remoteEvents.RequestStartDraggingItem:FireServer(item) end
-        task.wait(0.05)
-        local targetPart = item.PrimaryPart or item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
-        if targetPart and targetPart:IsDescendantOf(Workspace) then
-            targetPart.CFrame = CFrame.new(position)
-            targetPart.Velocity = Vector3.new(0, 0, 0)
+        -- Panggil Remote jika ada
+        if remoteEvents then 
+            pcall(function() remoteEvents.RequestStartDraggingItem:FireServer(item) end)
         end
-        if remoteEvents then remoteEvents.StopDraggingItem:FireServer(item) end
+        
+        -- Direct CFrame Move ke semua Part dalam Model Item
+        if item:IsA("Model") then
+            item:PivotTo(CFrame.new(position))
+        end
+        
+        for _, part in ipairs(item:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CFrame = CFrame.new(position)
+                part.Velocity = Vector3.new(0, 0, 0)
+                part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            end
+        end
+
+        if remoteEvents then 
+            pcall(function() remoteEvents.StopDraggingItem:FireServer(item) end)
+        end
     end)
 end
 
+-- Universal Name Checker untuk Item Drop (Daging, Kayu, Scrap, dll)
+local function isClaimableItem(item)
+    if not item or not item.Name then return false end
+    local name = item.Name:lower()
+    
+    return name:find("log") or name:find("wood") or name:find("meat") 
+        or name:find("pelt") or name:find("foot") or name:find("steak") 
+        or name:find("morsel") or name:find("sheet") or name:find("bolt") 
+        or name:find("coal") or name:find("fuel") or name:find("scrap")
+end
+
+-- ==========================================
+-- REALTIME CLAIM & ITEM LOOPS
+-- ==========================================
+
+-- 1. Realtime Listener Item Baru Spawn
+if itemFolder then
+    itemFolder.ChildAdded:Connect(function(child)
+        if AutoClaimEnabled then
+            task.wait(0.1) -- Jeda singkat agar part ter-instance sempurna di client
+            if child and child:IsDescendantOf(Workspace) and isClaimableItem(child) then
+                local hrp = getHRP()
+                if hrp then 
+                    moveItemToPos(child, hrp.Position + Vector3.new(math.random(-1,1), 1, math.random(-1,1))) 
+                end
+            end
+        end
+    end)
+end
+
+-- 2. Continuous Sweep Loop (Mengambil item yang tercecer di tanah)
+task.spawn(function()
+    while true do
+        if AutoClaimEnabled then
+            pcall(function()
+                local hrp = getHRP()
+                if hrp and itemFolder then
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if isClaimableItem(item) and item:IsDescendantOf(Workspace) then
+                            moveItemToPos(item, hrp.Position + Vector3.new(math.random(-1,1), 1, math.random(-1,1)))
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- 3. Bulk Item Teleport (Item Spesifik)
+task.spawn(function()
+    while true do
+        if BulkTPEnabled then
+            pcall(function()
+                local hrp = getHRP()
+                if itemFolder then
+                    local targetPos = (TPDestination == "To Player" and hrp) and (hrp.Position + Vector3.new(0, 2, 0)) or getCampfirePosition()
+                    local count = 0
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if item:IsDescendantOf(Workspace) and item.Name:lower():find(SelectedBulkItem:lower()) then
+                            moveItemToPos(item, targetPos + Vector3.new(math.random(-1,1), count * 0.5, math.random(-1,1)))
+                            count = count + 1
+                            if count >= 8 then break end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(1)
+    end
+end)
+
+-- 4. Auto Feed Campfire
+task.spawn(function()
+    while true do
+        if AutoFeedEnabled then
+            pcall(function()
+                if itemFolder then
+                    local dropPos = getCampfirePosition()
+                    local count = 0
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if item:IsDescendantOf(Workspace) and SelectedFeedMaterials[item.Name] then
+                            moveItemToPos(item, dropPos + Vector3.new(math.random(-0.5,0.5), count * 0.5, math.random(-0.5,0.5)))
+                            count = count + 1
+                            if count >= 3 then break end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(2)
+    end
+end)
+
+-- ==========================================
+-- AUTO WOOD & SWING LOOPS
+-- ==========================================
 local function getTreeMainPart(tree)
     if not tree or not tree:IsDescendantOf(Workspace) then return nil end
     local part = tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1") or tree:FindFirstChild("MainPart")
@@ -217,67 +247,18 @@ local function getFilteredTrees()
         end
         scan(map)
     end
-
-    if #trees == 0 then
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Brightwood") or obj.Name:find("Fairy")) then
-                if getTreeMainPart(obj) then table.insert(trees, obj) end
-            end
-        end
-    end
     return trees
 end
 
--- ==========================================
--- AUTO CLAIM & REALTIME EVENTS
--- ==========================================
-local function isClaimableItem(item)
-    if not item or not item.Name then return false end
-    local name = item.Name
-    return name:find("Meat") or name:find("Pelt") or name == "Bunny Foot" or name == "Log" or name:find("Steak") or name:find("Morsel") or name == "Sheet Metal" or name == "Bolt"
-end
-
-itemFolder.ChildAdded:Connect(function(child)
-    if AutoClaimEnabled then
-        task.wait(0.3)
-        if child and child:IsDescendantOf(Workspace) and isClaimableItem(child) then
-            local hrp = getHRP()
-            if hrp then moveItemToPos(child, hrp.Position + Vector3.new(0, 2, 0)) end
-        end
-    end
-end)
-
--- ==========================================
--- BACKGROUND LOOPS
--- ==========================================
-
--- Kill Aura
 task.spawn(function()
     while true do
-        if KillAuraEnabled then
-            pcall(function()
-                local hrp = getHRP()
-                if hrp and remoteEvents and characterFolder then
-                    local tool = ensureToolEquipped(SelectedAxeName)
-                    local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
-                    if tool then
-                        for _, mob in ipairs(characterFolder:GetChildren()) do
-                            if mob:IsA("Model") and mob:IsDescendantOf(Workspace) then
-                                local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
-                                if part and part:IsDescendantOf(Workspace) and (part.Position - hrp.Position).Magnitude <= KillAuraRadius then
-                                    attackTarget(mob, tool, damageID)
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
+        if AutoTapEnabled then
+            triggerPhysicalSwing()
         end
-        task.wait(0.15)
+        task.wait(TapInterval)
     end
 end)
 
--- Auto Wood
 task.spawn(function()
     while true do
         if AutoWoodEnabled then
@@ -288,9 +269,7 @@ task.spawn(function()
                     WasWoodFarming = true
                 end
 
-                local tool = ensureToolEquipped(SelectedAxeName)
                 local treeList = getFilteredTrees()
-
                 for _, tree in ipairs(treeList) do
                     if not AutoWoodEnabled then break end
                     if not tree:IsDescendantOf(Workspace) then continue end
@@ -298,17 +277,13 @@ task.spawn(function()
                     local mainPart = getTreeMainPart(tree)
                     if not mainPart then continue end
                     
-                    hrp.CFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
+                    hrp.CFrame = CFrame.new(mainPart.Position + Vector3.new(1.8, 0, 1.8), mainPart.Position)
                     task.wait(0.2)
 
-                    local maxHits = 25
+                    local maxHits = 30
                     local hitCount = 0
-                    local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
                     while AutoWoodEnabled and tree:IsDescendantOf(Workspace) and getTreeMainPart(tree) and hitCount < maxHits do
-                        local currentTool = ensureToolEquipped(SelectedAxeName)
-                        if currentTool then
-                            attackTarget(tree, currentTool, damageID)
-                        end
+                        triggerPhysicalSwing()
                         task.wait(0.2)
                         hitCount = hitCount + 1
                     end
@@ -323,107 +298,9 @@ task.spawn(function()
                 end
                 WasWoodFarming = false
                 SavedWoodBasecampCFrame = nil
-                equippedTool = nil
             end
         end
         task.wait(1)
-    end
-end)
-
--- Auto Hunt
-task.spawn(function()
-    while true do
-        if AutoHuntEnabled then
-            local hrp = getHRP()
-            if hrp then
-                if not WasHunting then
-                    SavedMobBasecampCFrame = hrp.CFrame
-                    WasHunting = true
-                end
-                pcall(function()
-                    local tool = ensureToolEquipped(SelectedAxeName)
-                    local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
-                    if tool and characterFolder then
-                        for _, mob in ipairs(characterFolder:GetChildren()) do
-                            if mob:IsA("Model") and mob.Name == SelectedMob and mob:IsDescendantOf(Workspace) then
-                                local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
-                                if part and part:IsDescendantOf(Workspace) then
-                                    attackTarget(mob, tool, damageID)
-                                end
-                            end
-                        end
-                    end
-                end)
-            end
-            task.wait(0.4)
-        else
-            if WasHunting then
-                local hrp = getHRP()
-                if hrp and SavedMobBasecampCFrame then
-                    hrp.CFrame = SavedMobBasecampCFrame
-                end
-                WasHunting = false
-                SavedMobBasecampCFrame = nil
-                equippedTool = nil
-            end
-            task.wait(1)
-        end
-    end
-end)
-
--- Bulk TP & Auto Feed
-task.spawn(function()
-    while true do
-        if BulkTPEnabled then
-            pcall(function()
-                local hrp = getHRP()
-                if itemFolder then
-                    local targetPos = (TPDestination == "To Player" and hrp) and (hrp.Position + Vector3.new(0, 2, 0)) or getCampfirePosition()
-                    local count = 0
-                    for _, item in ipairs(itemFolder:GetChildren()) do
-                        if item.Name == SelectedBulkItem and item:IsDescendantOf(Workspace) then
-                            moveItemToPos(item, targetPos + Vector3.new(math.random(-1,1), count * 0.5, math.random(-1,1)))
-                            count = count + 1
-                            if count >= 5 then break end
-                        end
-                    end
-                end
-            end)
-        end
-        task.wait(2)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if AutoFeedEnabled then
-            pcall(function()
-                if itemFolder then
-                    local dropPos = getCampfirePosition()
-                    local count = 0
-                    for _, item in ipairs(itemFolder:GetChildren()) do
-                        if SelectedFeedMaterials[item.Name] and item:IsDescendantOf(Workspace) then
-                            moveItemToPos(item, dropPos + Vector3.new(math.random(-0.5,0.5), count * 0.5, math.random(-0.5,0.5)))
-                            count = count + 1
-                            if count >= 3 then break end
-                        end
-                    end
-                end
-            end)
-        end
-        task.wait(2.5)
-    end
-end)
-
--- Respawn Handler
-LocalPlayer.CharacterAdded:Connect(function(char)
-    WasWoodFarming = false
-    WasHunting = false
-    SavedWoodBasecampCFrame = nil
-    SavedMobBasecampCFrame = nil
-    equippedTool = nil
-    if WindUI then
-        WindUI:Notify({ Title = "Respawn", Content = "State direset.", Duration = 3 })
     end
 end)
 
@@ -433,7 +310,7 @@ end)
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Ultimate Fixed",
+    Subtitle = "W424 Hub | Fixed Item TP & Realtime Claim",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -446,25 +323,21 @@ local AutoTab   = Window:Tab({ Title = "Auto Farm", Icon = "rbxassetid://1073495
 local ItemTab   = Window:Tab({ Title = "Item TP", Icon = "rbxassetid://10723345380" })
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
 
-MainTab:Section({ Title = "Combat System" })
-MainTab:Toggle({ Title = "Kill Aura (All Mobs)", Default = false, Callback = function(v) KillAuraEnabled = v end })
-MainTab:Input({ Title = "Kill Aura Range (Studs)", Value = "500", Placeholder = "Ketik Range", Callback = function(v) local num = tonumber(v) if num then KillAuraRadius = num end end })
+MainTab:Section({ Title = "Auto Tap / Swing Trigger" })
+MainTab:Toggle({ Title = "Auto Click / Tap Swing (Held Tool)", Default = false, Callback = function(v) AutoTapEnabled = v end })
+MainTab:Input({ Title = "Tap Speed Interval (Detik)", Value = "0.15", Placeholder = "Ketik Detik", Callback = function(v) local num = tonumber(v) if num then TapInterval = num end end })
 
-AutoTab:Section({ Title = "Wood & Mob Farming" })
-AutoTab:Dropdown({ Title = "Select Axe / Tool", Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw"}, Default = "Old Axe", Callback = function(v) SelectedAxeName = v end })
+AutoTab:Section({ Title = "Wood Farming Settings" })
 AutoTab:Dropdown({ Title = "Target Tree Type", Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"}, Default = "All Trees", Callback = function(v) SelectedTreeType = v end })
-AutoTab:Toggle({ Title = "Auto Farm Wood (TP & Cut)", Default = false, Callback = function(v) AutoWoodEnabled = v end })
-AutoTab:Toggle({ Title = "Auto Hunt Mob", Default = false, Callback = function(v) AutoHuntEnabled = v end })
-AutoTab:Dropdown({ Title = "Target Mob", Values = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist"}, Default = "Wolf", Callback = function(v) SelectedMob = v end })
+AutoTab:Toggle({ Title = "Auto Farm Wood (TP + Tap Swing)", Default = false, Callback = function(v) AutoWoodEnabled = v end })
 
-AutoTab:Section({ Title = "Campfire & Claim Settings" })
+AutoTab:Section({ Title = "Campfire & Item Settings" })
 AutoTab:Toggle({ Title = "Realtime Auto Claim Items", Default = false, Callback = function(v) AutoClaimEnabled = v end })
 AutoTab:Toggle({ Title = "Auto Feed Campfire", Default = false, Callback = function(v) AutoFeedEnabled = v end })
-AutoTab:Dropdown({ Title = "Campfire Feed Item", Values = {"Log", "Coal", "Biofuel", "Fuel Canister"}, Default = "Log", Callback = function(v) SelectedFeedMaterials = {[v] = true} end })
 
 ItemTab:Section({ Title = "Item Teleport Toggle" })
 ItemTab:Toggle({ Title = "Auto Bring Selected Item", Default = false, Callback = function(v) BulkTPEnabled = v end })
-ItemTab:Dropdown({ Title = "Item Name", Values = {"Log", "Coal", "Biofuel", "Bunny Meat", "Wolf Meat", "Bear Meat", "Sheet Metal", "Bolt"}, Default = "Log", Callback = function(v) SelectedBulkItem = v end })
+ItemTab:Dropdown({ Title = "Item Name", Values = {"Log", "Coal", "Biofuel", "Meat", "Bunny Foot", "Pelt", "Sheet Metal", "Bolt"}, Default = "Log", Callback = function(v) SelectedBulkItem = v end })
 ItemTab:Dropdown({ Title = "Teleport Destination", Values = {"To Player", "To Campfire"}, Default = "To Player", Callback = function(v) TPDestination = v end })
 
 PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepatan", Callback = function(v)
@@ -473,4 +346,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Script Updated", Content = "Tool Equip Fixed & Stabil!", Duration = 5 })
+WindUI:Notify({ Title = "System Fix Updated", Content = "Daging kelinci & Kayu hasil tebang sekarang ter-claim sempurna!", Duration = 5 })
