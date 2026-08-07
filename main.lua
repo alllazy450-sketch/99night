@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FIX AUTO-START CLAIM & CLEAN ENGINE
+-- FIXED WINDUI CALLBACK & TELEPORT BUG
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -12,7 +12,10 @@ local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
--- State Variables (SEMUA OFF SECARA DEFAULT)
+-- FLAG PENGUNCI (Mencegah Callback WindUI Jalan Saat Init)
+local UIReady = false
+
+-- State Variables (MUTLAK OFF DI AWAL)
 local AutoTapEnabled = false
 local TapInterval = 0.2
 
@@ -24,10 +27,10 @@ local SelectedAxeName = "Old Axe"
 local KillAuraEnabled = false
 local KillAuraRadius = 500
 
-local AutoClaimEnabled = false -- DIBUAT FALSE AGAR TIDAK SPAM SAAT EXECUTE
+local AutoClaimEnabled = false 
 local AutoFeedEnabled = false
 local AutoCookEnabled = false
-local SelectedFeedMaterials = {["Log"] = true}
+local SelectedFeedMaterials = {}
 
 local BulkTPEnabled = false
 local SelectedBulkItem = "Log"
@@ -161,7 +164,7 @@ end
 -- ==========================================
 if itemFolder then
     itemFolder.ChildAdded:Connect(function(child)
-        if AutoClaimEnabled then
+        if UIReady and AutoClaimEnabled then
             task.wait(0.2)
             if child and child:IsDescendantOf(Workspace) and isClaimableItem(child) then
                 local hrp = getHRP()
@@ -173,7 +176,7 @@ end
 
 task.spawn(function()
     while true do
-        if AutoClaimEnabled then
+        if UIReady and AutoClaimEnabled then
             pcall(function()
                 local hrp = getHRP()
                 if hrp and itemFolder then
@@ -191,22 +194,24 @@ end)
 
 task.spawn(function()
     while true do
-        pcall(function()
-            if (AutoCookEnabled or AutoFeedEnabled) and itemFolder then
-                local firePos = getCampfirePosition()
-                for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item:IsDescendantOf(Workspace) then
-                        local name = item.Name
-                        if AutoCookEnabled and name:lower():find("meat") and not name:lower():find("cooked") then
-                            moveItemToPos(item, firePos)
-                        end
-                        if AutoFeedEnabled and SelectedFeedMaterials[name] then
-                            moveItemToPos(item, firePos)
+        if UIReady then
+            pcall(function()
+                if (AutoCookEnabled or AutoFeedEnabled) and itemFolder then
+                    local firePos = getCampfirePosition()
+                    for _, item in ipairs(itemFolder:GetChildren()) do
+                        if item:IsDescendantOf(Workspace) then
+                            local name = item.Name
+                            if AutoCookEnabled and name:lower():find("meat") and not name:lower():find("cooked") then
+                                moveItemToPos(item, firePos)
+                            end
+                            if AutoFeedEnabled and SelectedFeedMaterials[name] then
+                                moveItemToPos(item, firePos)
+                            end
                         end
                     end
                 end
-            end
-        end)
+            end)
+        end
         task.wait(1.5)
     end
 end)
@@ -256,7 +261,7 @@ end
 
 task.spawn(function()
     while true do
-        if AutoTapEnabled then
+        if UIReady and AutoTapEnabled then
             triggerPhysicalSwing(nil)
         end
         task.wait(TapInterval)
@@ -265,7 +270,7 @@ end)
 
 task.spawn(function()
     while true do
-        if AutoWoodEnabled then
+        if UIReady and AutoWoodEnabled then
             local hrp = getHRP()
             if hrp then
                 if not WasWoodFarming then
@@ -310,7 +315,7 @@ end)
 
 task.spawn(function()
     while true do
-        if AutoCarrotEnabled then
+        if UIReady and AutoCarrotEnabled then
             local hrp = getHRP()
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if not AutoCarrotEnabled then break end
@@ -330,7 +335,7 @@ end)
 
 task.spawn(function()
     while true do
-        if BulkTPEnabled then
+        if UIReady and BulkTPEnabled then
             pcall(function()
                 local hrp = getHRP()
                 if itemFolder then
@@ -370,30 +375,35 @@ local ItemTab   = Window:Tab({ Title = "Item TP", Icon = "rbxassetid://107233453
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
 
 MainTab:Section({ Title = "Auto Tap / Swing Trigger" })
-MainTab:Toggle({ Title = "Auto Click / Tap Swing", Default = false, Callback = function(v) AutoTapEnabled = v end })
-MainTab:Input({ Title = "Tap Speed Interval (Detik)", Value = "0.2", Placeholder = "Ketik Detik", Callback = function(v) local num = tonumber(v) if num then TapInterval = num end end })
+MainTab:Toggle({ Title = "Auto Click / Tap Swing", Default = false, Callback = function(v) if UIReady then AutoTapEnabled = v end end })
+MainTab:Input({ Title = "Tap Speed Interval (Detik)", Value = "0.2", Placeholder = "Ketik Detik", Callback = function(v) if UIReady then local num = tonumber(v) if num then TapInterval = num end end end })
 
 AutoTab:Section({ Title = "Wood & Carrot Farming" })
-AutoTab:Dropdown({ Title = "Select Axe / Tool", Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw"}, Default = "Old Axe", Callback = function(v) SelectedAxeName = v end })
-AutoTab:Dropdown({ Title = "Target Tree Type", Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"}, Default = "All Trees", Callback = function(v) SelectedTreeType = v end })
-AutoTab:Toggle({ Title = "Auto Farm Wood (TP & Cut)", Default = false, Callback = function(v) AutoWoodEnabled = v end })
-AutoTab:Toggle({ Title = "Auto Farm Carrots", Default = false, Callback = function(v) AutoCarrotEnabled = v end })
+AutoTab:Dropdown({ Title = "Select Axe / Tool", Values = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw"}, Default = "Old Axe", Callback = function(v) if UIReady then SelectedAxeName = v end end })
+AutoTab:Dropdown({ Title = "Target Tree Type", Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"}, Default = "All Trees", Callback = function(v) if UIReady then SelectedTreeType = v end end })
+AutoTab:Toggle({ Title = "Auto Farm Wood (TP & Cut)", Default = false, Callback = function(v) if UIReady then AutoWoodEnabled = v end end })
+AutoTab:Toggle({ Title = "Auto Farm Carrots", Default = false, Callback = function(v) if UIReady then AutoCarrotEnabled = v end end })
 
 AutoTab:Section({ Title = "Campfire Settings" })
-AutoTab:Toggle({ Title = "Realtime Auto Claim Items", Default = false, Callback = function(v) AutoClaimEnabled = v end })
-AutoTab:Toggle({ Title = "Auto Cook Meat", Default = false, Callback = function(v) AutoCookEnabled = v end })
-AutoTab:Toggle({ Title = "Auto Feed Campfire", Default = false, Callback = function(v) AutoFeedEnabled = v end })
-AutoTab:Dropdown({ Title = "Campfire Feed Item", Values = {"Log", "Coal", "Biofuel", "Fuel Canister"}, Default = "Log", Callback = function(v) SelectedFeedMaterials = {[v] = true} end })
+AutoTab:Toggle({ Title = "Realtime Auto Claim Items", Default = false, Callback = function(v) if UIReady then AutoClaimEnabled = v end end })
+AutoTab:Toggle({ Title = "Auto Cook Meat", Default = false, Callback = function(v) if UIReady then AutoCookEnabled = v end end })
+AutoTab:Toggle({ Title = "Auto Feed Campfire", Default = false, Callback = function(v) if UIReady then AutoFeedEnabled = v end end })
+AutoTab:Dropdown({ Title = "Campfire Feed Item", Values = {"Log", "Coal", "Biofuel", "Fuel Canister"}, Default = "Log", Callback = function(v) if UIReady then SelectedFeedMaterials = {[v] = true} end end })
 
 ItemTab:Section({ Title = "Item Teleport Toggle" })
-ItemTab:Toggle({ Title = "Auto Bring Selected Item", Default = false, Callback = function(v) BulkTPEnabled = v end })
-ItemTab:Dropdown({ Title = "Item Name", Values = {"Log", "Coal", "Biofuel", "Meat", "Bunny Foot", "Pelt", "Sheet Metal", "Bolt"}, Default = "Log", Callback = function(v) SelectedBulkItem = v end })
-ItemTab:Dropdown({ Title = "Teleport Destination", Values = {"To Player", "To Campfire"}, Default = "To Player", Callback = function(v) TPDestination = v end })
+ItemTab:Toggle({ Title = "Auto Bring Selected Item", Default = false, Callback = function(v) if UIReady then BulkTPEnabled = v end end })
+ItemTab:Dropdown({ Title = "Item Name", Values = {"Log", "Coal", "Biofuel", "Meat", "Bunny Foot", "Pelt", "Sheet Metal", "Bolt"}, Default = "Log", Callback = function(v) if UIReady then SelectedBulkItem = v end end })
+ItemTab:Dropdown({ Title = "Teleport Destination", Values = {"To Player", "To Campfire"}, Default = "To Player", Callback = function(v) if UIReady then TPDestination = v end end })
 
 PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepatan", Callback = function(v)
-    local num = tonumber(v)
-    local char = LocalPlayer and LocalPlayer.Character
-    if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
-end })
+    if UIReady then
+        local num = tonumber(v)
+        local char = LocalPlayer and LocalPlayer.Character
+        if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
+    end
+})
+
+-- AKTIFKAN HANDLER SETELAH UI SELESAI DIBUAT
+UIReady = true
 
 WindUI:Notify({ Title = "Execution Ready", Content = "Semua fitur dimatikan saat awal, silakan aktifkan manual di UI!", Duration = 5 })
