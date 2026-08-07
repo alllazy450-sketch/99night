@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FINAL RAYFIELD EDITION (ALL FEATURES)
+-- FINAL EDITION (DENGAN DAFTAR ITEM LENGKAP)
 -- ==========================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -15,47 +15,41 @@ local RemotesFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 
 -- ==========================================
--- GLOBAL STATE (SINKRON UI & LOOP)
+-- DAFTAR ITEM LENGKAP (DARI SOURCE VIETNAM)
 -- ==========================================
-getgenv().W424 = {
-    -- Pilihan Tool
-    SelectedTool = "Old Axe",
-    
-    -- Chop Aura
-    ChopAura = false,
-    ChopRadius = 25,
-    
-    -- Kill Aura
-    KillAura = false,
-    KillRadius = 25,
-    
-    -- Auto Wood
-    AutoWood = false,
-    WoodRadius = 30,
-    TreeType = "All Trees",
-    
-    -- Auto Hunt
-    AutoHunt = false,
-    HuntRadius = 30,
-    TargetMob = "Wolf",
-    
-    -- Auto Claim
-    AutoClaim = false,
-    
-    -- Auto Feed
-    AutoFeed = false,
-    FeedMaterial = "Log",
-    
-    -- Auto Bring Selected Item
-    AutoBringSelected = false,
-    SelectedItem = "All",
-    
-    -- Auto Bring Chest
-    AutoBringChest = false,
+local itemList = {
+    "Alien Chest", "Alpha Wolf Pelt", "Anvil Front", "Anvil Back", "Apple",
+    "Bandage", "Bear Corpse", "Bear Pelt", "Berry", "Biofuel", "Bolt",
+    "Broken Fan", "Bunny Foot", "Carrot", "Coal", "Coin Stack",
+    "Cooked Morsel", "Cooked Steak", "Chainsaw", "Cultist", "Cultist Gem",
+    "Flower", "Fuel Canister", "Hologram Emitter", "Item Chest",
+    "Laser Fence Blueprint", "Leather Body", "Iron Body", "Thorn Body",
+    "Log", "MedKit", "Morsel", "Old Flashlight", "Old Radio",
+    "Good Sack", "Good Axe", "Raygun", "Giant Sack", "Strong Axe",
+    "Oil Barrel", "Old Car Engine", "Rifle", "Rifle Ammo", "Revolver",
+    "Revolver Ammo", "Sapling", "Sheet Metal", "Steak", "Wolf Pelt",
+    "Gem of the Forest Fragment", "Tyre", "Washing Machine", "Broken Microwave"
 }
 
 -- ==========================================
--- DAMAGE ID MAPPING (LENGKAP & AKURAT)
+-- GLOBAL STATE
+-- ==========================================
+getgenv().W424 = {
+    SelectedTool = "Old Axe",
+    ChopAura = false, ChopRadius = 30,
+    KillAura = false, KillRadius = 30,
+    AutoWood = false, WoodRadius = 30, TreeType = "All Trees",
+    AutoHunt = false, HuntRadius = 30, TargetMob = "Wolf",
+    AutoClaim = false,
+    AutoBringSelected = false,
+    SelectedItem = "All",  -- "All" atau nama item spesifik
+    AutoFeed = false, FeedMaterial = "Log",
+    AutoCook = false, CookMaterial = "Morsel",
+    AutoLootChest = false,
+}
+
+-- ==========================================
+-- DAMAGE ID MAPPING
 -- ==========================================
 local toolsDamageIDs = {
     ["Old Axe"] = "1_8982038982",
@@ -64,25 +58,27 @@ local toolsDamageIDs = {
     ["Chainsaw"] = "647_8992824875",
     ["Spear"] = "196_8999010016",
 }
-local function getDamageID(toolName)
-    return toolsDamageIDs[toolName] or "1_" .. tostring(LocalPlayer.UserId)
+local function getDamageID(name)
+    return toolsDamageIDs[name] or "1_" .. tostring(LocalPlayer.UserId)
 end
 
 -- ==========================================
--- EQUIP TOOL (ROBUST & AMAN)
+-- UTILITY FUNCTIONS
 -- ==========================================
+local function getHRP()
+    local char = LocalPlayer.Character
+    if char and char:IsDescendantOf(Workspace) then
+        return char:FindFirstChild("HumanoidRootPart")
+    end
+    return nil
+end
+
 local function equipTool(toolName)
     local char = LocalPlayer.Character
     if not char then return nil end
-
-    -- Cek apakah sudah di tangan
     for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("Tool") and child.Name == toolName then
-            return child
-        end
+        if child:IsA("Tool") and child.Name == toolName then return child end
     end
-
-    -- Cari di Inventory dan Backpack
     local containers = {
         LocalPlayer:FindFirstChild("Inventory"),
         LocalPlayer:FindFirstChild("Backpack"),
@@ -101,10 +97,13 @@ local function equipTool(toolName)
         if tool then break end
     end
     if not tool then return nil end
-
-    -- Equip via remote (coba beberapa event)
+    local equipRemote = RemotesFolder:FindFirstChild("EquipItemHandle")
+    if equipRemote then
+        pcall(function() equipRemote:FireServer("FireAllClients", tool) end)
+        task.wait(0.15)
+        if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
+    end
     local equipRemotes = {
-        RemotesFolder:FindFirstChild("EquipItemHandle"),
         RemotesFolder:FindFirstChild("EquipItem"),
         RemotesFolder:FindFirstChild("EquipTool"),
         RemotesFolder:FindFirstChild("SelectTool")
@@ -119,24 +118,17 @@ local function equipTool(toolName)
             if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
         end
     end
-
-    -- Humanoid:EquipTool (standar Roblox)
     local hum = char:FindFirstChild("Humanoid")
     if hum then
         pcall(function() hum:EquipTool(tool) end)
         task.wait(0.2)
         if char:FindFirstChild(toolName) then return char:FindFirstChild(toolName) end
     end
-
-    -- Last resort (risiko tool jatuh, tapi hanya jika semua gagal)
     pcall(function() tool.Parent = char end)
     task.wait(0.2)
     return char:FindFirstChild(toolName)
 end
 
--- ==========================================
--- ATTACK TARGET (MULTI METODE)
--- ==========================================
 local function attackTarget(target, tool, damageID)
     if not target or not tool then return false end
     local mainPart = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head")
@@ -147,10 +139,8 @@ local function attackTarget(target, tool, damageID)
     local success = false
     pcall(function() tool:Activate() success = true end)
     task.wait(0.05)
-
     local swing = tool:FindFirstChild("Swing")
     if swing then pcall(function() swing:FireServer() success = true end) end
-
     local damageRemote = RemotesFolder:FindFirstChild("ToolDamageObject")
     if damageRemote then
         pcall(function()
@@ -158,11 +148,8 @@ local function attackTarget(target, tool, damageID)
             success = true
         end)
     end
-
     local hitRemote = RemotesFolder:FindFirstChild("Hit") or RemotesFolder:FindFirstChild("DealDamage")
     if hitRemote then pcall(function() hitRemote:FireServer(target, tool) success = true end) end
-
-    -- VirtualInputManager (jika ada ClickDetector)
     if not success then
         pcall(function()
             local clickDetector = tool:FindFirstChildWhichIsA("ClickDetector")
@@ -177,9 +164,6 @@ local function attackTarget(target, tool, damageID)
     return success
 end
 
--- ==========================================
--- DRAG ITEM TO POSITION
--- ==========================================
 local function dragItemToPos(item, position)
     if not item or not item:IsDescendantOf(Workspace) then return end
     pcall(function()
@@ -197,7 +181,7 @@ local function dragItemToPos(item, position)
 end
 
 -- ==========================================
--- GET TREE PART (UNTUK SEMUA JENIS POHON)
+-- GET TREE PART
 -- ==========================================
 local function getTreePart(tree)
     if not tree or not tree:IsDescendantOf(Workspace) then return nil end
@@ -206,9 +190,6 @@ local function getTreePart(tree)
         or tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
 end
 
--- ==========================================
--- GET FILTERED TREES (DARI MAP.FOLIAGE + FALLBACK)
--- ==========================================
 local function getFilteredTrees()
     local trees = {}
     local treeType = getgenv().W424.TreeType
@@ -239,7 +220,6 @@ local function getFilteredTrees()
         end
         scan(map)
     end
-    -- Fallback: scan seluruh Workspace
     if #trees == 0 then
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Brightwood") or obj.Name:find("Fairy")) then
@@ -265,7 +245,6 @@ local function getCampfirePosition()
             end
         end
     end
-    -- Fallback
     local campfire = Workspace:FindFirstChild("Campfire") or Workspace:FindFirstChild("Fireplace")
     if campfire then
         local part = campfire.PrimaryPart or campfire:FindFirstChildWhichIsA("BasePart")
@@ -275,54 +254,26 @@ local function getCampfirePosition()
 end
 
 -- ==========================================
--- ENGINE LOOPS (SEMUA FITUR)
+-- ENGINE LOOPS (SAMA SEPERTI SEBELUMNYA)
 -- ==========================================
-
--- 1. Chop Aura (Radius)
+-- 1. Chop Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.ChopAura then
             pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local hrp = getHRP()
                 if not hrp then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
                 if not tool then return end
                 local damageID = getDamageID(getgenv().W424.SelectedTool)
                 local radius = getgenv().W424.ChopRadius
                 local foliage = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
-                if not foliage then return end
-                for _, tree in ipairs(foliage:GetChildren()) do
-                    if not getgenv().W424.ChopAura then break end
-                    local part = getTreePart(tree)
-                    if part and (hrp.Position - part.Position).Magnitude <= radius then
-                        attackTarget(tree, tool, damageID)
-                        task.wait(0.05)
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- 2. Kill Aura (Radius)
-task.spawn(function()
-    while task.wait(0.2) do
-        if getgenv().W424.KillAura then
-            pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if not hrp then return end
-                local tool = equipTool(getgenv().W424.SelectedTool)
-                if not tool then return end
-                local damageID = getDamageID(getgenv().W424.SelectedTool)
-                local radius = getgenv().W424.KillRadius
-                local enemies = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Characters")
-                if not enemies then return end
-                for _, mob in ipairs(enemies:GetChildren()) do
-                    if not getgenv().W424.KillAura then break end
-                    if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob ~= LocalPlayer.Character then
-                        local part = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+                if foliage then
+                    for _, tree in ipairs(foliage:GetChildren()) do
+                        if not getgenv().W424.ChopAura then break end
+                        local part = getTreePart(tree)
                         if part and (hrp.Position - part.Position).Magnitude <= radius then
-                            attackTarget(mob, tool, damageID)
+                            attackTarget(tree, tool, damageID)
                             task.wait(0.05)
                         end
                     end
@@ -332,12 +283,44 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Wood (Radius, tanpa teleport)
+-- 2. Kill Aura
+task.spawn(function()
+    while task.wait(0.2) do
+        if getgenv().W424.KillAura then
+            pcall(function()
+                local hrp = getHRP()
+                if not hrp then return end
+                local tool = equipTool(getgenv().W424.SelectedTool)
+                if not tool then return end
+                local damageID = getDamageID(getgenv().W424.SelectedTool)
+                local radius = getgenv().W424.KillRadius
+                local charactersFolder = Workspace:FindFirstChild("Characters")
+                if charactersFolder then
+                    for _, mob in ipairs(charactersFolder:GetChildren()) do
+                        if not getgenv().W424.KillAura then break end
+                        if mob:IsA("Model") and mob ~= LocalPlayer.Character then
+                            local humanoid = mob:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health > 0 then
+                                local part = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+                                if part and (hrp.Position - part.Position).Magnitude <= radius then
+                                    attackTarget(mob, tool, damageID)
+                                    task.wait(0.05)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 3. Auto Wood
 task.spawn(function()
     while task.wait(0.2) do
         if getgenv().W424.AutoWood then
             pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local hrp = getHRP()
                 if not hrp then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
                 if not tool then return end
@@ -357,27 +340,31 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Hunt (Radius)
+-- 4. Auto Hunt
 task.spawn(function()
     while task.wait(0.3) do
         if getgenv().W424.AutoHunt then
             pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local hrp = getHRP()
                 if not hrp then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
                 if not tool then return end
                 local damageID = getDamageID(getgenv().W424.SelectedTool)
                 local targetName = getgenv().W424.TargetMob
                 local radius = getgenv().W424.HuntRadius
-                local enemies = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Characters")
-                if not enemies then return end
-                for _, mob in ipairs(enemies:GetChildren()) do
-                    if not getgenv().W424.AutoHunt then break end
-                    if mob:IsA("Model") and mob.Name:find(targetName) and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                        local part = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
-                        if part and (hrp.Position - part.Position).Magnitude <= radius then
-                            attackTarget(mob, tool, damageID)
-                            task.wait(0.1)
+                local charactersFolder = Workspace:FindFirstChild("Characters")
+                if charactersFolder then
+                    for _, mob in ipairs(charactersFolder:GetChildren()) do
+                        if not getgenv().W424.AutoHunt then break end
+                        if mob:IsA("Model") and mob.Name:find(targetName) then
+                            local humanoid = mob:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health > 0 then
+                                local part = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+                                if part and (hrp.Position - part.Position).Magnitude <= radius then
+                                    attackTarget(mob, tool, damageID)
+                                    task.wait(0.1)
+                                end
+                            end
                         end
                     end
                 end
@@ -386,15 +373,15 @@ task.spawn(function()
     end
 end)
 
--- 5. Auto Claim Drops (semua item di folder Items)
+-- 5. Auto Claim Drops
 task.spawn(function()
     while task.wait(0.5) do
         if getgenv().W424.AutoClaim then
             pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local hrp = getHRP()
                 if not hrp or not itemFolder then return end
                 for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item:IsA("Model") and item:IsDescendantOf(Workspace) then
+                    if item:IsA("Model") and item:IsDescendantOf(Workspace) and not item.Name:find("Chest") then
                         dragItemToPos(item, hrp.Position + Vector3.new(0, 1.5, 0))
                     end
                 end
@@ -403,7 +390,27 @@ task.spawn(function()
     end
 end)
 
--- 6. Auto Feed Campfire (dengan pilihan bahan bakar)
+-- 6. Auto Bring Selected Item (spesifik atau semua)
+task.spawn(function()
+    while task.wait(0.5) do
+        if getgenv().W424.AutoBringSelected then
+            pcall(function()
+                local hrp = getHRP()
+                if not hrp or not itemFolder then return end
+                local targetItem = getgenv().W424.SelectedItem
+                for _, item in ipairs(itemFolder:GetChildren()) do
+                    if item:IsA("Model") and item:IsDescendantOf(Workspace) and not item.Name:find("Chest") then
+                        if targetItem == "All" or item.Name == targetItem then
+                            dragItemToPos(item, hrp.Position + Vector3.new(0, 1.5, 0))
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 7. Auto Feed Campfire
 task.spawn(function()
     while task.wait(1) do
         if getgenv().W424.AutoFeed then
@@ -423,20 +430,18 @@ task.spawn(function()
     end
 end)
 
--- 7. Auto Bring Selected Item (dengan filter index)
+-- 8. Auto Cook
 task.spawn(function()
-    while task.wait(0.5) do
-        if getgenv().W424.AutoBringSelected then
+    while task.wait(2) do
+        if getgenv().W424.AutoCook then
             pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local hrp = getHRP()
                 if not hrp or not itemFolder then return end
-                local selected = getgenv().W424.SelectedItem
+                local cookMat = getgenv().W424.CookMaterial
+                local campfirePos = getCampfirePosition()
                 for _, item in ipairs(itemFolder:GetChildren()) do
-                    if item:IsA("Model") and item:IsDescendantOf(Workspace) then
-                        local match = (selected == "All") or item.Name:lower():find(selected:lower())
-                        if match then
-                            dragItemToPos(item, hrp.Position + Vector3.new(0, 1.5, 0))
-                        end
+                    if item:IsA("Model") and item.Name:lower():find(cookMat:lower()) then
+                        dragItemToPos(item, campfirePos + Vector3.new(0, 1, 0))
                     end
                 end
             end)
@@ -444,27 +449,22 @@ task.spawn(function()
     end
 end)
 
--- 8. Auto Bring Chest (buka dan tarik loot)
+-- 9. Auto Loot Chest
 task.spawn(function()
     while task.wait(0.5) do
-        if getgenv().W424.AutoBringChest then
+        if getgenv().W424.AutoLootChest then
             pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local hrp = getHRP()
                 if not hrp or not itemFolder then return end
                 for _, chest in ipairs(itemFolder:GetChildren()) do
-                    if not getgenv().W424.AutoBringChest then break end
                     if chest:IsA("Model") and chest.Name:find("Chest") then
                         local main = chest:FindFirstChild("Main") or chest.PrimaryPart
                         if main then
-                            -- Tarik chest ke dekat pemain
-                            dragItemToPos(chest, hrp.Position + Vector3.new(0, 2, 2))
-                            -- Cari ProximityPrompt dan buka
                             for _, obj in ipairs(main:GetDescendants()) do
                                 if obj:IsA("ProximityPrompt") then
                                     pcall(function() obj.RequiresLineOfSight = false end)
                                     fireproximityprompt(obj)
                                     task.wait(0.2)
-                                    -- Tarik semua loot yang muncul
                                     for _, loot in ipairs(itemFolder:GetChildren()) do
                                         if loot ~= chest and loot:IsA("Model") and loot:IsDescendantOf(Workspace) then
                                             dragItemToPos(loot, hrp.Position + Vector3.new(0, 2, 0))
@@ -483,12 +483,12 @@ end)
 -- ==========================================
 -- RESPAWN HANDLER
 -- ==========================================
-LocalPlayer.CharacterAdded:Connect(function(char)
-    print("[W424] Karakter respawn, state tetap aktif.")
+LocalPlayer.CharacterAdded:Connect(function()
+    print("[W424] Karakter respawn.")
 end)
 
 -- ==========================================
--- RAYFIELD UI (LENGKAP DENGAN SEMUA FITUR)
+-- RAYFIELD UI (LENGKAP DENGAN DROPDOWN ITEM SPESIFIK)
 -- ==========================================
 local Window = Rayfield:CreateWindow({
    Name = "W424 Hub | 99 Nights",
@@ -499,30 +499,28 @@ local Window = Rayfield:CreateWindow({
    KeySystem = false
 })
 
--- TAB 1: Combat & Aura
-local TabCombat = Window:CreateTab("Combat & Aura", 4483362458)
-
-TabCombat:CreateSection("Pengaturan Aura")
-
+-- TAB 1: COMBAT
+local TabCombat = Window:CreateTab("Combat", 4483362458)
+TabCombat:CreateSection("Pengaturan Senjata")
 TabCombat:CreateDropdown({
-   Name = "Pilih Tool / Senjata",
+   Name = "Pilih Tool",
    Options = {"Old Axe", "Good Axe", "Strong Axe", "Chainsaw", "Spear"},
    CurrentOption = getgenv().W424.SelectedTool,
    Flag = "ToolDropdown",
-   Callback = function(Option)
-      getgenv().W424.SelectedTool = Option
+   Callback = function(opt)
+      getgenv().W424.SelectedTool = opt
    end,
 })
 
+TabCombat:CreateSection("Aura")
 TabCombat:CreateToggle({
-   Name = "Chop Aura (Radius)",
+   Name = "Chop Aura",
    CurrentValue = getgenv().W424.ChopAura,
    Flag = "ChopTog",
-   Callback = function(Value)
-      getgenv().W424.ChopAura = Value
+   Callback = function(v)
+      getgenv().W424.ChopAura = v
    end,
 })
-
 TabCombat:CreateSlider({
    Name = "Chop Radius",
    Range = {10, 60},
@@ -530,20 +528,19 @@ TabCombat:CreateSlider({
    Suffix = "Studs",
    CurrentValue = getgenv().W424.ChopRadius,
    Flag = "ChopRad",
-   Callback = function(Value)
-      getgenv().W424.ChopRadius = Value
+   Callback = function(v)
+      getgenv().W424.ChopRadius = v
    end,
 })
 
 TabCombat:CreateToggle({
-   Name = "Kill Aura (Mobs)",
+   Name = "Kill Aura",
    CurrentValue = getgenv().W424.KillAura,
    Flag = "KillTog",
-   Callback = function(Value)
-      getgenv().W424.KillAura = Value
+   Callback = function(v)
+      getgenv().W424.KillAura = v
    end,
 })
-
 TabCombat:CreateSlider({
    Name = "Kill Radius",
    Range = {10, 60},
@@ -551,25 +548,22 @@ TabCombat:CreateSlider({
    Suffix = "Studs",
    CurrentValue = getgenv().W424.KillRadius,
    Flag = "KillRad",
-   Callback = function(Value)
-      getgenv().W424.KillRadius = Value
+   Callback = function(v)
+      getgenv().W424.KillRadius = v
    end,
 })
 
--- TAB 2: Auto Farm
+-- TAB 2: AUTO FARM
 local TabFarm = Window:CreateTab("Auto Farm", 4483362458)
-
-TabFarm:CreateSection("Auto Wood (Radius)")
-
+TabFarm:CreateSection("Auto Wood")
 TabFarm:CreateToggle({
    Name = "Auto Wood (Radius)",
    CurrentValue = getgenv().W424.AutoWood,
    Flag = "WoodTog",
-   Callback = function(Value)
-      getgenv().W424.AutoWood = Value
+   Callback = function(v)
+      getgenv().W424.AutoWood = v
    end,
 })
-
 TabFarm:CreateSlider({
    Name = "Wood Radius",
    Range = {10, 60},
@@ -577,32 +571,29 @@ TabFarm:CreateSlider({
    Suffix = "Studs",
    CurrentValue = getgenv().W424.WoodRadius,
    Flag = "WoodRad",
-   Callback = function(Value)
-      getgenv().W424.WoodRadius = Value
+   Callback = function(v)
+      getgenv().W424.WoodRadius = v
    end,
 })
-
 TabFarm:CreateDropdown({
    Name = "Jenis Pohon",
    Options = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"},
    CurrentOption = getgenv().W424.TreeType,
    Flag = "TreeDropdown",
-   Callback = function(Option)
-      getgenv().W424.TreeType = Option
+   Callback = function(opt)
+      getgenv().W424.TreeType = opt
    end,
 })
 
-TabFarm:CreateSection("Auto Hunt (Mob)")
-
+TabFarm:CreateSection("Auto Hunt")
 TabFarm:CreateToggle({
    Name = "Auto Hunt (Radius)",
    CurrentValue = getgenv().W424.AutoHunt,
    Flag = "HuntTog",
-   Callback = function(Value)
-      getgenv().W424.AutoHunt = Value
+   Callback = function(v)
+      getgenv().W424.AutoHunt = v
    end,
 })
-
 TabFarm:CreateSlider({
    Name = "Hunt Radius",
    Range = {10, 60},
@@ -610,92 +601,114 @@ TabFarm:CreateSlider({
    Suffix = "Studs",
    CurrentValue = getgenv().W424.HuntRadius,
    Flag = "HuntRad",
-   Callback = function(Value)
-      getgenv().W424.HuntRadius = Value
+   Callback = function(v)
+      getgenv().W424.HuntRadius = v
    end,
 })
-
 TabFarm:CreateDropdown({
    Name = "Target Mob",
    Options = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist"},
    CurrentOption = getgenv().W424.TargetMob,
    Flag = "MobDropdown",
-   Callback = function(Option)
-      getgenv().W424.TargetMob = Option
+   Callback = function(opt)
+      getgenv().W424.TargetMob = opt
    end,
 })
 
--- TAB 3: Looting & Utility
-local TabLoot = Window:CreateTab("Looting & Utility", 4483362458)
-
-TabLoot:CreateSection("Auto Claim & Feed")
-
+-- TAB 3: LOOTING
+local TabLoot = Window:CreateTab("Looting", 4483362458)
+TabLoot:CreateSection("Auto Claim Drops")
 TabLoot:CreateToggle({
-   Name = "Auto Claim Drops",
+   Name = "Auto Claim Drops (Semua Item)",
    CurrentValue = getgenv().W424.AutoClaim,
    Flag = "ClaimTog",
-   Callback = function(Value)
-      getgenv().W424.AutoClaim = Value
+   Callback = function(v)
+      getgenv().W424.AutoClaim = v
    end,
 })
 
-TabLoot:CreateToggle({
-   Name = "Auto Feed Campfire",
-   CurrentValue = getgenv().W424.AutoFeed,
-   Flag = "FeedTog",
-   Callback = function(Value)
-      getgenv().W424.AutoFeed = Value
-   end,
-})
-
-TabLoot:CreateDropdown({
-   Name = "Bahan Bakar",
-   Options = {"Log", "Coal", "Biofuel", "Fuel Canister"},
-   CurrentOption = getgenv().W424.FeedMaterial,
-   Flag = "FeedDropdown",
-   Callback = function(Option)
-      getgenv().W424.FeedMaterial = Option
-   end,
-})
-
-TabLoot:CreateSection("Item Selector & Chest")
-
-TabLoot:CreateDropdown({
-   Name = "Pilih Item untuk Ditarik",
-   Options = {"All", "Log", "Meat", "Pelt", "Bunny Foot", "Sheet Metal", "Bolt"},
-   CurrentOption = getgenv().W424.SelectedItem,
-   Flag = "ItemDropdown",
-   Callback = function(Option)
-      getgenv().W424.SelectedItem = Option
-   end,
-})
-
+TabLoot:CreateSection("Auto Bring Item (Spesifik)")
 TabLoot:CreateToggle({
    Name = "Auto Bring Selected Item",
    CurrentValue = getgenv().W424.AutoBringSelected,
    Flag = "BringTog",
-   Callback = function(Value)
-      getgenv().W424.AutoBringSelected = Value
+   Callback = function(v)
+      getgenv().W424.AutoBringSelected = v
+   end,
+})
+-- Dropdown item spesifik (daftar lengkap)
+local itemOptions = {"All"}
+for _, name in ipairs(itemList) do
+    table.insert(itemOptions, name)
+end
+TabLoot:CreateDropdown({
+   Name = "Pilih Item",
+   Options = itemOptions,
+   CurrentOption = "All",
+   Flag = "ItemDropdown",
+   Callback = function(opt)
+      getgenv().W424.SelectedItem = opt
    end,
 })
 
+TabLoot:CreateSection("Auto Loot Chest")
 TabLoot:CreateToggle({
-   Name = "Auto Bring & Open Chests",
-   CurrentValue = getgenv().W424.AutoBringChest,
+   Name = "Auto Loot Chest (Buka & Ambil)",
+   CurrentValue = getgenv().W424.AutoLootChest,
    Flag = "ChestTog",
-   Callback = function(Value)
-      getgenv().W424.AutoBringChest = Value
+   Callback = function(v)
+      getgenv().W424.AutoLootChest = v
+   end,
+})
+
+-- TAB 4: UTILITY
+local TabUtil = Window:CreateTab("Utility", 4483362458)
+TabUtil:CreateSection("Campfire")
+TabUtil:CreateToggle({
+   Name = "Auto Feed Campfire",
+   CurrentValue = getgenv().W424.AutoFeed,
+   Flag = "FeedTog",
+   Callback = function(v)
+      getgenv().W424.AutoFeed = v
+   end,
+})
+TabUtil:CreateDropdown({
+   Name = "Bahan Bakar",
+   Options = {"Log", "Coal", "Biofuel", "Fuel Canister"},
+   CurrentOption = getgenv().W424.FeedMaterial,
+   Flag = "FeedMatDropdown",
+   Callback = function(opt)
+      getgenv().W424.FeedMaterial = opt
+   end,
+})
+
+TabUtil:CreateSection("Auto Cook")
+TabUtil:CreateToggle({
+   Name = "Auto Cook (Drop ke Campfire)",
+   CurrentValue = getgenv().W424.AutoCook,
+   Flag = "CookTog",
+   Callback = function(v)
+      getgenv().W424.AutoCook = v
+   end,
+})
+TabUtil:CreateDropdown({
+   Name = "Bahan Masak",
+   Options = {"Morsel", "Steak"},
+   CurrentOption = getgenv().W424.CookMaterial,
+   Flag = "CookMatDropdown",
+   Callback = function(opt)
+      getgenv().W424.CookMaterial = opt
    end,
 })
 
 -- ==========================================
--- NOTIFIKASI AWAL
+-- NOTIFIKASI
 -- ==========================================
 Rayfield:Notify({
    Title = "W424 Hub Ready!",
-   Content = "Semua fitur aktif. Selamat farming!",
+   Content = "Semua fitur aktif, termasuk item spesifik.",
    Duration = 5,
    Image = 4483362458
 })
 
-print("[W424] Script final loaded successfully.")
+print("[W424] Final script dengan daftar item lengkap loaded.")
