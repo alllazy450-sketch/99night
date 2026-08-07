@@ -1,5 +1,6 @@
 -- ==========================================
--- W424 HUB | FINAL DENGAN DEBUG TOOL LENGKAP
+-- W424 HUB | 99 NIGHTS IN THE FOREST
+-- ULTIMATE STABLE & ROBUST ENGINE (FIXED)
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -12,13 +13,13 @@ local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
--- State
+-- State Variables
 local KillAuraEnabled = false
 local KillAuraRadius = 500
 
 local AutoWoodEnabled = false
 local SelectedTreeType = "All Trees"
-local SelectedAxeName = "Old Axe"  -- default
+local SelectedAxeName = "Old Axe"
 
 local AutoHuntEnabled = false
 local SelectedMob = "Wolf"
@@ -45,7 +46,7 @@ local toolsDamageIDs = {
     ["Spear"] = "196_8999010016"
 }
 
--- Utility
+-- Utility Functions
 local function getHRP()
     local char = LocalPlayer and LocalPlayer.Character
     if char and char:IsDescendantOf(Workspace) then
@@ -55,103 +56,69 @@ local function getHRP()
 end
 
 -- ==========================================
--- EQUIP TOOL (DENGAN PENCARIAN DI BACKPACK)
+-- EQUIP TOOL (ROBUST & SMART CHECK)
 -- ==========================================
 local function ensureToolEquipped(toolName)
     local char = LocalPlayer.Character
     if not char then return nil end
 
-    -- Cek tool di tangan
+    -- 1. UTAMA: Cek jika tool SUDAH DIPEGANG di Character
     for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("Tool") and (child.Name == toolName or child.Name:find(toolName)) then
-            equippedTool = child
-            return child
+        if child:IsA("Tool") then
+            if child.Name == toolName or child.Name:lower():find(toolName:lower()) then
+                equippedTool = child
+                return child
+            end
         end
     end
 
-    -- Cek di Inventory, Backpack, StarterGear
-    local containers = {
-        LocalPlayer:FindFirstChild("Inventory"),
-        LocalPlayer:FindFirstChild("Backpack"),
-        LocalPlayer:FindFirstChild("StarterGear")
-    }
-    
-    local allTools = {}
+    -- 2. Cek jika karakter sedang memegang sembarang Tool (fallback cepat)
+    local heldTool = char:FindFirstChildOfClass("Tool")
+    if heldTool and (heldTool.Name:lower():find("axe") or heldTool.Name:lower():find("saw")) then
+        equippedTool = heldTool
+        return heldTool
+    end
+
+    -- 3. Cari di Inventory jika belum di tangan
+    local inv = LocalPlayer:FindFirstChild("Inventory")
     local tool = nil
-
-    for _, container in ipairs(containers) do
-        if container then
-            for _, item in ipairs(container:GetChildren()) do
-                if item:IsA("Tool") then
-                    table.insert(allTools, item.Name)
-                    if item.Name == toolName or item.Name:find(toolName) then
-                        tool = item
-                        break
-                    end
+    if inv then
+        tool = inv:FindFirstChild(toolName)
+        if not tool then
+            for _, item in ipairs(inv:GetChildren()) do
+                if item.Name:lower():find(toolName:lower()) then
+                    tool = item
+                    break
                 end
             end
         end
-        if tool then break end
     end
 
+    -- Jika tidak ada di inventory & tidak di tangan, kembalikan Tool yang sedang dipegang (jika ada)
     if not tool then
-        warn("Tool " .. toolName .. " tidak ditemukan di semua container!")
-        warn("Daftar semua tool yang tersedia: " .. table.concat(allTools, ", "))
-        return nil
+        return heldTool
     end
 
-    -- Jika tool ditemukan, coba equip
+    -- 4. Kirim Remote Equip jika item terdeteksi di Inventory
     if remoteEvents then
-        -- Coba berbagai remote event
-        local equipRemotes = {
-            remoteEvents:FindFirstChild("EquipItemHandle"),
-            remoteEvents:FindFirstChild("EquipItem"),
-            remoteEvents:FindFirstChild("EquipTool"),
-            remoteEvents:FindFirstChild("SelectTool")
-        }
-        for _, remote in ipairs(equipRemotes) do
-            if remote then
-                pcall(function() remote:FireServer(tool) end)
-                task.wait(0.15)
-                if char:FindFirstChild(toolName) then
-                    equippedTool = char:FindFirstChild(toolName)
-                    return equippedTool
-                end
-                pcall(function() remote:FireServer(toolName) end)
-                task.wait(0.15)
-                if char:FindFirstChild(toolName) then
-                    equippedTool = char:FindFirstChild(toolName)
-                    return equippedTool
-                end
+        local equipRemote = remoteEvents:FindFirstChild("EquipItemHandle") or remoteEvents:FindFirstChild("EquipItem")
+        if equipRemote then
+            pcall(function() equipRemote:FireServer(tool) end)
+            task.wait(0.2)
+            
+            local newTool = char:FindFirstChildOfClass("Tool")
+            if newTool then
+                equippedTool = newTool
+                return newTool
             end
         end
     end
 
-    -- Metode standar: Humanoid:EquipTool
-    local humanoid = char:FindFirstChild("Humanoid")
-    if humanoid then
-        pcall(function() humanoid:EquipTool(tool) end)
-        task.wait(0.2)
-        if char:FindFirstChild(toolName) then
-            equippedTool = char:FindFirstChild(toolName)
-            return equippedTool
-        end
-    end
-
-    -- Terakhir: paksa pindah (risiko tool jatuh)
-    warn("Semua metode equip gagal, mencoba pindahkan langsung...")
-    pcall(function() tool.Parent = char end)
-    task.wait(0.2)
-    if char:FindFirstChild(toolName) then
-        equippedTool = char:FindFirstChild(toolName)
-        return equippedTool
-    end
-
-    return nil
+    return char:FindFirstChildOfClass("Tool")
 end
 
 -- ==========================================
--- SERANG TARGET
+-- SERANG TARGET (ATTACK ENGINE)
 -- ==========================================
 local function attackTarget(target, tool, damageID)
     if not target or not tool then return false end
@@ -162,7 +129,6 @@ local function attackTarget(target, tool, damageID)
 
     local success = false
     pcall(function() tool:Activate() success = true end)
-    task.wait(0.05)
 
     local swing = tool:FindFirstChild("Swing")
     if swing then pcall(function() swing:FireServer() success = true end) end
@@ -179,22 +145,11 @@ local function attackTarget(target, tool, damageID)
     local damageEvent = tool:FindFirstChild("DamageEvent") or tool:FindFirstChild("OnAttack")
     if damageEvent then pcall(function() damageEvent:FireServer(target) success = true end) end
 
-    if not success then
-        pcall(function()
-            local clickDetector = tool:FindFirstChildWhichIsA("ClickDetector")
-            if clickDetector then
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                task.wait(0.05)
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                success = true
-            end
-        end)
-    end
     return success
 end
 
 -- ==========================================
--- GET CAMPFIRE POSITION
+-- CAMPFIRE & ITEM MOVER
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -233,9 +188,6 @@ local function getTreeMainPart(tree)
     return nil
 end
 
--- ==========================================
--- GET FILTERED TREES
--- ==========================================
 local function getFilteredTrees()
     local trees = {}
     local function scan(folder)
@@ -277,7 +229,7 @@ local function getFilteredTrees()
 end
 
 -- ==========================================
--- AUTO CLAIM
+-- AUTO CLAIM & REALTIME EVENTS
 -- ==========================================
 local function isClaimableItem(item)
     if not item or not item.Name then return false end
@@ -296,8 +248,10 @@ itemFolder.ChildAdded:Connect(function(child)
 end)
 
 -- ==========================================
--- KILL AURA
+-- BACKGROUND LOOPS
 -- ==========================================
+
+-- Kill Aura
 task.spawn(function()
     while true do
         if KillAuraEnabled then
@@ -323,9 +277,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AUTO WOOD
--- ==========================================
+-- Auto Wood
 task.spawn(function()
     while true do
         if AutoWoodEnabled then
@@ -337,12 +289,7 @@ task.spawn(function()
                 end
 
                 local tool = ensureToolEquipped(SelectedAxeName)
-                if not tool then
-                    warn("Tool tidak ditemukan, hanya teleport tanpa menyerang.")
-                end
-
                 local treeList = getFilteredTrees()
-                print("Jumlah pohon ditemukan: " .. #treeList)
 
                 for _, tree in ipairs(treeList) do
                     if not AutoWoodEnabled then break end
@@ -351,38 +298,22 @@ task.spawn(function()
                     local mainPart = getTreeMainPart(tree)
                     if not mainPart then continue end
                     
-                    local targetCFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
-                    print("Teleport ke pohon: " .. tree.Name .. " di " .. tostring(mainPart.Position))
-                    hrp.CFrame = targetCFrame
-                    task.wait(0.3)
-
-                    if not tool then
-                        task.wait(1)
-                        continue
-                    end
+                    hrp.CFrame = CFrame.new(mainPart.Position + Vector3.new(2, 0, 2), mainPart.Position)
+                    task.wait(0.2)
 
                     local maxHits = 25
                     local hitCount = 0
                     local damageID = toolsDamageIDs[SelectedAxeName] or "1_8982038982"
                     while AutoWoodEnabled and tree:IsDescendantOf(Workspace) and getTreeMainPart(tree) and hitCount < maxHits do
-                        local currentTool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(SelectedAxeName)
-                        if not currentTool then
-                            currentTool = ensureToolEquipped(SelectedAxeName)
-                            if not currentTool then
-                                warn("Tool hilang, tidak bisa menyerang.")
-                                break
-                            end
-                            tool = currentTool
+                        local currentTool = ensureToolEquipped(SelectedAxeName)
+                        if currentTool then
+                            attackTarget(tree, currentTool, damageID)
                         end
-                        
-                        attackTarget(tree, tool, damageID)
-                        task.wait(0.25)
+                        task.wait(0.2)
                         hitCount = hitCount + 1
                     end
-                    task.wait(0.5)
+                    task.wait(0.3)
                 end
-            else
-                warn("HRP tidak ditemukan, menunggu...")
             end
         else
             if WasWoodFarming then
@@ -399,9 +330,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AUTO HUNT
--- ==========================================
+-- Auto Hunt
 task.spawn(function()
     while true do
         if AutoHuntEnabled then
@@ -442,9 +371,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- BULK TP & AUTO FEED
--- ==========================================
+-- Bulk TP & Auto Feed
 task.spawn(function()
     while true do
         if BulkTPEnabled then
@@ -488,9 +415,7 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- RESPAWN HANDLER
--- ==========================================
+-- Respawn Handler
 LocalPlayer.CharacterAdded:Connect(function(char)
     WasWoodFarming = false
     WasHunting = false
@@ -503,12 +428,12 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 end)
 
 -- ==========================================
--- WIND UI
+-- WIND UI INTERFACE
 -- ==========================================
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Final Debug Tool",
+    Subtitle = "W424 Hub | Ultimate Fixed",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -548,4 +473,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Update Final", Content = "Sekarang tool akan terdeteksi dari semua container!", Duration = 5 })
+WindUI:Notify({ Title = "Script Updated", Content = "Tool Equip Fixed & Stabil!", Duration = 5 })
