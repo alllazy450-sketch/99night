@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FIXED WINDUI CALLBACK & TELEPORT BUG
+-- ULTIMATE STABLE & SAFE UIREADY ENGINE
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -12,7 +12,7 @@ local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
--- FLAG PENGUNCI (Mencegah Callback WindUI Jalan Saat Init)
+-- FLAG PENGUNCI (Mencegah Auto-Trigger Callback WindUI)
 local UIReady = false
 
 -- State Variables (MUTLAK OFF DI AWAL)
@@ -30,7 +30,7 @@ local KillAuraRadius = 500
 local AutoClaimEnabled = false 
 local AutoFeedEnabled = false
 local AutoCookEnabled = false
-local SelectedFeedMaterials = {}
+local SelectedFeedMaterials = {["Log"] = true}
 
 local BulkTPEnabled = false
 local SelectedBulkItem = "Log"
@@ -361,7 +361,7 @@ end)
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Clean Execution",
+    Subtitle = "W424 Hub | UIReady Engine",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -403,7 +403,7 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     end
 })
 
--- AKTIFKAN HANDLER SETELAH UI SELESAI DIBUAT
+-- KUNCI DIBUKA HANYA SETELAH UI FINISHED INITIALIZING
 UIReady = true
 
-WindUI:Notify({ Title = "Execution Ready", Content = "Semua fitur dimatikan saat awal, silakan aktifkan manual di UI!", Duration = 5 })
+WindUI:Notify({ Title = "Execution Ready", Content = "Script berhasil di-load tanpa bug auto-start!", Duration = 5 })
