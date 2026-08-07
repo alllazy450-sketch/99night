@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FINAL EDITION (DENGAN DAFTAR ITEM LENGKAP)
+-- FINAL FIX (BERDASARKAN REMOTE SPY)
 -- ==========================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -42,24 +42,24 @@ getgenv().W424 = {
     AutoHunt = false, HuntRadius = 30, TargetMob = "Wolf",
     AutoClaim = false,
     AutoBringSelected = false,
-    SelectedItem = "All",  -- "All" atau nama item spesifik
+    SelectedItem = "All",
     AutoFeed = false, FeedMaterial = "Log",
     AutoCook = false, CookMaterial = "Morsel",
     AutoLootChest = false,
 }
 
 -- ==========================================
--- DAMAGE ID MAPPING
+-- DAMAGE ID MAPPING (BERDASARKAN REMOTE SPY)
 -- ==========================================
 local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
-    ["Good Axe"] = "112_8982038982",
-    ["Strong Axe"] = "116_8982038982",
-    ["Chainsaw"] = "647_8992824875",
-    ["Spear"] = "196_8999010016",
+    ["Old Axe"] = "1_9883131443",
+    ["Good Axe"] = "112_9883131443",
+    ["Strong Axe"] = "116_9883131443",
+    ["Chainsaw"] = "647_9883131443",
+    ["Spear"] = "196_9883131443",
 }
 local function getDamageID(name)
-    return toolsDamageIDs[name] or "1_" .. tostring(LocalPlayer.UserId)
+    return toolsDamageIDs[name] or "1_9883131443"
 end
 
 -- ==========================================
@@ -129,6 +129,9 @@ local function equipTool(toolName)
     return char:FindFirstChild(toolName)
 end
 
+-- ==========================================
+-- ATTACK TARGET (DENGAN PARAMETER BOOLEAN)
+-- ==========================================
 local function attackTarget(target, tool, damageID)
     if not target or not tool then return false end
     local mainPart = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head")
@@ -141,15 +144,19 @@ local function attackTarget(target, tool, damageID)
     task.wait(0.05)
     local swing = tool:FindFirstChild("Swing")
     if swing then pcall(function() swing:FireServer() success = true end) end
+
     local damageRemote = RemotesFolder:FindFirstChild("ToolDamageObject")
     if damageRemote then
         pcall(function()
-            damageRemote:InvokeServer(target, tool, damageID, CFrame.new(mainPart.Position))
+            -- 5 parameter: target, tool, damageID, CFrame, boolean (false)
+            damageRemote:InvokeServer(target, tool, damageID, CFrame.new(mainPart.Position), false)
             success = true
         end)
     end
+
     local hitRemote = RemotesFolder:FindFirstChild("Hit") or RemotesFolder:FindFirstChild("DealDamage")
     if hitRemote then pcall(function() hitRemote:FireServer(target, tool) success = true end) end
+
     if not success then
         pcall(function()
             local clickDetector = tool:FindFirstChildWhichIsA("ClickDetector")
@@ -164,6 +171,9 @@ local function attackTarget(target, tool, damageID)
     return success
 end
 
+-- ==========================================
+-- DRAG ITEM TO POSITION
+-- ==========================================
 local function dragItemToPos(item, position)
     if not item or not item:IsDescendantOf(Workspace) then return end
     pcall(function()
@@ -254,7 +264,7 @@ local function getCampfirePosition()
 end
 
 -- ==========================================
--- ENGINE LOOPS (SAMA SEPERTI SEBELUMNYA)
+-- ENGINE LOOPS (SEMUA FITUR)
 -- ==========================================
 -- 1. Chop Aura
 task.spawn(function()
@@ -390,7 +400,7 @@ task.spawn(function()
     end
 end)
 
--- 6. Auto Bring Selected Item (spesifik atau semua)
+-- 6. Auto Bring Selected Item
 task.spawn(function()
     while task.wait(0.5) do
         if getgenv().W424.AutoBringSelected then
@@ -488,12 +498,12 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- RAYFIELD UI (LENGKAP DENGAN DROPDOWN ITEM SPESIFIK)
+-- RAYFIELD UI (LENGKAP)
 -- ==========================================
 local Window = Rayfield:CreateWindow({
    Name = "W424 Hub | 99 Nights",
    LoadingTitle = "Memuat Fitur Lengkap...",
-   LoadingSubtitle = "by W424",
+   LoadingSubtitle = "by W424 (Remote Spy Fix)",
    Theme = "DarkBlue",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -636,7 +646,6 @@ TabLoot:CreateToggle({
       getgenv().W424.AutoBringSelected = v
    end,
 })
--- Dropdown item spesifik (daftar lengkap)
 local itemOptions = {"All"}
 for _, name in ipairs(itemList) do
     table.insert(itemOptions, name)
@@ -706,9 +715,9 @@ TabUtil:CreateDropdown({
 -- ==========================================
 Rayfield:Notify({
    Title = "W424 Hub Ready!",
-   Content = "Semua fitur aktif, termasuk item spesifik.",
+   Content = "Damage ID & parameter remote telah diperbaiki.",
    Duration = 5,
    Image = 4483362458
 })
 
-print("[W424] Final script dengan daftar item lengkap loaded.")
+print("[W424] Final fix berdasarkan Remote Spy loaded.")
