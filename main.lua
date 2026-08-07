@@ -1,9 +1,10 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- OFFICIAL SOURCE CHOP AURA INTEGRATION
+-- ORION LIBRARY EDITION (MOBILE 100% FIX)
 -- ==========================================
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+-- Menggunakan Orion Library (Lebih stabil untuk Mobile Executor)
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexsoftware/Orion/main/source')))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -12,20 +13,18 @@ local Workspace = game:GetService("Workspace")
 
 local UIReady = false
 local ChopAuraEnabled = false
-local ChopAuraRadius = 25 -- Default aman sesuai source kamu (< 20-25)
+local ChopAuraRadius = 25
 local AutoClaimEnabled = false 
-
--- State variabel untuk axe & damage ID
 local SelectedAxeName = "Old Axe"
 
--- Utility Function untuk mendapatkan HumanoidRootPart
+-- Utility Function
 local function getHRP()
     local char = LocalPlayer.Character
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
 -- ==========================================
--- CHOP AURA ENGINE (MENGGUNAKAN SOURCE KAMU)
+-- CHOP AURA ENGINE (SOURCE ASLI KAMU)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.25) do
@@ -43,14 +42,12 @@ task.spawn(function()
                 if not axeTool then return end
 
                 local valueAxe = "1_" .. LocalPlayer.UserId
-
-                -- Cek folder Foliage sesuai source asli kamu
                 local foliageFolder = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
+                
                 if not foliageFolder then return end
 
                 for _, v in ipairs(foliageFolder:GetChildren()) do
                     if not ChopAuraEnabled then break end
-                    
                     if v.Name == "Small Tree" and v:FindFirstChild("Trunk") then
                         local distance = (hrp.Position - v.Trunk.Position).Magnitude
                         if distance <= ChopAuraRadius then
@@ -68,7 +65,9 @@ task.spawn(function()
     end
 end)
 
--- Realtime Auto Claim
+-- ==========================================
+-- REALTIME AUTO CLAIM
+-- ==========================================
 task.spawn(function()
     while task.wait(0.5) do
         if UIReady and AutoClaimEnabled then
@@ -88,83 +87,59 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- SETUP FLUENT UI & MOBILE TOGGLE
+-- ORION UI SETUP
 -- ==========================================
-task.spawn(function()
-    repeat task.wait() until Fluent ~= nil
-    
-    local Window = Fluent:CreateWindow({
-        Title = "W424 Hub",
-        SubTitle = "99 Nights | Custom Aura",
-        Size = UDim2.new(0, 420, 0, 280),
-        Theme = "Dark"
-    })
+local Window = OrionLib:MakeWindow({
+    Name = "W424 Hub | 99 Nights", 
+    HidePremium = true, 
+    SaveConfig = false, 
+    IntroText = "Memuat W424 Hub..."
+})
 
-    local Tabs = {
-        Main = Window:AddTab({ Title = "Chop Aura", Icon = "zap" })
-    }
+local Tab = Window:MakeTab({
+    Name = "Chop Aura",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
-    Tabs.Main:AddToggle("ChopAura", { Title = "Enable Chop Aura", Default = false }):OnChanged(function(v) 
-        ChopAuraEnabled = v 
-    end)
+Tab:AddToggle({
+    Name = "Enable Chop Aura",
+    Default = false,
+    Callback = function(Value)
+        ChopAuraEnabled = Value
+    end    
+})
 
-    Tabs.Main:AddSlider("Range", { 
-        Title = "Aura Radius (Studs)", 
-        Default = 25, 
-        Min = 10, 
-        Max = 50, 
-        Callback = function(v) 
-            ChopAuraRadius = v 
-        end 
-    })
+Tab:AddSlider({
+    Name = "Aura Radius (Studs)",
+    Min = 10,
+    Max = 60,
+    Default = 25,
+    Color = Color3.fromRGB(0, 255, 150),
+    Increment = 1,
+    ValueName = "Studs",
+    Callback = function(Value)
+        ChopAuraRadius = Value
+    end    
+})
 
-    Tabs.Main:AddDropdown("AxeSelect", {
-        Title = "Select Axe",
-        Values = {"Old Axe", "Good Axe", "Strong Axe"},
-        Default = "Old Axe",
-        Callback = function(v)
-            SelectedAxeName = v
-        end
-    })
+Tab:AddDropdown({
+    Name = "Select Axe",
+    Default = "Old Axe",
+    Options = {"Old Axe", "Good Axe", "Strong Axe"},
+    Callback = function(Value)
+        SelectedAxeName = Value
+    end    
+})
 
-    Tabs.Main:AddToggle("Claim", { Title = "Auto Claim Items", Default = false }):OnChanged(function(v) 
-        AutoClaimEnabled = v 
-    end)
+Tab:AddToggle({
+    Name = "Auto Claim Items",
+    Default = false,
+    Callback = function(Value)
+        AutoClaimEnabled = Value
+    end    
+})
 
-    -- Mobile Toggle Button Melayang (AMAN & ANTI-CRASH)
-    pcall(function()
-        local CoreGui = game:GetService("CoreGui")
-        if CoreGui:FindFirstChild("W424_MobileToggle") then CoreGui.W424_MobileToggle:Destroy() end
-
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "W424_MobileToggle"
-        ScreenGui.Parent = CoreGui
-        ScreenGui.DisplayOrder = 999999
-        ScreenGui.ResetOnSpawn = false
-
-        local ToggleBtn = Instance.new("TextButton")
-        ToggleBtn.Name = "W424Btn"
-        ToggleBtn.Parent = ScreenGui
-        ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-        ToggleBtn.Position = UDim2.new(0, 15, 0.35, 0)
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-        ToggleBtn.Text = "UI"
-        ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
-        ToggleBtn.Font = Enum.Font.SourceSansBold
-        ToggleBtn.TextSize = 16
-        ToggleBtn.Active = true
-        ToggleBtn.Draggable = true
-
-        local UICorner = Instance.new("UICorner", ToggleBtn)
-        UICorner.CornerRadius = UDim.new(1, 0)
-
-        ToggleBtn.MouseButton1Down:Connect(function()
-            local container = CoreGui:FindFirstChild("Fluent", true)
-            if container then
-                container.Enabled = not container.Enabled
-            end
-        end)
-    end)
-    
-    UIReady = true
-end)
+-- Selesaikan Inisialisasi Orion
+OrionLib:Init()
+UIReady = true
