@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FIX SYNTAX ERROR & FULL FEATURES
+-- FIX AUTO-START CLAIM & CLEAN ENGINE
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -12,7 +12,7 @@ local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
 local characterFolder = Workspace:WaitForChild("Characters", 10)
 
--- State Variables
+-- State Variables (SEMUA OFF SECARA DEFAULT)
 local AutoTapEnabled = false
 local TapInterval = 0.2
 
@@ -24,7 +24,7 @@ local SelectedAxeName = "Old Axe"
 local KillAuraEnabled = false
 local KillAuraRadius = 500
 
-local AutoClaimEnabled = true
+local AutoClaimEnabled = false -- DIBUAT FALSE AGAR TIDAK SPAM SAAT EXECUTE
 local AutoFeedEnabled = false
 local AutoCookEnabled = false
 local SelectedFeedMaterials = {["Log"] = true}
@@ -117,7 +117,7 @@ local function triggerPhysicalSwing(treeTarget)
 end
 
 -- ==========================================
--- ITEM MOVER & REALTIME CLAIM ENGINE
+-- SAFE ITEM MOVER
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -137,7 +137,6 @@ end
 local function moveItemToPos(item, position)
     if not item or not item:IsDescendantOf(Workspace) then return end
     pcall(function()
-        if remoteEvents then pcall(function() remoteEvents.RequestStartDraggingItem:FireServer(item) end) end
         if item:IsA("Model") then item:PivotTo(CFrame.new(position)) end
         for _, part in ipairs(item:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -145,7 +144,6 @@ local function moveItemToPos(item, position)
                 part.Velocity = Vector3.new(0, 0, 0)
             end
         end
-        if remoteEvents then pcall(function() remoteEvents.StopDraggingItem:FireServer(item) end) end
     end)
 end
 
@@ -158,10 +156,13 @@ local function isClaimableItem(item)
         or name:find("coal") or name:find("fuel") or name:find("scrap") or name:find("carrot")
 end
 
+-- ==========================================
+-- REALTIME CLAIM & FEED LOOPS
+-- ==========================================
 if itemFolder then
     itemFolder.ChildAdded:Connect(function(child)
         if AutoClaimEnabled then
-            task.wait(0.1)
+            task.wait(0.2)
             if child and child:IsDescendantOf(Workspace) and isClaimableItem(child) then
                 local hrp = getHRP()
                 if hrp then moveItemToPos(child, hrp.Position + Vector3.new(math.random(-1,1), 1, math.random(-1,1))) end
@@ -184,13 +185,10 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.5)
+        task.wait(1)
     end
 end)
 
--- ==========================================
--- AUTO COOK & AUTO FEED CAMPFIRE LOOPS
--- ==========================================
 task.spawn(function()
     while true do
         pcall(function()
@@ -209,12 +207,12 @@ task.spawn(function()
                 end
             end
         end)
-        task.wait(1)
+        task.wait(1.5)
     end
 end)
 
 -- ==========================================
--- AUTO FARM LOOPS (WOOD & CARROTS)
+-- AUTO FARM LOOPS
 -- ==========================================
 local function getTreeMainPart(tree)
     if not tree or not tree:IsDescendantOf(Workspace) then return nil end
@@ -256,7 +254,6 @@ local function getFilteredTrees()
     return trees
 end
 
--- Auto Tap Loop
 task.spawn(function()
     while true do
         if AutoTapEnabled then
@@ -266,7 +263,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Wood Loop
 task.spawn(function()
     while true do
         if AutoWoodEnabled then
@@ -312,7 +308,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Farm Carrots Loop
 task.spawn(function()
     while true do
         if AutoCarrotEnabled then
@@ -333,7 +328,6 @@ task.spawn(function()
     end
 end)
 
--- Bulk TP Loop
 task.spawn(function()
     while true do
         if BulkTPEnabled then
@@ -362,7 +356,7 @@ end)
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/refs/heads/main/dist/main.lua"))()
 local Window = WindUI:CreateWindow({
     Title = "99 Nights in the Forest",
-    Subtitle = "W424 Hub | Fixed & Ready",
+    Subtitle = "W424 Hub | Clean Execution",
     Author = "alllazy450-sketch",
     Folder = "W424Hub",
     Size = UDim2.fromOffset(580, 420),
@@ -373,7 +367,7 @@ local Window = WindUI:CreateWindow({
 local MainTab   = Window:Tab({ Title = "Main", Icon = "rbxassetid://10723407389" })
 local AutoTab   = Window:Tab({ Title = "Auto Farm", Icon = "rbxassetid://10734950309" })
 local ItemTab   = Window:Tab({ Title = "Item TP", Icon = "rbxassetid://10723345380" })
-PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
+local PlayerTab = Window:Tab({ Title = "Player", Icon = "rbxassetid://10747373176" })
 
 MainTab:Section({ Title = "Auto Tap / Swing Trigger" })
 MainTab:Toggle({ Title = "Auto Click / Tap Swing", Default = false, Callback = function(v) AutoTapEnabled = v end })
@@ -386,7 +380,7 @@ AutoTab:Toggle({ Title = "Auto Farm Wood (TP & Cut)", Default = false, Callback 
 AutoTab:Toggle({ Title = "Auto Farm Carrots", Default = false, Callback = function(v) AutoCarrotEnabled = v end })
 
 AutoTab:Section({ Title = "Campfire Settings" })
-AutoTab:Toggle({ Title = "Realtime Auto Claim Items", Default = true, Callback = function(v) AutoClaimEnabled = v end })
+AutoTab:Toggle({ Title = "Realtime Auto Claim Items", Default = false, Callback = function(v) AutoClaimEnabled = v end })
 AutoTab:Toggle({ Title = "Auto Cook Meat", Default = false, Callback = function(v) AutoCookEnabled = v end })
 AutoTab:Toggle({ Title = "Auto Feed Campfire", Default = false, Callback = function(v) AutoFeedEnabled = v end })
 AutoTab:Dropdown({ Title = "Campfire Feed Item", Values = {"Log", "Coal", "Biofuel", "Fuel Canister"}, Default = "Log", Callback = function(v) SelectedFeedMaterials = {[v] = true} end })
@@ -402,4 +396,4 @@ PlayerTab:Input({ Title = "WalkSpeed", Value = "16", Placeholder = "Ketik Kecepa
     if num and char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = num end
 end })
 
-WindUI:Notify({ Title = "Update Berhasil", Content = "Syntax error GetService berhasil diperbaiki!", Duration = 5 })
+WindUI:Notify({ Title = "Execution Ready", Content = "Semua fitur dimatikan saat awal, silakan aktifkan manual di UI!", Duration = 5 })
