@@ -1,14 +1,13 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- RAYFIELD ULTIMATE EDITION (BUG-FREE MOBILE)
+-- CUSTOM PURE LUA V2 (ANTI-CACHE & FULL BYPASS)
 -- ==========================================
-
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 local RemotesFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
 local itemFolder = Workspace:WaitForChild("Items", 10)
@@ -17,13 +16,13 @@ local itemFolder = Workspace:WaitForChild("Items", 10)
 -- GLOBAL STATE
 -- ==========================================
 getgenv().W424 = {
-    AutoWood = false, WoodRadius = 50, BlinkHit = true,
-    AutoHunt = false, HuntRadius = 50, TargetMob = "Bunny",
+    AutoWood = false, WoodRadius = 500, BlinkHit = true,
+    AutoHunt = false, HuntRadius = 500, TargetMob = "Bunny",
     AutoBringChest = false, AutoClaimDrops = false,
     AutoFeed = false, FeedMaterial = "Log"
 }
 
--- Mapping ID Kapak/Senjata agar valid di server
+-- Mapping ID Kapak/Senjata
 local function getDamageID(toolName)
     if toolName:find("Good") then return "112_" .. tostring(LocalPlayer.UserId) end
     if toolName:find("Strong") then return "116_" .. tostring(LocalPlayer.UserId) end
@@ -74,21 +73,14 @@ local function executeHit(target, tool, targetPart)
     local originalCFrame = hrp.CFrame
     local distance = (hrp.Position - targetPart.Position).Magnitude
     
-    -- Ghost Hit/Blink Physics Bypass
     if distance > 20 and getgenv().W424.BlinkHit then
         hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, 3) 
         task.wait(0.05) 
-        
-        pcall(function()
-            damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position))
-        end)
-        
+        pcall(function() damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position)) end)
         task.wait(0.05)
         hrp.CFrame = originalCFrame 
     else
-        pcall(function()
-            damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position))
-        end)
+        pcall(function() damageRemote:InvokeServer(target, tool, damageID, CFrame.new(targetPart.Position, hrp.Position)) end)
     end
 end
 
@@ -99,13 +91,11 @@ local function dragItemToPlayer(item, targetPos)
         
         if startDrag then startDrag:FireServer(item) end
         task.wait(0.05)
-        
         local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
         if part then
             part.CFrame = CFrame.new(targetPos)
             part.Velocity = Vector3.new(0, 0, 0)
         end
-        
         if stopDrag then stopDrag:FireServer(item) end
     end)
 end
@@ -113,7 +103,6 @@ end
 -- ==========================================
 -- ENGINE LOOPS
 -- ==========================================
--- 1. Chop Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.AutoWood then
@@ -138,7 +127,6 @@ task.spawn(function()
     end
 end)
 
--- 2. Kill Aura Mob
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().W424.AutoHunt then
@@ -165,7 +153,6 @@ task.spawn(function()
     end
 end)
 
--- 3. Chest & Claim Drops
 task.spawn(function()
     while task.wait(0.5) do
         local hrp = getHRP()
@@ -205,7 +192,6 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Feed
 task.spawn(function()
     while task.wait(1) do
         if getgenv().W424.AutoFeed then
@@ -227,114 +213,98 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- RAYFIELD UI INTERFACE (NO BUBBLE NEEDED)
+-- CUSTOM PURE LUA UI (100% ANTI CRASH)
 -- ==========================================
--- Rayfield otomatis menyediakan tombol/ikon melayang di tengah atas layar untuk buka/tutup!
-local Window = Rayfield:CreateWindow({
-   Name = "W424 Hub | 99 Nights",
-   LoadingTitle = "Memuat Fitur...",
-   LoadingSubtitle = "Ultimate Edition",
-   ConfigurationSaving = { Enabled = false },
-   KeySystem = false
-})
+pcall(function() if CoreGui:FindFirstChild("W424_CustomUI") then CoreGui.W424_CustomUI:Destroy() end end)
 
-local TabFarm = Window:CreateTab("Aura Farming", 4483362458)
-local TabLoot = Window:CreateTab("Loot & Automation", 4483362458)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "W424_CustomUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
 
--- Tab 1: Farming
-TabFarm:CreateSection("Wood Farming")
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+local UIStroke = Instance.new("UIStroke", MainFrame)
+UIStroke.Color = Color3.fromRGB(0, 255, 150)
+UIStroke.Thickness = 2
 
-TabFarm:CreateToggle({
-   Name = "Auto Farm Wood (Aura)",
-   CurrentValue = getgenv().W424.AutoWood,
-   Flag = "AutoWoodTog", 
-   Callback = function(Value) getgenv().W424.AutoWood = Value end,
-})
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -40, 0, 40)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "W424 Hub | 99 Nights"
+Title.TextColor3 = Color3.fromRGB(0, 255, 150)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
 
-TabFarm:CreateToggle({
-   Name = "Enable Blink Hit (Bypass Server-Side)",
-   CurrentValue = getgenv().W424.BlinkHit,
-   Flag = "BlinkTog",
-   Callback = function(Value) getgenv().W424.BlinkHit = Value end,
-})
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255,255,255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = MainFrame
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
 
--- Format Slider Rayfield sangat aman untuk Mobile
-TabFarm:CreateSlider({
-   Name = "Wood Aura Radius",
-   Range = {10, 5000},
-   Increment = 10,
-   Suffix = "Studs",
-   CurrentValue = getgenv().W424.WoodRadius,
-   Flag = "WoodRad",
-   Callback = function(Value) getgenv().W424.WoodRadius = Value end,
-})
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -20, 1, -55)
+Scroll.Position = UDim2.new(0, 10, 0, 45)
+Scroll.BackgroundTransparency = 1
+Scroll.ScrollBarThickness = 4
+Scroll.Parent = MainFrame
 
-TabFarm:CreateSection("Mob Hunting")
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = Scroll
+UIList.Padding = UDim.new(0, 8)
 
-TabFarm:CreateToggle({
-   Name = "Auto Kill Mob (Aura)",
-   CurrentValue = getgenv().W424.AutoHunt,
-   Flag = "AutoHuntTog",
-   Callback = function(Value) getgenv().W424.AutoHunt = Value end,
-})
+local function createToggle(text, stateKey)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 40)
+    Btn.BackgroundColor3 = getgenv().W424[stateKey] and Color3.fromRGB(0, 150, 100) or Color3.fromRGB(40, 40, 40)
+    Btn.Text = text .. (getgenv().W424[stateKey] and " [ON]" or " [OFF]")
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 14
+    Btn.Parent = Scroll
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
 
-TabFarm:CreateDropdown({
-   Name = "Select Target Mob",
-   Options = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Deer", "Cultist", "Boss"},
-   CurrentOption = {getgenv().W424.TargetMob},
-   MultipleOptions = false,
-   Flag = "MobDrop",
-   Callback = function(Option) getgenv().W424.TargetMob = Option[1] end,
-})
+    Btn.MouseButton1Click:Connect(function()
+        getgenv().W424[stateKey] = not getgenv().W424[stateKey]
+        Btn.BackgroundColor3 = getgenv().W424[stateKey] and Color3.fromRGB(0, 150, 100) or Color3.fromRGB(40, 40, 40)
+        Btn.Text = text .. (getgenv().W424[stateKey] and " [ON]" or " [OFF]")
+    end)
+end
 
-TabFarm:CreateSlider({
-   Name = "Kill Aura Radius",
-   Range = {10, 5000},
-   Increment = 10,
-   Suffix = "Studs",
-   CurrentValue = getgenv().W424.HuntRadius,
-   Flag = "HuntRad",
-   Callback = function(Value) getgenv().W424.HuntRadius = Value end,
-})
+createToggle("Auto Wood (Blink 500s)", "AutoWood")
+createToggle("Auto Kill Mob (Blink 500s)", "AutoHunt")
+createToggle("Auto Bring & Open Chest", "AutoBringChest")
+createToggle("Auto Claim All Drops", "AutoClaimDrops")
+createToggle("Auto Feed Campfire", "AutoFeed")
 
--- Tab 2: Loot & Feed
-TabLoot:CreateSection("Chest & Drops Manager")
+-- Tombol Melayang
+local ToggleMenu = Instance.new("TextButton")
+ToggleMenu.Size = UDim2.new(0, 50, 0, 50)
+ToggleMenu.Position = UDim2.new(0, 10, 0.4, 0)
+ToggleMenu.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+ToggleMenu.Text = "UI"
+ToggleMenu.TextColor3 = Color3.fromRGB(0, 255, 150)
+ToggleMenu.Font = Enum.Font.GothamBold
+ToggleMenu.TextSize = 16
+ToggleMenu.Parent = ScreenGui
+ToggleMenu.Draggable = true
+Instance.new("UICorner", ToggleMenu).CornerRadius = UDim.new(1, 0)
+local FloatStroke = Instance.new("UIStroke", ToggleMenu)
+FloatStroke.Color = Color3.fromRGB(0, 255, 150)
+FloatStroke.Thickness = 2
 
-TabLoot:CreateToggle({
-   Name = "Auto Bring & Open Chests",
-   CurrentValue = getgenv().W424.AutoBringChest,
-   Flag = "ChestTog",
-   Callback = function(Value) getgenv().W424.AutoBringChest = Value end,
-})
-
-TabLoot:CreateToggle({
-   Name = "Auto Bring All Drops (Wood/Items)",
-   CurrentValue = getgenv().W424.AutoClaimDrops,
-   Flag = "ClaimTog",
-   Callback = function(Value) getgenv().W424.AutoClaimDrops = Value end,
-})
-
-TabLoot:CreateSection("Campfire Manager")
-
-TabLoot:CreateToggle({
-   Name = "Auto Feed Campfire",
-   CurrentValue = getgenv().W424.AutoFeed,
-   Flag = "FeedTog",
-   Callback = function(Value) getgenv().W424.AutoFeed = Value end,
-})
-
-TabLoot:CreateDropdown({
-   Name = "Feed Material Index",
-   Options = {"Log", "Stick", "Coal", "Fiber", "Meat", "Fish"},
-   CurrentOption = {getgenv().W424.FeedMaterial},
-   MultipleOptions = false,
-   Flag = "MatDrop",
-   Callback = function(Option) getgenv().W424.FeedMaterial = Option[1] end,
-})
-
-Rayfield:Notify({
-   Title = "W424 Hub Loaded!",
-   Content = "Semua error telah diatasi. Selamat bermain!",
-   Duration = 5,
-   Image = 4483362458
-})
+CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false end)
+ToggleMenu.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
