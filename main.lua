@@ -1,8 +1,6 @@
 -- ============================================================
 -- 99 NIGHTS HUB | ORVION UI | FINAL FIXED VERSION
--- BASED ON DEX EXPLORER: DestroyObject, ToolDamageObject
--- FIXED: Bring Item (multiple), Auto Wood (RequestDestroyFoliage)
--- FIXED: Kill Aura, Auto Feed, Auto Grind
+-- BUBBLE TIDAK HILANG | SEMUA FITUR DIPERBAIKI
 -- ============================================================
 
 -- ============================================================
@@ -24,7 +22,7 @@ local Lighting = game:GetService("Lighting")
 local LP = Players.LocalPlayer
 local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
 
--- Remote Events (dari DEX Explorer)
+-- Remote Events
 local StartDrag = RemoteEvents:FindFirstChild("RequestStartDraggingItem") or RemoteEvents:FindFirstChild("StartDragging")
 local StopDrag  = RemoteEvents:FindFirstChild("StopDraggingItem") or RemoteEvents:FindFirstChild("StopDragging")
 local EquipItem = RemoteEvents:FindFirstChild("EquipItemHandle") or RemoteEvents:FindFirstChild("EquipTool")
@@ -35,7 +33,7 @@ local BurnItem = RemoteEvents:FindFirstChild("RequestBurnItem") or RemoteEvents:
 local DestroyFoliage = RemoteEvents:FindFirstChild("RequestDestroyFoliage")
 local DestroyObject = RemoteEvents:FindFirstChild("DestroyObject")
 
--- Damage IDs (dari spy terbaru)
+-- Damage IDs
 local toolsDamageIDs = {
     ["Old Axe"]     = "114_9883131443",
     ["Good Axe"]    = "112_8982038982",
@@ -57,6 +55,7 @@ getgenv().NightsHub = {
     AutoCook = false,
     CookItem = "Morsel",
     AutoGrind = false,
+    GrindItems = {},
     AutoBiofuel = false,
     AutoEatHP = false,
     ShowSafeZone = false,
@@ -119,7 +118,7 @@ local function unequipTool(tool)
     end
 end
 
--- Attack dengan ToolDamageObject
+-- Attack dengan swing + ToolDamageObject
 local function attack(target, tool, damageID)
     if not target or not tool or not target:IsDescendantOf(Workspace) then return end
     local part = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head")
@@ -166,14 +165,13 @@ local function getItemPart(item)
     return nil
 end
 
--- Cek item bisa dipindahkan
 local function canMoveItem(item)
     if not item then return false end
     if not item:IsDescendantOf(Workspace) then return false end
     return true
 end
 
--- Bring item (drag + drop) - FIXED: kumpulkan semua item dulu
+-- Bring multiple items (kumpulkan semua dulu)
 local function bringItems(items, position)
     if not items or #items == 0 then return end
     local itemList = {}
@@ -203,7 +201,7 @@ local function bringItems(items, position)
     end
 end
 
--- Single bring item (untuk kompatibilitas)
+-- Single bring item
 local function bringItem(item, position)
     if not item or not canMoveItem(item) or not StartDrag or not StopDrag then return end
     local part = getItemPart(item)
@@ -221,7 +219,7 @@ local function bringItem(item, position)
     end)
 end
 
--- Tree scanner untuk Small Tree
+-- Tree scanner
 local function getTreePart(tree)
     return tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1")
         or tree:FindFirstChild("MainPart") or tree:FindFirstChildWhichIsA("BasePart")
@@ -291,7 +289,6 @@ local function getCampfireCFrame()
     return CFrame.new(getCampfirePos())
 end
 
--- Teleport player
 local function tpPlayer(cf)
     if HRP then
         HRP.CFrame = cf + Vector3.new(0, 3, 0)
@@ -375,10 +372,10 @@ local function addESP(folder, tag, color)
 end
 
 -- ============================================================
--- 6. ENGINE LOOPS (FIXED)
+-- 6. ENGINE LOOPS
 -- ============================================================
 
--- Kill Aura Loop (menggunakan ToolDamageObject)
+-- Kill Aura
 task.spawn(function()
     while task.wait(0.15) do
         if getgenv().NightsHub.KillAura then
@@ -421,7 +418,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Wood (menggunakan RequestDestroyFoliage)
+-- Auto Wood (teleport + swing + destroy)
 local AutoWoodActive = false
 task.spawn(function()
     while task.wait(0.2) do
@@ -431,6 +428,20 @@ task.spawn(function()
             end
             pcall(function()
                 if not HRP then return end
+                local tool = equipTool(getgenv().NightsHub.SelectedTool)
+                if not tool then
+                    local c = LP.Character
+                    if c then
+                        for _, child in ipairs(c:GetChildren()) do
+                            if child:IsA("Tool") and toolsDamageIDs[child.Name] then
+                                tool = child
+                                break
+                            end
+                        end
+                    end
+                end
+                if not tool then return end
+                local dmgID = toolsDamageIDs[getgenv().NightsHub.SelectedTool] or "114_9883131443"
                 local r = getgenv().NightsHub.WoodRadius
 
                 local trees = getAllSmallTrees()
@@ -450,25 +461,27 @@ task.spawn(function()
                     end
                 end
 
-                if nearest and nearestDist <= r then
-                    destroyTree(nearest)
-                    task.wait(0.1)
-                else
-                    if nearest then
-                        -- Teleport ke tree terdekat lalu destroy
-                        local trunk = getTreePart(nearest)
-                        if trunk and trunk:IsDescendantOf(Workspace) then
-                            local lookDir = (trunk.Position - HRP.Position).Unit
-                            if lookDir.Magnitude < 0.1 then lookDir = Vector3.new(1,0,0) end
-                            local tpPos = trunk.Position - lookDir * 2.5 + Vector3.new(0, 0.5, 0)
-                            HRP.CFrame = CFrame.new(tpPos, trunk.Position)
-                            task.wait(0.1)
-                            destroyTree(nearest)
-                            task.wait(0.1)
+                if nearest then
+                    local trunk = getTreePart(nearest)
+                    if trunk and trunk:IsDescendantOf(Workspace) then
+                        local lookDir = (trunk.Position - HRP.Position).Unit
+                        if lookDir.Magnitude < 0.1 then lookDir = Vector3.new(1,0,0) end
+                        local tpPos = trunk.Position - lookDir * 2.5 + Vector3.new(0, 0.5, 0)
+                        HRP.CFrame = CFrame.new(tpPos, trunk.Position)
+                        task.wait(0.05)
+                        pcall(function() tool:Activate() end)
+                        task.wait(0.05)
+                        if ToolDamage then
+                            pcall(function()
+                                ToolDamage:InvokeServer(nearest, tool, dmgID, CFrame.new(trunk.Position), false)
+                            end)
                         end
-                    else
-                        task.wait(1)
+                        task.wait(0.05)
+                        destroyTree(nearest)
+                        task.wait(0.1)
                     end
+                else
+                    task.wait(1)
                 end
             end)
         else
@@ -484,7 +497,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Bring Selected Items (dengan toggle)
+-- Auto Bring Selected
 task.spawn(function()
     while task.wait(2) do
         if getgenv().NightsHub.AutoBringSelected then
@@ -531,7 +544,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Feed HP Based (Drag ke api)
+-- Auto Feed HP Based (drag to fire)
 task.spawn(function()
     while task.wait(1.5) do
         if getgenv().NightsHub.AutoFeed then
@@ -557,7 +570,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Cook
+-- Auto Cook (Morsel, Steak, Bunny Meat)
 task.spawn(function()
     while task.wait(2) do
         if getgenv().NightsHub.AutoCook then
@@ -583,7 +596,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Grind
+-- Auto Grind (dengan selection)
 task.spawn(function()
     local grindPos = Vector3.new(21, 16, -5)
     while task.wait(2) do
@@ -592,12 +605,12 @@ task.spawn(function()
                 if not HRP then return end
                 local items = getItemsFolder()
                 if not items then return end
-                local grindItems = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Cultist Experiment", "Cultist Component", "Gem of the Forest Fragment", "Broken Microwave"}
+                local grindSelected = getgenv().NightsHub.GrindItems or {}
 
                 local grindList = {}
                 for _, item in ipairs(items:GetChildren()) do
                     if item:IsA("Model") and canMoveItem(item) then
-                        for _, name in ipairs(grindItems) do
+                        for _, name in ipairs(grindSelected) do
                             if item.Name == name then
                                 table.insert(grindList, item)
                                 break
@@ -787,7 +800,7 @@ T_Combat:AddInput({
 local T_Wood = Window:AddTab("Wood")
 
 T_Wood:AddToggle({
-    Title = "Auto Wood (Destroy Foliage)",
+    Title = "Auto Wood (Teleport + Destroy)",
     Default = false,
     Callback = function(state)
         getgenv().NightsHub.AutoWood = state
@@ -848,7 +861,7 @@ autoFeedAlwaysSec:AddDropdown({
     end
 })
 
-local autoCookSec = T_Auto:AddCollapsibleSection("Auto Cook", false)
+local autoCookSec = T_Auto:AddCollapsibleSection("Auto Cook (Morsel/Steak/Bunny Meat)", false)
 autoCookSec:AddToggle({
     Title = "Enable",
     Default = false,
@@ -858,14 +871,14 @@ autoCookSec:AddToggle({
 })
 autoCookSec:AddDropdown({
     Title = "Item",
-    Values = {"Morsel", "Steak"},
+    Values = {"Morsel", "Steak", "Bunny Meat"},
     DefaultValue = "Morsel",
     Callback = function(v)
         getgenv().NightsHub.CookItem = v
     end
 })
 
-local autoGrindSec = T_Auto:AddCollapsibleSection("Auto Grind", false)
+local autoGrindSec = T_Auto:AddCollapsibleSection("Auto Grind (Select Items)", false)
 autoGrindSec:AddToggle({
     Title = "Enable",
     Default = false,
@@ -873,6 +886,31 @@ autoGrindSec:AddToggle({
         getgenv().NightsHub.AutoGrind = state
     end
 })
+
+local grindItemsList = {
+    "UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan",
+    "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal",
+    "Old Radio", "Tyre", "Washing Machine", "Cultist Experiment",
+    "Cultist Component", "Gem of the Forest Fragment", "Broken Microwave"
+}
+
+for _, name in ipairs(grindItemsList) do
+    autoGrindSec:AddToggle({
+        Title = name,
+        Default = false,
+        Callback = function(state)
+            local list = getgenv().NightsHub.GrindItems or {}
+            if state then
+                if not table.find(list, name) then table.insert(list, name) end
+            else
+                for i, v in ipairs(list) do
+                    if v == name then table.remove(list, i) break end
+                end
+            end
+            getgenv().NightsHub.GrindItems = list
+        end
+    })
+end
 
 local autoBioSec = T_Auto:AddCollapsibleSection("Auto Biofuel", false)
 autoBioSec:AddToggle({
@@ -892,10 +930,9 @@ autoEatSec:AddToggle({
     end
 })
 
--- Tab: Item (dengan multiple selection)
+-- Tab: Item
 local T_Item = Window:AddTab("Item")
 
--- Daftar semua item dari wiki
 local allItems = {
     "Alien Chest", "Alpha Wolf Pelt", "Apple", "Bandage", "Bear Pelt",
     "Berry", "Biofuel", "Bolt", "Broken Fan", "Bunny Foot", "Carrot",
@@ -911,18 +948,17 @@ local allItems = {
     "Cake", "Stew", "Meat Sandwich", "Candy Corn", "Candy Apple"
 }
 
--- Section untuk memilih item (checkbox)
 local itemSelectionSec = T_Item:AddCollapsibleSection("Select Items to Bring", true)
-local itemCheckboxes = {}
+local itemToggles = {}
 
 for _, itemName in ipairs(allItems) do
-    local cb = itemSelectionSec:AddCheckbox({
+    local tog = itemSelectionSec:AddToggle({
         Title = itemName,
         Default = false,
         Callback = function(state)
             local selected = getgenv().NightsHub.SelectedItems or {}
             if state then
-                table.insert(selected, itemName)
+                if not table.find(selected, itemName) then table.insert(selected, itemName) end
             else
                 for i, v in ipairs(selected) do
                     if v == itemName then table.remove(selected, i) break end
@@ -931,10 +967,9 @@ for _, itemName in ipairs(allItems) do
             getgenv().NightsHub.SelectedItems = selected
         end
     })
-    itemCheckboxes[itemName] = cb
+    itemToggles[itemName] = tog
 end
 
--- Tombol Bring Selected
 T_Item:AddButton({
     Title = "Bring Selected Items Now",
     Callback = function()
@@ -968,7 +1003,6 @@ T_Item:AddButton({
     end
 })
 
--- Toggle Auto Bring Selected
 T_Item:AddToggle({
     Title = "Auto Bring Selected (Every 2s)",
     Default = false,
@@ -980,13 +1014,12 @@ T_Item:AddToggle({
     end
 })
 
--- Tombol Select All / Deselect All
 T_Item:AddButtonGrid(
     {
         Title = "Select All",
         Callback = function()
-            for itemName, cb in pairs(itemCheckboxes) do
-                cb:SetValue(true)
+            for itemName, tog in pairs(itemToggles) do
+                tog:SetValue(true)
                 local selected = getgenv().NightsHub.SelectedItems or {}
                 if not table.find(selected, itemName) then
                     table.insert(selected, itemName)
@@ -998,8 +1031,8 @@ T_Item:AddButtonGrid(
     {
         Title = "Deselect All",
         Callback = function()
-            for itemName, cb in pairs(itemCheckboxes) do
-                cb:SetValue(false)
+            for itemName, tog in pairs(itemToggles) do
+                tog:SetValue(false)
             end
             getgenv().NightsHub.SelectedItems = {}
         end
@@ -1130,6 +1163,7 @@ BubbleBtn.ImageColor3 = Color3.fromRGB(200, 150, 255)
 BubbleBtn.ScaleType = Enum.ScaleType.Fit
 BubbleBtn.Parent = BubbleGui
 
+-- Shadow
 local Shadow = Instance.new("ImageLabel")
 Shadow.Size = UDim2.new(1.2, 0, 1.2, 0)
 Shadow.Position = UDim2.new(-0.1, 0, -0.1, 0)
@@ -1146,6 +1180,7 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(1,0)
 Corner.Parent = BubbleBtn
 
+-- Drag logic
 local dragging, dragInput, dragStart, startPos
 BubbleBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1176,17 +1211,25 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
+-- Simpan referensi GUI Orvion
+local orvionGuis = {}
+for _, g in ipairs(CoreGui:GetChildren()) do
+    if g:IsA("ScreenGui") and (g.Name:find("Orvion") or g.Name:find("orvion") or g.Name == "NightsHubUI") then
+        table.insert(orvionGuis, g)
+    end
+end
+
 local uiVisible = true
 BubbleBtn.MouseButton1Click:Connect(function()
     if dragging then return end
     uiVisible = not uiVisible
-    for _, g in ipairs(CoreGui:GetChildren()) do
-        if g:IsA("ScreenGui") and g.Name ~= "NightsHubBubble" then
-            if g.Name:find("Orvion") or g.Name:find("orvion") or g.Name == "NightsHubUI" then
-                g.Enabled = uiVisible
-            end
+    -- Hanya toggle GUI Orvion yang sudah kita simpan
+    for _, g in ipairs(orvionGuis) do
+        if g and g:IsA("ScreenGui") then
+            g.Enabled = uiVisible
         end
     end
+    -- Update bubble appearance
     BubbleBtn.ImageColor3 = uiVisible and Color3.fromRGB(200, 150, 255) or Color3.fromRGB(100, 100, 100)
     BubbleBtn.BackgroundColor3 = uiVisible and Color3.fromRGB(30, 30, 40) or Color3.fromRGB(20, 20, 20)
 end)
@@ -1195,6 +1238,6 @@ end)
 -- 9. STARTUP
 -- ============================================================
 task.wait(0.5)
-OrvionLib:Notify("99 Nights Hub", "Loaded! Using DestroyFoliage & ToolDamage", 5)
+OrvionLib:Notify("99 Nights Hub", "Loaded! Bubble fixed.", 5)
 statusPara:SetDesc("Ready")
 print("[99 Nights Hub] Loaded successfully!")
