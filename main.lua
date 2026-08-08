@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- FULL MERGE v7 (UI W424)
+-- IMPROVED v8 (Fix Auto Claim, Feed, Kill Aura)
 -- ==========================================
 
 -- ==========================================
@@ -18,17 +18,18 @@ local TweenService = game:GetService("TweenService")
 local LP = Players.LocalPlayer
 local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
 
--- Remote Events (sesuaikan nama jika berbeda di game)
+-- Remote Events (fallback nama)
 local ToolDamage = RemoteEvents:FindFirstChild("ToolDamageObject") or RemoteEvents:FindFirstChild("DamageObject")
 local EquipItem = RemoteEvents:FindFirstChild("EquipItemHandle") or RemoteEvents:FindFirstChild("EquipTool")
 local StartDrag = RemoteEvents:FindFirstChild("RequestStartDraggingItem") or RemoteEvents:FindFirstChild("StartDragging")
 local StopDrag = RemoteEvents:FindFirstChild("StopDraggingItem") or RemoteEvents:FindFirstChild("StopDragging")
 local BurnItem = RemoteEvents:FindFirstChild("RequestBurnItem") or RemoteEvents:FindFirstChild("BurnItem")
 local ConsumeItem = RemoteEvents:FindFirstChild("RequestConsumeItem") or RemoteEvents:FindFirstChild("ConsumeItem")
+local DestroyObject = RemoteEvents:FindFirstChild("DestroyObject")
 
--- Damage IDs (hardcoded dari source)
+-- Damage IDs (diperbarui dari spy dan tebakan)
 local DamageIDs = {
-    ["Old Axe"] = "1_8982038982",
+    ["Old Axe"] = "21_9883131443",   -- dikonfirmasi
     ["Good Axe"] = "112_8982038982",
     ["Strong Axe"] = "116_8982038982",
     ["Chainsaw"] = "647_8992824875",
@@ -40,16 +41,17 @@ local DamageIDs = {
 -- ==========================================
 getgenv().W424 = {
     SelectedTool = "Old Axe",
-    ChopAura = false, ChopRadius = 30,
-    KillAura = false, KillRadius = 30,
-    AutoWood = false, WoodRadius = 30, TreeType = "All Trees",
-    AutoHunt = false, HuntRadius = 30, TargetMob = "Wolf",
-    AutoClaim = false,
-    AutoBringSelected = false, SelectedItem = "All",
-    AutoFeed = false, FeedMaterial = "Log",
+    ChopAura = false, ChopRadius = 100,
+    KillAura = false, KillRadius = 100,
+    AutoWood = false, WoodRadius = 100, TreeType = "All Trees",
+    AutoHunt = false, HuntRadius = 100, TargetMob = "Wolf",
+    AutoClaim = false, ClaimRadius = 100,
+    AutoBringSelected = false, BringRadius = 150, SelectedItem = "All",
+    AutoFeed = false,
     AutoCook = false, CookMaterial = "Morsel",
-    AutoLootChest = false,
+    AutoLootChest = false, LootRadius = 80,
     AutoEatHP = false,
+    InstantChop = false,  -- mode instan destroy
     Noclip = false,
     InfiniteJump = false,
     Fullbright = false,
@@ -75,7 +77,7 @@ LP.CharacterAdded:Connect(function(c)
 end)
 
 -- ==========================================
--- 4. FUNGSI DASAR (TOOL, ATTACK, ITEM, TREE, MOB)
+-- 4. FUNGSI DASAR
 -- ==========================================
 
 -- 4a. Tool System
@@ -101,7 +103,7 @@ local function equipTool(toolName)
     return nil
 end
 
--- 4b. Attack
+-- 4b. Attack (dengan damage ID)
 local function attack(target, tool, damageID)
     if not target or not tool or not target:IsDescendantOf(Workspace) then return end
     local part = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") 
@@ -109,11 +111,28 @@ local function attack(target, tool, damageID)
     if not part then return end
     pcall(function() tool:Activate() end)
     if ToolDamage then
-        pcall(function() ToolDamage:InvokeServer(target, tool, damageID, CFrame.new(part.Position), false) end)
+        pcall(function() 
+            ToolDamage:InvokeServer(target, tool, damageID, CFrame.new(part.Position), false) 
+        end)
     end
 end
 
--- 4c. Item Part
+-- 4c. Instant Destroy Tree (menggunakan DestroyObject)
+local function instantDestroyTree(treeModel)
+    if not treeModel or not treeModel:IsDescendantOf(Workspace) then return end
+    if not DestroyObject then return end
+    local cf = treeModel.PrimaryPart and treeModel.PrimaryPart.CFrame or CFrame.new()
+    pcall(function()
+        -- Coba method Fire (server)
+        DestroyObject:FireServer(treeModel)
+    end)
+    pcall(function()
+        -- Coba firesignal (client)
+        firesignal(DestroyObject.OnClientEvent, treeModel, cf)
+    end)
+end
+
+-- 4d. Item Part
 local function getItemPart(item)
     if not item then return nil end
     if item:IsA("Model") then
@@ -127,7 +146,7 @@ local function getItemPart(item)
     return nil
 end
 
--- 4d. Bring Item (Pindahkan item ke posisi tertentu)
+-- 4e. Bring Item (Pindahkan item ke posisi)
 local function bringItem(item, position)
     if not item or not item:IsDescendantOf(Workspace) or not StartDrag or not StopDrag then return end
     local part = getItemPart(item)
@@ -145,7 +164,7 @@ local function bringItem(item, position)
     end)
 end
 
--- 4e. Tree Scanner
+-- 4f. Tree Scanner
 local function getTreePart(tree)
     return tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1")
         or tree:FindFirstChild("MainPart") or tree:FindFirstChildWhichIsA("BasePart")
@@ -183,7 +202,7 @@ local function getTrees()
     return trees
 end
 
--- 4f. Mob Scanner
+-- 4g. Mob Scanner
 local function getMobs()
     local mobs = {}
     local chars = Workspace:FindFirstChild("Characters")
@@ -197,7 +216,7 @@ local function getMobs()
     return mobs
 end
 
--- 4g. Items & Campfire
+-- 4h. Items & Campfire
 local function getItems()
     return Workspace:FindFirstChild("Items")
 end
@@ -214,39 +233,41 @@ local function getCampfirePos()
             end
         end
     end
-    return Vector3.new(0, 19, 0) -- fallback
+    return Vector3.new(0, 19, 0)
 end
 
--- 4h. Teleport Player
-local function tpPlayer(cf)
-    if not HRP then return end
-    HRP.CFrame = cf + Vector3.new(0, 3, 0)
+-- 4i. Teleport Player with Back
+local SG_Back, FRAME_Back, TP_CONN, LAST_POS, SAVED_POS
+local function initBackUI()
+    SG_Back = Instance.new("ScreenGui", CoreGui)
+    SG_Back.Name = "W424_BackUI"
+    SG_Back.ResetOnSpawn = false
+    FRAME_Back = Instance.new("Frame", SG_Back)
+    FRAME_Back.Size = UDim2.new(0,160,0,70)
+    FRAME_Back.Position = UDim2.new(1,-180,1,-90)
+    FRAME_Back.BackgroundColor3 = Color3.fromRGB(12,12,12)
+    FRAME_Back.BorderSizePixel = 0
+    FRAME_Back.Visible = false
+    Instance.new("UICorner", FRAME_Back).CornerRadius = UDim.new(0,12)
+    local LBL = Instance.new("TextLabel", FRAME_Back)
+    LBL.Size = UDim2.new(1,0,0.42,0) LBL.Position = UDim2.new(0,0,0,4)
+    LBL.BackgroundTransparency = 1 LBL.TextColor3 = Color3.fromRGB(140,140,140)
+    LBL.TextScaled = true LBL.Font = Enum.Font.Gotham LBL.Text = "W424"
+    local BACK_Btn = Instance.new("TextButton", FRAME_Back)
+    BACK_Btn.Size = UDim2.new(1,-20,0,28) BACK_Btn.Position = UDim2.new(0,10,1,-36)
+    BACK_Btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    BACK_Btn.TextColor3 = Color3.fromRGB(220,220,220)
+    BACK_Btn.TextScaled = true BACK_Btn.Font = Enum.Font.GothamBold BACK_Btn.Text = "← back"
+    Instance.new("UICorner", BACK_Btn).CornerRadius = UDim.new(0,8)
+    BACK_Btn.MouseButton1Click:Connect(function()
+        if TP_CONN then TP_CONN:Disconnect() end
+        if HRP then HRP.Anchored = false end
+        if LAST_POS and HRP then HRP.CFrame = LAST_POS end
+        FRAME_Back.Visible = false
+    end)
 end
+initBackUI()
 
--- ==========================================
--- 5. BACK TELEPORT SYSTEM (kembali ke posisi)
--- ==========================================
-local SG_Back = Instance.new("ScreenGui", CoreGui)
-SG_Back.Name = "W424_BackUI"
-SG_Back.ResetOnSpawn = false
-local FRAME_Back = Instance.new("Frame", SG_Back)
-FRAME_Back.Size = UDim2.new(0, 160, 0, 70)
-FRAME_Back.Position = UDim2.new(1, -180, 1, -90)
-FRAME_Back.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-FRAME_Back.BorderSizePixel = 0
-FRAME_Back.Visible = false
-Instance.new("UICorner", FRAME_Back).CornerRadius = UDim.new(0, 12)
-local LBL_Back = Instance.new("TextLabel", FRAME_Back)
-LBL_Back.Size = UDim2.new(1, 0, 0.42, 0) LBL_Back.Position = UDim2.new(0,0,0,4)
-LBL_Back.BackgroundTransparency = 1 LBL_Back.TextColor3 = Color3.fromRGB(140,140,140)
-LBL_Back.TextScaled = true LBL_Back.Font = Enum.Font.Gotham LBL_Back.Text = "W424"
-local BACK_Btn = Instance.new("TextButton", FRAME_Back)
-BACK_Btn.Size = UDim2.new(1, -20, 0, 28) BACK_Btn.Position = UDim2.new(0,10,1,-36)
-BACK_Btn.BackgroundColor3 = Color3.fromRGB(30,30,30) BACK_Btn.TextColor3 = Color3.fromRGB(220,220,220)
-BACK_Btn.TextScaled = true BACK_Btn.Font = Enum.Font.GothamBold BACK_Btn.Text = "← back"
-Instance.new("UICorner", BACK_Btn).CornerRadius = UDim.new(0, 8)
-
-local TP_CONN, LAST_POS, SAVED_POS
 local function teleportWithBack(cf)
     if not HRP then return end
     LAST_POS = HRP.CFrame
@@ -261,15 +282,9 @@ local function teleportWithBack(cf)
     end)
     FRAME_Back.Visible = true
 end
-BACK_Btn.MouseButton1Click:Connect(function()
-    if TP_CONN then TP_CONN:Disconnect() end
-    if HRP then HRP.Anchored = false end
-    if LAST_POS and HRP then HRP.CFrame = LAST_POS end
-    FRAME_Back.Visible = false
-end)
 
 -- ==========================================
--- 6. NOCLIP & FULLBRIGHT
+-- 5. NOCLIP & FULLBRIGHT
 -- ==========================================
 local NC_Conn
 local function setNoclip(v)
@@ -306,16 +321,16 @@ local function setBright(v)
 end
 
 -- ==========================================
--- 7. SAFEZONE (Buat platform besar di bawah)
+-- 6. SAFEZONE
 -- ==========================================
 local safezoneBaseplates = {}
 local function createSafeZone()
     if Workspace:FindFirstChild("SafeZoneBaseplate") then return end
-    local baseplateSize = Vector3.new(2048, 1, 2048)
+    local baseplateSize = Vector3.new(2048,1,2048)
     local baseY = 100
-    for dx = -1, 1 do
-        for dz = -1, 1 do
-            local pos = Vector3.new(dx * baseplateSize.X, baseY, dz * baseplateSize.Z)
+    for dx = -1,1 do
+        for dz = -1,1 do
+            local pos = Vector3.new(dx*baseplateSize.X, baseY, dz*baseplateSize.Z)
             local bp = Instance.new("Part")
             bp.Name = "SafeZoneBaseplate"
             bp.Size = baseplateSize
@@ -331,7 +346,7 @@ end
 createSafeZone()
 
 -- ==========================================
--- 8. ESP SYSTEM (Highlight + Billboard)
+-- 7. ESP SYSTEM
 -- ==========================================
 local ESPs = {}
 local ESPconns = {}
@@ -375,25 +390,30 @@ local function addESP(folder, tag, color)
 end
 
 -- ==========================================
--- 9. ENGINE LOOPS (AUTO FARM)
+-- 8. ENGINE LOOPS (IMPROVED)
 -- ==========================================
 
--- 9a. Chop + Auto Wood
+-- 8a. Chop + Auto Wood (dengan Instant mode)
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.2) do
         if getgenv().W424.ChopAura or getgenv().W424.AutoWood then
             pcall(function()
                 if not HRP then return end
-                local tool = equipTool(getgenv().W424.SelectedTool)
-                if not tool then return end
-                local dmgID = DamageIDs[getgenv().W424.SelectedTool] or "1_8982038982"
                 local r = getgenv().W424.ChopAura and getgenv().W424.ChopRadius or getgenv().W424.WoodRadius
+                local useInstant = getgenv().W424.InstantChop
+                local tool = equipTool(getgenv().W424.SelectedTool)
+                local dmgID = DamageIDs[getgenv().W424.SelectedTool] or "21_9883131443"
+
                 for _, tree in ipairs(getTrees()) do
                     if not (getgenv().W424.ChopAura or getgenv().W424.AutoWood) then break end
                     local p = getTreePart(tree)
                     if p and (HRP.Position - p.Position).Magnitude <= r then
-                        attack(tree, tool, dmgID)
-                        task.wait(0.12)
+                        if useInstant and DestroyObject then
+                            instantDestroyTree(tree)
+                        elseif tool then
+                            attack(tree, tool, dmgID)
+                        end
+                        task.wait(0.08)
                     end
                 end
             end)
@@ -401,16 +421,17 @@ task.spawn(function()
     end
 end)
 
--- 9b. Kill + Auto Hunt
+-- 8b. Kill Aura + Auto Hunt (dengan radius lebih besar)
 task.spawn(function()
-    while task.wait(0.35) do
+    while task.wait(0.25) do
         if getgenv().W424.KillAura or getgenv().W424.AutoHunt then
             pcall(function()
                 if not HRP then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
                 if not tool then return end
-                local dmgID = DamageIDs[getgenv().W424.SelectedTool] or "1_8982038982"
+                local dmgID = DamageIDs[getgenv().W424.SelectedTool] or "21_9883131443"
                 local r = getgenv().W424.KillAura and getgenv().W424.KillRadius or getgenv().W424.HuntRadius
+
                 for _, mob in ipairs(getMobs()) do
                     if not (getgenv().W424.KillAura or getgenv().W424.AutoHunt) then break end
                     local h = mob:FindFirstChildOfClass("Humanoid")
@@ -419,7 +440,7 @@ task.spawn(function()
                         local p = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
                         if p and (HRP.Position - p.Position).Magnitude <= r then
                             attack(mob, tool, dmgID)
-                            task.wait(0.12)
+                            task.wait(0.1)
                         end
                     end
                 end
@@ -428,27 +449,21 @@ task.spawn(function()
     end
 end)
 
--- 9c. Auto Claim (Loot)
-local claimed = {}
+-- 8c. Auto Claim (semua item, tanpa batas, radius besar)
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.3) do
         if getgenv().W424.AutoClaim then
             pcall(function()
                 if not HRP then return end
                 local items = getItems()
                 if not items then return end
-                for item, _ in pairs(claimed) do
-                    if not item or not item:IsDescendantOf(Workspace) then claimed[item] = nil end
-                end
+                local r = getgenv().W424.ClaimRadius
                 for _, item in ipairs(items:GetChildren()) do
                     if item:IsA("Model") and not item.Name:lower():find("chest") then
-                        if not claimed[item] then
-                            local p = getItemPart(item)
-                            if p and (HRP.Position - p.Position).Magnitude <= 50 then
-                                claimed[item] = true
-                                bringItem(item, HRP.Position + Vector3.new(0, 2, 0))
-                                task.wait(0.1)
-                            end
+                        local p = getItemPart(item)
+                        if p and (HRP.Position - p.Position).Magnitude <= r then
+                            bringItem(item, HRP.Position + Vector3.new(0, 2, 0))
+                            task.wait(0.05)
                         end
                     end
                 end
@@ -457,22 +472,23 @@ task.spawn(function()
     end
 end)
 
--- 9d. Auto Bring Selected
+-- 8d. Auto Bring Selected (tanpa batas)
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.3) do
         if getgenv().W424.AutoBringSelected then
             pcall(function()
                 if not HRP then return end
                 local items = getItems()
                 if not items then return end
                 local target = getgenv().W424.SelectedItem
+                local r = getgenv().W424.BringRadius
                 for _, item in ipairs(items:GetChildren()) do
                     if item:IsA("Model") and not item.Name:lower():find("chest") then
                         if target == "All" or item.Name == target then
                             local p = getItemPart(item)
-                            if p and (HRP.Position - p.Position).Magnitude <= 80 then
+                            if p and (HRP.Position - p.Position).Magnitude <= r then
                                 bringItem(item, HRP.Position + Vector3.new(0, 2, 0))
-                                task.wait(0.1)
+                                task.wait(0.05)
                             end
                         end
                     end
@@ -482,41 +498,22 @@ task.spawn(function()
     end
 end)
 
--- 9e. Auto Feed (dari Inventory)
+-- 8e. Auto Feed Campfire (perbaiki posisi dan remote)
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.8) do
         if getgenv().W424.AutoFeed and BurnItem then
             pcall(function()
                 local inv = LP:FindFirstChild("Inventory") or LP:FindFirstChild("Backpack")
                 if not inv then return end
-                local mat = getgenv().W424.FeedMaterial:lower()
+                -- Cari item fuel di inventory
+                local fuelItems = {"Log","Coal","Biofuel","Fuel Canister"}
                 for _, item in ipairs(inv:GetChildren()) do
-                    if item.Name:lower():find(mat) then
-                        BurnItem:FireServer(item)
-                        task.wait(0.3)
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- 9f. Auto Cook
-task.spawn(function()
-    while task.wait(2) do
-        if getgenv().W424.AutoCook then
-            pcall(function()
-                if not HRP then return end
-                local items = getItems()
-                if not items then return end
-                local mat = getgenv().W424.CookMaterial:lower()
-                local cfPos = getCampfirePos()
-                for _, item in ipairs(items:GetChildren()) do
-                    if item:IsA("Model") and item.Name:lower():find(mat) then
-                        local p = getItemPart(item)
-                        if p and (HRP.Position - p.Position).Magnitude <= 60 then
-                            bringItem(item, cfPos + Vector3.new(0, 1, 0))
-                            task.wait(0.15)
+                    for _, fuel in ipairs(fuelItems) do
+                        if item.Name == fuel then
+                            -- Kirim remote burn
+                            BurnItem:FireServer(item)
+                            task.wait(0.2)
+                            break
                         end
                     end
                 end
@@ -525,13 +522,37 @@ task.spawn(function()
     end
 end)
 
--- 9g. Auto Eat (HP Based)
+-- 8f. Auto Cook (perbaiki posisi drop)
+task.spawn(function()
+    while task.wait(1.5) do
+        if getgenv().W424.AutoCook then
+            pcall(function()
+                if not HRP then return end
+                local items = getItems()
+                if not items then return end
+                local mat = getgenv().W424.CookMaterial:lower()
+                local cfPos = getCampfirePos() + Vector3.new(0, 1, 0)
+                for _, item in ipairs(items:GetChildren()) do
+                    if item:IsA("Model") and item.Name:lower():find(mat) then
+                        local p = getItemPart(item)
+                        if p and (HRP.Position - p.Position).Magnitude <= 100 then
+                            bringItem(item, cfPos)
+                            task.wait(0.1)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 8g. Auto Eat HP
 task.spawn(function()
     while task.wait(1) do
         if getgenv().W424.AutoEatHP and HRP and HUM then
             pcall(function()
                 if HUM.Health / HUM.MaxHealth < 0.5 then
-                    local foods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
+                    local foods = {"Cooked Steak","Cooked Morsel","Berry","Carrot","Apple"}
                     local inv = LP:FindFirstChild("Inventory")
                     if inv then
                         for _, f in ipairs(foods) do
@@ -549,27 +570,29 @@ task.spawn(function()
     end
 end)
 
--- 9h. Auto Loot Chest
+-- 8h. Auto Loot Chest (perbaiki radius)
 task.spawn(function()
-    while task.wait(0.8) do
+    while task.wait(0.5) do
         if getgenv().W424.AutoLootChest then
             pcall(function()
                 if not HRP then return end
                 local items = getItems()
                 if not items then return end
+                local r = getgenv().W424.LootRadius
                 for _, chest in ipairs(items:GetChildren()) do
                     if chest:IsA("Model") and chest.Name:lower():find("chest") then
                         local main = chest:FindFirstChild("Main") or chest.PrimaryPart
-                        if main then
+                        if main and (HRP.Position - main.Position).Magnitude <= r then
                             for _, obj in ipairs(main:GetDescendants()) do
                                 if obj:IsA("ProximityPrompt") then
                                     pcall(function() obj.RequiresLineOfSight = false end)
                                     if fireproximityprompt then fireproximityprompt(obj) end
                                     task.wait(0.3)
+                                    -- Ambil loot dari chest
                                     for _, loot in ipairs(items:GetChildren()) do
                                         if loot ~= chest and loot:IsA("Model") then
-                                            local p = getItemPart(loot)
-                                            if p and (HRP.Position - p.Position).Magnitude <= 40 then
+                                            local lp = getItemPart(loot)
+                                            if lp and (HRP.Position - lp.Position).Magnitude <= r then
                                                 bringItem(loot, HRP.Position + Vector3.new(0, 3, 0))
                                                 task.wait(0.1)
                                             end
@@ -586,12 +609,11 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 10. UI W424 (OrvionLib)
+-- 9. UI W424 (OrvionLib)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
-local Window = OrvionLib:CreateWindow({Title = "W424 Hub | 99 Nights", Icon = "rbxassetid://7733965386"})
+local Window = OrvionLib:CreateWindow({Title = "W424 Hub v8 | 99 Nights", Icon = "rbxassetid://7733965386"})
 
--- Tab
 local T = {
     Main = Window:AddTab("Main"),
     Farm = Window:AddTab("Farming"),
@@ -611,7 +633,7 @@ T.Main:AddDropdown({
 })
 T.Main:AddButton({Title = "TP Campfire", Callback = function()
     local pos = getCampfirePos()
-    if pos then teleportWithBack(CFrame.new(pos + Vector3.new(0, 5, 0))) end
+    if pos then teleportWithBack(CFrame.new(pos + Vector3.new(0,5,0))) end
 end})
 T.Main:AddButton({Title = "TP Stronghold", Callback = function()
     local m = Workspace:FindFirstChild("Map")
@@ -623,7 +645,7 @@ T.Main:AddButton({Title = "TP Stronghold", Callback = function()
                 local mo = dr.Model
                 local c = mo:GetChildren()
                 if #c >= 5 and c[5]:IsA("BasePart") then
-                    teleportWithBack(c[5].CFrame + Vector3.new(0, 5, 0))
+                    teleportWithBack(c[5].CFrame + Vector3.new(0,5,0))
                 end
             end
         end
@@ -637,7 +659,7 @@ T.Main:AddButton({Title = "TP Diamond Chest", Callback = function()
             local lid = chest.ChestLid
             local mesh = lid:FindFirstChild("Meshes/diamondchest_Cube.002")
             if mesh and mesh:IsA("BasePart") then
-                teleportWithBack(mesh.CFrame + Vector3.new(0, 5, 0))
+                teleportWithBack(mesh.CFrame + Vector3.new(0,5,0))
             end
         end
     end
@@ -646,38 +668,45 @@ end})
 -- === FARMING TAB ===
 local cs = T.Farm:AddCollapsibleSection("Chop Aura", false)
 cs:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.ChopAura = v end})
-cs:AddInput({Title = "Radius", Default = "30", Placeholder = "10-60", Callback = function(v)
-    local n = tonumber(v) if n then getgenv().W424.ChopRadius = math.clamp(n,10,60) end
+cs:AddToggle({Title = "Instant Destroy (risky)", Default = false, Callback = function(v) getgenv().W424.InstantChop = v end})
+cs:AddInput({Title = "Radius", Default = "100", Placeholder = "10-300", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.ChopRadius = math.clamp(n,10,300) end
 end})
 
 local ks = T.Farm:AddCollapsibleSection("Kill Aura", false)
 ks:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.KillAura = v end})
-ks:AddInput({Title = "Radius", Default = "30", Placeholder = "10-60", Callback = function(v)
-    local n = tonumber(v) if n then getgenv().W424.KillRadius = math.clamp(n,10,60) end
+ks:AddInput({Title = "Radius", Default = "100", Placeholder = "10-300", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.KillRadius = math.clamp(n,10,300) end
 end})
 
 local ws = T.Farm:AddCollapsibleSection("Auto Wood", false)
 ws:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoWood = v end})
-ws:AddInput({Title = "Radius", Default = "30", Placeholder = "10-60", Callback = function(v)
-    local n = tonumber(v) if n then getgenv().W424.WoodRadius = math.clamp(n,10,60) end
+ws:AddInput({Title = "Radius", Default = "100", Placeholder = "10-300", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.WoodRadius = math.clamp(n,10,300) end
 end})
 ws:AddDropdown({Title = "Tree Type", Values = {"All Trees","Small Trees","Hard Trees","Brightwood Trees","Fairy Trees"},
     DefaultValue = "All Trees", Callback = function(v) getgenv().W424.TreeType = v end})
 
 local hs = T.Farm:AddCollapsibleSection("Auto Hunt", false)
 hs:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoHunt = v end})
-hs:AddInput({Title = "Radius", Default = "30", Placeholder = "10-60", Callback = function(v)
-    local n = tonumber(v) if n then getgenv().W424.HuntRadius = math.clamp(n,10,60) end
+hs:AddInput({Title = "Radius", Default = "100", Placeholder = "10-300", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.HuntRadius = math.clamp(n,10,300) end
 end})
 hs:AddDropdown({Title = "Target", Values = {"Bunny","Wolf","Alpha Wolf","Bear","Cultist"},
     DefaultValue = "Wolf", Callback = function(v) getgenv().W424.TargetMob = v end})
 
 -- === LOOTING TAB ===
-local cl = T.Loot:AddCollapsibleSection("Auto Claim", false)
+local cl = T.Loot:AddCollapsibleSection("Auto Claim (All Items)", false)
 cl:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoClaim = v end})
+cl:AddInput({Title = "Radius", Default = "100", Placeholder = "10-300", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.ClaimRadius = math.clamp(n,10,300) end
+end})
 
 local bl = T.Loot:AddCollapsibleSection("Auto Bring Selected", false)
 bl:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoBringSelected = v end})
+bl:AddInput({Title = "Radius", Default = "150", Placeholder = "10-300", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.BringRadius = math.clamp(n,10,300) end
+end})
 T.Loot:AddDropdown({Title = "Select Item", Values = {
     "All","Log","Meat","Pelt","Bunny Foot","Sheet Metal","Bolt","Coal","Berry","Carrot",
     "Alien Chest","Alpha Wolf Pelt","Apple","Bandage","Bear Pelt","Biofuel",
@@ -687,11 +716,12 @@ T.Loot:AddDropdown({Title = "Select Item", Values = {
 
 local ch = T.Loot:AddCollapsibleSection("Auto Loot Chest", false)
 ch:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoLootChest = v end})
+ch:AddInput({Title = "Radius", Default = "80", Placeholder = "10-200", Callback = function(v)
+    local n = tonumber(v) if n then getgenv().W424.LootRadius = math.clamp(n,10,200) end
+end})
 
 local fl = T.Loot:AddCollapsibleSection("Auto Feed Campfire", false)
 fl:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoFeed = v end})
-fl:AddDropdown({Title = "Fuel", Values = {"Log","Coal","Biofuel","Fuel Canister"},
-    DefaultValue = "Log", Callback = function(v) getgenv().W424.FeedMaterial = v end})
 
 local ck = T.Loot:AddCollapsibleSection("Auto Cook", false)
 ck:AddToggle({Title = "Enable", Default = false, Callback = function(v) getgenv().W424.AutoCook = v end})
@@ -739,6 +769,21 @@ T.Pos:AddButton({Title = "Save Pos", Callback = function()
     OrvionLib:Notify("Saved","Position saved",3)
 end})
 T.Pos:AddButton({Title = "Go Saved", Callback = function() if SAVED_POS then teleportWithBack(SAVED_POS) end end})
+T.Pos:AddButton({Title = "TP to Nearest Tree", Callback = function()
+    local trees = getTrees()
+    local nearest, dist = nil, math.huge
+    for _, tree in ipairs(trees) do
+        local p = getTreePart(tree)
+        if p and HRP then
+            local d = (HRP.Position - p.Position).Magnitude
+            if d < dist then dist = d; nearest = p end
+        end
+    end
+    if nearest then
+        teleportWithBack(nearest.CFrame + Vector3.new(0,3,0))
+        OrvionLib:Notify("Teleport","To nearest tree",2)
+    end
+end})
 
 -- === MISC TAB ===
 T.Misc:AddToggle({Title = "Show Safe Zone", Default = false, Callback = function(v)
@@ -753,7 +798,7 @@ T.Misc:AddButton({Title = "Anti AFK", Callback = function()
     game:service'Players'.LocalPlayer.Idled:connect(function()
         bb:CaptureController() bb:ClickButton2(Vector2.new())
     end)
-    OrvionLib:Notify("Anti-AFK", "Active", 3)
+    OrvionLib:Notify("Anti-AFK","Active",3)
 end})
 
 T.Misc:AddButton({Title = "Infinite Yield", Callback = function()
@@ -761,7 +806,7 @@ T.Misc:AddButton({Title = "Infinite Yield", Callback = function()
 end})
 
 -- ==========================================
--- 11. BUBBLE TOGGLE (Tombol apung)
+-- 10. BUBBLE TOGGLE
 -- ==========================================
 local BG = Instance.new("ScreenGui", CoreGui)
 BG.Name = "W424_Bubble" BG.ResetOnSpawn = false
@@ -800,8 +845,8 @@ BB.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 12. NOTIFIKASI START
+-- 11. NOTIFIKASI START
 -- ==========================================
 task.wait(0.5)
-OrvionLib:Notify("W424 Hub", "Full Merge v7 Loaded!", 5)
-print("[W424] Script fully loaded. Enjoy!")
+OrvionLib:Notify("W424 Hub v8","All features improved!",5)
+print("[W424] v8 Loaded with fixes.")
