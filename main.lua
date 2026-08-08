@@ -1,8 +1,6 @@
 -- ============================================================
--- 99 NIGHTS HUB | ORVION UI | FINAL FIXED VERSION
--- DAMAGE ID: Old Axe = 114_9883131443
--- KILL AURA, AUTO WOOD, AUTO COOK, AUTO FEED, TELEPORT ITEMS
--- BUBBLE TOGGLE, BACK TO CAMPFIRE
+-- 99 NIGHTS HUB | ORVION UI | FINAL VERSION
+-- BASED ON WIKI ITEMS | FIXED AUTO WOOD & KILL AURA
 -- ============================================================
 
 -- ============================================================
@@ -20,12 +18,11 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
 
 local LP = Players.LocalPlayer
 local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
 
--- Remote Events (fallback)
+-- Remote Events
 local StartDrag = RemoteEvents:FindFirstChild("RequestStartDraggingItem") or RemoteEvents:FindFirstChild("StartDragging")
 local StopDrag  = RemoteEvents:FindFirstChild("StopDraggingItem") or RemoteEvents:FindFirstChild("StopDragging")
 local EquipItem = RemoteEvents:FindFirstChild("EquipItemHandle") or RemoteEvents:FindFirstChild("EquipTool")
@@ -49,7 +46,7 @@ getgenv().NightsHub = {
     KillAura = false,
     KillRadius = 250,
     AutoWood = false,
-    WoodRadius = 30,
+    WoodRadius = 50,
     AutoFeed = false,
     AutoFeedAlways = false,
     FuelType = "Log",
@@ -82,7 +79,7 @@ LP.CharacterAdded:Connect(function(c)
 end)
 
 -- ============================================================
--- 4. FUNGSI DASAR (dengan error handling)
+-- 4. FUNGSI DASAR
 -- ============================================================
 
 -- Tool system
@@ -116,15 +113,16 @@ local function unequipTool(tool)
     end
 end
 
--- Attack (dengan swing otomatis)
+-- Attack dengan swing
 local function attack(target, tool, damageID)
     if not target or not tool or not target:IsDescendantOf(Workspace) then return end
     local part = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head")
         or target:FindFirstChild("Trunk") or target:FindFirstChildWhichIsA("BasePart")
     if not part then return end
-    -- Activate tool (swing)
+
     pcall(function() tool:Activate() end)
     task.wait(0.05)
+
     if ToolDamage then
         pcall(function()
             ToolDamage:InvokeServer(target, tool, damageID, CFrame.new(part.Position), false)
@@ -132,13 +130,13 @@ local function attack(target, tool, damageID)
     end
 end
 
--- Item Part Finder (lebih dalam untuk item seperti Good Sack, Strong Axe, dll)
+-- Item Part Finder (mendalam)
 local function getItemPart(item)
     if not item then return nil end
     if item:IsA("Model") then
         if item.PrimaryPart then return item.PrimaryPart end
         for _, c in ipairs(item:GetDescendants()) do
-            if c:IsA("BasePart") or c:IsA("MeshPart") or c:IsA("UnionOperation") then
+            if c:IsA("BasePart") or c:IsA("MeshPart") or c:IsA("Part") or c:IsA("UnionOperation") then
                 return c
             end
         end
@@ -148,18 +146,14 @@ local function getItemPart(item)
     return nil
 end
 
--- Cek apakah item bisa dipindahkan (parent tidak locked)
+-- Cek item bisa dipindahkan
 local function canMoveItem(item)
     if not item then return false end
     if not item:IsDescendantOf(Workspace) then return false end
-    local success, err = pcall(function()
-        local parent = item.Parent
-        return true
-    end)
-    return success
+    return true
 end
 
--- Bring item (drag + drop) dengan error handling
+-- Bring item dengan drag
 local function bringItem(item, position)
     if not item or not canMoveItem(item) or not StartDrag or not StopDrag then return end
     local part = getItemPart(item)
@@ -177,49 +171,13 @@ local function bringItem(item, position)
     end)
 end
 
--- Move item ke posisi (untuk auto farm)
-local function moveItemToPos(item, position)
-    bringItem(item, position)
-end
-
--- Tree scanner (untuk Auto Wood)
+-- Tree scanner untuk Small Tree
 local function getTreePart(tree)
     return tree:FindFirstChild("Trunk") or tree:FindFirstChild("Trunk1")
         or tree:FindFirstChild("MainPart") or tree:FindFirstChildWhichIsA("BasePart")
 end
 
-local function getTrees()
-    local trees = {}
-    local function scan(folder)
-        if not folder then return end
-        for _, obj in ipairs(folder:GetDescendants()) do
-            if obj:IsA("Model") and obj:IsDescendantOf(Workspace) then
-                local name = obj.Name
-                if (name:find("Tree") or name:find("Brightwood") or name:find("Fairy")) and getTreePart(obj) then
-                    table.insert(trees, obj)
-                end
-            end
-        end
-    end
-    local map = Workspace:FindFirstChild("Map")
-    if map then
-        for _, f in ipairs({"Foliage","Landmarks","Trees","Environment","Resources"}) do
-            scan(map:FindFirstChild(f))
-        end
-        scan(map)
-    end
-    if #trees == 0 then
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj.Name:find("Tree") and getTreePart(obj) then
-                table.insert(trees, obj)
-            end
-        end
-    end
-    return trees
-end
-
--- Small Tree scanner khusus untuk teleport
-local function getSmallTrees()
+local function getAllSmallTrees()
     local trees = {}
     local function scan(folder)
         if not folder then return end
@@ -233,6 +191,14 @@ local function getSmallTrees()
     if map then
         if map:FindFirstChild("Foliage") then scan(map.Foliage) end
         if map:FindFirstChild("Landmarks") then scan(map.Landmarks) end
+        if map:FindFirstChild("Trees") then scan(map.Trees) end
+    end
+    if #trees == 0 then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj.Name == "Small Tree" and getTreePart(obj) then
+                table.insert(trees, obj)
+            end
+        end
     end
     return trees
 end
@@ -251,7 +217,7 @@ local function getMobs()
     return mobs
 end
 
--- Items folder & campfire pos
+-- Items folder & campfire
 local function getItemsFolder()
     return Workspace:FindFirstChild("Items")
 end
@@ -271,25 +237,19 @@ local function getCampfirePos()
     return Vector3.new(0, 19, 0)
 end
 
-local CAMPFIRE_CFRAME = nil
 local function getCampfireCFrame()
-    local pos = getCampfirePos()
-    return CFrame.new(pos)
+    return CFrame.new(getCampfirePos())
 end
 
--- Teleport player dengan CFrame
+-- Teleport player
 local function tpPlayer(cf)
     if HRP then
         HRP.CFrame = cf + Vector3.new(0, 3, 0)
     end
 end
 
--- Save/Load position
-local SAVED_POS = nil
-local ORIGINAL_POS = nil
-
 -- ============================================================
--- 5. SAFE ZONE
+-- 5. SAFE ZONE & ESP
 -- ============================================================
 local safezoneBaseplates = {}
 local function createSafeZone()
@@ -313,9 +273,6 @@ local function createSafeZone()
 end
 createSafeZone()
 
--- ============================================================
--- 6. ESP SYSTEM
--- ============================================================
 local ESPs = {}
 local ESPconns = {}
 local function clearESP(tag)
@@ -368,25 +325,43 @@ local function addESP(folder, tag, color)
 end
 
 -- ============================================================
--- 7. ENGINE LOOPS
+-- 6. ENGINE LOOPS (FIXED)
 -- ============================================================
 
 -- Kill Aura Loop
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.15) do
         if getgenv().NightsHub.KillAura then
             pcall(function()
                 if not HRP then return end
                 local tool = equipTool(getgenv().NightsHub.SelectedTool)
+                if not tool then
+                    local c = LP.Character
+                    if c then
+                        for _, child in ipairs(c:GetChildren()) do
+                            if child:IsA("Tool") and toolsDamageIDs[child.Name] then
+                                tool = child
+                                break
+                            end
+                        end
+                    end
+                end
                 if not tool then return end
                 local dmgID = toolsDamageIDs[getgenv().NightsHub.SelectedTool] or "114_9883131443"
                 local r = getgenv().NightsHub.KillRadius
+
                 for _, mob in ipairs(getMobs()) do
                     local h = mob:FindFirstChildOfClass("Humanoid")
                     if h and h.Health > 0 then
                         local p = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
                         if p and (HRP.Position - p.Position).Magnitude <= r then
-                            attack(mob, tool, dmgID)
+                            pcall(function() tool:Activate() end)
+                            task.wait(0.03)
+                            if ToolDamage then
+                                pcall(function()
+                                    ToolDamage:InvokeServer(mob, tool, dmgID, CFrame.new(p.Position), false)
+                                end)
+                            end
                             task.wait(0.08)
                         end
                     end
@@ -396,29 +371,36 @@ task.spawn(function()
     end
 end)
 
--- Auto Wood (dengan teleport ke small tree)
+-- Auto Wood (Teleport ke Small Tree + Attack)
 local AutoWoodActive = false
-local AutoWoodCurrentTree = nil
-local AutoWoodOriginalPos = nil
-
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.2) do
         if getgenv().NightsHub.AutoWood then
             if not AutoWoodActive then
                 AutoWoodActive = true
-                AutoWoodOriginalPos = HRP and HRP.CFrame or nil
             end
             pcall(function()
                 if not HRP then return end
                 local tool = equipTool(getgenv().NightsHub.SelectedTool)
+                if not tool then
+                    local c = LP.Character
+                    if c then
+                        for _, child in ipairs(c:GetChildren()) do
+                            if child:IsA("Tool") and toolsDamageIDs[child.Name] then
+                                tool = child
+                                break
+                            end
+                        end
+                    end
+                end
                 if not tool then return end
                 local dmgID = toolsDamageIDs[getgenv().NightsHub.SelectedTool] or "114_9883131443"
                 local r = getgenv().NightsHub.WoodRadius
 
-                -- Cari small tree terdekat yang masih ada
-                local trees = getSmallTrees()
+                local trees = getAllSmallTrees()
                 local nearest = nil
                 local nearestDist = math.huge
+
                 for _, tree in ipairs(trees) do
                     if tree and tree:IsDescendantOf(Workspace) then
                         local p = getTreePart(tree)
@@ -432,39 +414,60 @@ task.spawn(function()
                     end
                 end
 
-                if nearest then
-                    AutoWoodCurrentTree = nearest
+                if nearest and nearestDist <= r then
                     local trunk = getTreePart(nearest)
-                    if trunk then
-                        -- Teleport player ke depan pohon (sedikit offset)
+                    if trunk and trunk:IsDescendantOf(Workspace) then
                         local lookDir = (trunk.Position - HRP.Position).Unit
-                        local tpPos = trunk.Position - lookDir * 3 + Vector3.new(0, 1, 0)
+                        if lookDir.Magnitude < 0.1 then lookDir = Vector3.new(1,0,0) end
+                        local tpPos = trunk.Position - lookDir * 2.5 + Vector3.new(0, 0.5, 0)
                         HRP.CFrame = CFrame.new(tpPos, trunk.Position)
+                        task.wait(0.05)
+                        pcall(function() tool:Activate() end)
+                        task.wait(0.05)
+                        if ToolDamage then
+                            pcall(function()
+                                ToolDamage:InvokeServer(nearest, tool, dmgID, CFrame.new(trunk.Position), false)
+                            end)
+                        end
                         task.wait(0.1)
-                        -- Attack tree
-                        attack(nearest, tool, dmgID)
-                        task.wait(0.15)
                     end
                 else
-                    -- Tidak ada small tree, tunggu sebentar
-                    task.wait(1)
+                    if nearest then
+                        local trunk = getTreePart(nearest)
+                        if trunk and trunk:IsDescendantOf(Workspace) then
+                            local lookDir = (trunk.Position - HRP.Position).Unit
+                            if lookDir.Magnitude < 0.1 then lookDir = Vector3.new(1,0,0) end
+                            local tpPos = trunk.Position - lookDir * 2.5 + Vector3.new(0, 0.5, 0)
+                            HRP.CFrame = CFrame.new(tpPos, trunk.Position)
+                            task.wait(0.05)
+                            pcall(function() tool:Activate() end)
+                            task.wait(0.05)
+                            if ToolDamage then
+                                pcall(function()
+                                    ToolDamage:InvokeServer(nearest, tool, dmgID, CFrame.new(trunk.Position), false)
+                                end)
+                            end
+                            task.wait(0.1)
+                        end
+                    else
+                        task.wait(1)
+                    end
                 end
             end)
         else
             if AutoWoodActive then
                 AutoWoodActive = false
-                -- Kembali ke campfire
                 local cf = getCampfireCFrame()
                 if cf and HRP then
                     tpPlayer(cf)
                 end
-                AutoWoodCurrentTree = nil
             end
+            task.wait(0.5)
         end
     end
 end)
 
--- Auto Feed (Always) - menggunakan BurnItem dari inventory
+-- Auto Feed Always (BurnItem)
 task.spawn(function()
     while task.wait(1.5) do
         if getgenv().NightsHub.AutoFeedAlways and BurnItem then
@@ -484,7 +487,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Feed (HP Based) - drag item ke api (dengan posisi lebih presisi)
+-- Auto Feed HP Based (Drag ke api)
 task.spawn(function()
     while task.wait(1.5) do
         if getgenv().NightsHub.AutoFeed then
@@ -493,22 +496,13 @@ task.spawn(function()
                 local items = getItemsFolder()
                 if not items then return end
                 local fuel = getgenv().NightsHub.FuelType
-                -- Cari posisi api yang tepat (di dalam Center)
-                local map = Workspace:FindFirstChild("Map")
-                if not map then return end
-                local cg = map:FindFirstChild("Campground") or map:FindFirstChild("Campsite")
-                if not cg then return end
-                local fire = cg:FindFirstChild("MainFire") or cg:FindFirstChild("Campfire")
-                if not fire then return end
-                local center = fire:FindFirstChild("Center") or fire
-                local cfPos = center:IsA("BasePart") and center.Position or center:GetPivot().Position
-                local dropPos = cfPos + Vector3.new(0, 1.5, 0)
+                local cfPos = getCampfirePos() + Vector3.new(0, 1.5, 0)
 
                 for _, item in ipairs(items:GetChildren()) do
                     if item:IsA("Model") and item.Name == fuel and canMoveItem(item) then
                         local p = getItemPart(item)
-                        if p and (HRP.Position - p.Position).Magnitude <= 100 then
-                            bringItem(item, dropPos)
+                        if p and (HRP.Position - p.Position).Magnitude <= 150 then
+                            bringItem(item, cfPos)
                             task.wait(0.15)
                         end
                     end
@@ -527,22 +521,13 @@ task.spawn(function()
                 local items = getItemsFolder()
                 if not items then return end
                 local cookItem = getgenv().NightsHub.CookItem:lower()
-                -- Cari posisi api yang tepat
-                local map = Workspace:FindFirstChild("Map")
-                if not map then return end
-                local cg = map:FindFirstChild("Campground") or map:FindFirstChild("Campsite")
-                if not cg then return end
-                local fire = cg:FindFirstChild("MainFire") or cg:FindFirstChild("Campfire")
-                if not fire then return end
-                local center = fire:FindFirstChild("Center") or fire
-                local cfPos = center:IsA("BasePart") and center.Position or center:GetPivot().Position
-                local dropPos = cfPos + Vector3.new(0, 1.5, 0)
+                local cfPos = getCampfirePos() + Vector3.new(0, 1.5, 0)
 
                 for _, item in ipairs(items:GetChildren()) do
                     if item:IsA("Model") and item.Name:lower():find(cookItem) and canMoveItem(item) then
                         local p = getItemPart(item)
-                        if p and (HRP.Position - p.Position).Magnitude <= 100 then
-                            bringItem(item, dropPos)
+                        if p and (HRP.Position - p.Position).Magnitude <= 150 then
+                            bringItem(item, cfPos)
                             task.wait(0.15)
                         end
                     end
@@ -567,7 +552,7 @@ task.spawn(function()
                         for _, name in ipairs(grindItems) do
                             if item.Name == name then
                                 local p = getItemPart(item)
-                                if p and (HRP.Position - p.Position).Magnitude <= 100 then
+                                if p and (HRP.Position - p.Position).Magnitude <= 150 then
                                     bringItem(item, grindPos)
                                     task.wait(0.1)
                                 end
@@ -599,7 +584,7 @@ task.spawn(function()
                             for _, name in ipairs(bioItems) do
                                 if item.Name == name then
                                     local p = getItemPart(item)
-                                    if p and (HRP.Position - p.Position).Magnitude <= 100 then
+                                    if p and (HRP.Position - p.Position).Magnitude <= 150 then
                                         bringItem(item, bioPos)
                                         task.wait(0.1)
                                     end
@@ -614,7 +599,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Eat (HP Based)
+-- Auto Eat HP
 task.spawn(function()
     while task.wait(1) do
         if getgenv().NightsHub.AutoEatHP and HRP and HUM then
@@ -639,7 +624,7 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- 8. UI ORVION
+-- 7. UI ORVION
 -- ============================================================
 local Window = OrvionLib:CreateWindow({
     Title = "99 Nights Hub",
@@ -702,7 +687,6 @@ T_Main:AddButton({
     Title = "Save Position",
     Callback = function()
         if HRP then SAVED_POS = HRP.CFrame end
-        if setclipboard and HRP then setclipboard(tostring(HRP.Position)) end
         statusPara:SetDesc("Position saved!")
         task.wait(1)
         statusPara:SetDesc("Ready")
@@ -749,11 +733,11 @@ T_Combat:AddInput({
     end
 })
 
--- Tab: Auto Wood
+-- Tab: Wood
 local T_Wood = Window:AddTab("Wood")
 
 T_Wood:AddToggle({
-    Title = "Auto Wood (Teleport to Small Tree)",
+    Title = "Auto Wood (Teleport + Attack)",
     Default = false,
     Callback = function(state)
         getgenv().NightsHub.AutoWood = state
@@ -761,7 +745,6 @@ T_Wood:AddToggle({
             statusPara:SetDesc("Auto Wood: ON")
         else
             statusPara:SetDesc("Auto Wood: OFF - Returning to campfire")
-            -- Back to campfire handled in loop
         end
         task.wait(1)
         statusPara:SetDesc("Ready")
@@ -770,11 +753,11 @@ T_Wood:AddToggle({
 
 T_Wood:AddInput({
     Title = "Wood Radius",
-    Default = "30",
-    Placeholder = "10-100",
+    Default = "50",
+    Placeholder = "10-200",
     Callback = function(v)
         local n = tonumber(v)
-        if n then getgenv().NightsHub.WoodRadius = math.clamp(n, 10, 100) end
+        if n then getgenv().NightsHub.WoodRadius = math.clamp(n, 10, 200) end
     end
 })
 
@@ -859,18 +842,24 @@ autoEatSec:AddToggle({
     end
 })
 
--- Tab: Item
+-- Tab: Item (dengan item dari wiki)
 local T_Item = Window:AddTab("Item")
 
 -- Teleport to Item
-local tpItemDropdown = T_Item:AddDropdown({
+T_Item:AddDropdown({
     Title = "Teleport to Item",
     Values = {
         "Revolver", "Medkit", "Alien Chest", "Berry", "Bolt", "Broken Fan",
         "Carrot", "Coal", "Coin Stack", "Hologram Emitter", "Item Chest",
         "Laser Fence Blueprint", "Log", "Old Flashlight", "Old Radio",
         "Sheet Metal", "Bandage", "Rifle", "Good Sack", "Strong Axe",
-        "Giant Sack", "Chainsaw", "Apple", "Pistol"
+        "Giant Sack", "Chainsaw", "Apple", "Pistol", "Fuel Canister",
+        "Bunny Foot", "Oil Barrel", "Corn", "Pumpkin", "Cultist Gem",
+        "Wolf Pelt", "Bear Pelt", "Alpha Wolf Pelt", "UFO Component",
+        "UFO Scrap", "Old Car Engine", "Broken Microwave", "Tyre",
+        "Washing Machine", "Cultist Experiment", "Cultist Component",
+        "Gem of the Forest Fragment", "Steak", "Morsel", "Cooked Steak",
+        "Cooked Morsel", "Cake", "Stew", "Meat Sandwich"
     },
     DefaultValue = "Log",
     Callback = function(itemName)
@@ -888,8 +877,8 @@ local tpItemDropdown = T_Item:AddDropdown({
     end
 })
 
--- Bring Item to You
-local bringItemDropdown = T_Item:AddDropdown({
+-- Bring Item to You (diperluas)
+T_Item:AddDropdown({
     Title = "Bring Item to You",
     Values = {
         "Alien Chest", "Alpha Wolf Pelt", "Apple", "Bandage", "Bear Pelt",
@@ -900,7 +889,10 @@ local bringItemDropdown = T_Item:AddDropdown({
         "Raygun", "Giant Sack", "Strong Axe", "Oil Barrel", "Rifle",
         "Rifle Ammo", "Revolver", "Revolver Ammo", "Sheet Metal", "Steak",
         "Wolf Pelt", "Tyre", "Washing Machine", "Broken Microwave",
-        "Pistol"
+        "Pistol", "Laser Fence Blueprint", "Hologram Emitter", "Corn",
+        "Pumpkin", "UFO Component", "UFO Scrap", "Old Car Engine",
+        "Cultist Experiment", "Cultist Component", "Gem of the Forest Fragment",
+        "Cake", "Stew", "Meat Sandwich", "Candy Corn", "Candy Apple"
     },
     DefaultValue = "Log",
     Callback = function(itemName)
@@ -909,10 +901,16 @@ local bringItemDropdown = T_Item:AddDropdown({
         local count = 0
         for _, item in ipairs(items:GetChildren()) do
             if item:IsA("Model") and item.Name == itemName and canMoveItem(item) then
-                local pos = HRP.Position + Vector3.new(0, count * 2, 0)
-                bringItem(item, pos)
-                count = count + 1
-                task.wait(0.05)
+                local part = getItemPart(item)
+                if part then
+                    local dist = (HRP.Position - part.Position).Magnitude
+                    if dist <= 200 then
+                        local pos = HRP.Position + Vector3.new(0, count * 2, 0)
+                        bringItem(item, pos)
+                        count = count + 1
+                        task.wait(0.05)
+                    end
+                end
             end
         end
         statusPara:SetDesc("Brought " .. count .. " " .. itemName)
@@ -1021,13 +1019,6 @@ T_Misc:AddButton({
 })
 
 T_Misc:AddButton({
-    Title = "Emote GUI",
-    Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/dimension-sources/random-scripts-i-found/refs/heads/main/r6%20animations"))()
-    end
-})
-
-T_Misc:AddButton({
     Title = "Turtle Spy",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Turtle-Brand/Turtle-Spy/main/source.lua", true))()
@@ -1035,7 +1026,7 @@ T_Misc:AddButton({
 })
 
 -- ============================================================
--- 9. BUBBLE TOGGLE (Mobile Friendly)
+-- 8. BUBBLE TOGGLE (TIDAK IKUT CLOSE)
 -- ============================================================
 local BubbleGui = Instance.new("ScreenGui")
 BubbleGui.Name = "NightsHubBubble"
@@ -1052,7 +1043,6 @@ BubbleBtn.ImageColor3 = Color3.fromRGB(200, 150, 255)
 BubbleBtn.ScaleType = Enum.ScaleType.Fit
 BubbleBtn.Parent = BubbleGui
 
--- Shadow
 local Shadow = Instance.new("ImageLabel")
 Shadow.Size = UDim2.new(1.2, 0, 1.2, 0)
 Shadow.Position = UDim2.new(-0.1, 0, -0.1, 0)
@@ -1069,7 +1059,6 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(1,0)
 Corner.Parent = BubbleBtn
 
--- Drag logic
 local dragging, dragInput, dragStart, startPos
 BubbleBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1100,38 +1089,25 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Toggle UI visibility
 local uiVisible = true
-local allGuis = {Window.Gui, BubbleGui}
-for _, g in ipairs(CoreGui:GetChildren()) do
-    if g:IsA("ScreenGui") and (g.Name:find("Orvion") or g.Name:find("orvion")) then
-        table.insert(allGuis, g)
-    end
-end
-
 BubbleBtn.MouseButton1Click:Connect(function()
     if dragging then return end
     uiVisible = not uiVisible
-    for _, g in ipairs(allGuis) do
-        if g and g:IsA("ScreenGui") then
-            g.Enabled = uiVisible
+    for _, g in ipairs(CoreGui:GetChildren()) do
+        if g:IsA("ScreenGui") and g.Name ~= "NightsHubBubble" then
+            if g.Name:find("Orvion") or g.Name:find("orvion") or g.Name == "NightsHubUI" then
+                g.Enabled = uiVisible
+            end
         end
     end
-    -- Update bubble appearance
     BubbleBtn.ImageColor3 = uiVisible and Color3.fromRGB(200, 150, 255) or Color3.fromRGB(100, 100, 100)
     BubbleBtn.BackgroundColor3 = uiVisible and Color3.fromRGB(30, 30, 40) or Color3.fromRGB(20, 20, 20)
 end)
 
 -- ============================================================
--- 10. STARTUP NOTIFICATION
+-- 9. STARTUP
 -- ============================================================
 task.wait(0.5)
 OrvionLib:Notify("99 Nights Hub", "Loaded! Damage ID: 114", 5)
 statusPara:SetDesc("Ready")
 print("[99 Nights Hub] Loaded successfully!")
-
--- Simpan posisi awal campfire
-task.wait(1)
-if HRP then
-    ORIGINAL_POS = HRP.CFrame
-end
