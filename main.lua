@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- REBUILD - ORVION LIB + BUBBLE TOGGLE
+-- REBUILD v2 - ORVION LIB (NO SLIDER FIX)
 -- ==========================================
 
 local PLRS = game:GetService("Players")
@@ -13,6 +13,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
+
+-- ==========================================
+-- DEBUG LOGGER
+-- ==========================================
+local DEBUG_MODE = true
+local function log(tag, msg)
+    if DEBUG_MODE then
+        print("[W424][" .. tag .. "] " .. tostring(msg))
+    end
+end
 
 -- ==========================================
 -- REMOTE SCANNER
@@ -36,6 +46,10 @@ local Remotes = {
     BurnItem = findRemote("Burn") or findRemote("RequestBurn"),
     ConsumeItem = findRemote("Consume") or findRemote("RequestConsume"),
 }
+
+log("REMOTES", "ToolDamage: " .. tostring(Remotes.ToolDamage))
+log("REMOTES", "EquipItem: " .. tostring(Remotes.EquipItem))
+log("REMOTES", "StartDrag: " .. tostring(Remotes.StartDrag))
 
 -- ==========================================
 -- DAMAGE ID MAPPING
@@ -87,10 +101,12 @@ LP.CharacterAdded:Connect(function(c)
     CHAR = c
     HRP = c:WaitForChild("HumanoidRootPart", 3)
     HUM = c:WaitForChild("Humanoid", 3)
+    cachedTool = nil
+    log("CHAR", "Respawned, reset cache")
 end)
 
 -- ==========================================
--- ITEM SCANNER (MULTI-FOLDER)
+-- ITEM SCANNER
 -- ==========================================
 local function getItemsFolder()
     local names = {"Items", "Drops", "Loot", "DropItems", "GroundItems"}
@@ -115,7 +131,7 @@ local function isLootItem(item)
 end
 
 -- ==========================================
--- BACK SYSTEM (TELEPORT)
+-- BACK SYSTEM
 -- ==========================================
 local SG = Instance.new("ScreenGui")
 SG.Name = "W424_BackUI"
@@ -131,7 +147,6 @@ FRAME.BackgroundTransparency = 0.05
 FRAME.BorderSizePixel = 0
 FRAME.Visible = false
 FRAME.Parent = SG
-
 Instance.new("UICorner", FRAME).CornerRadius = UDim.new(0, 12)
 local STROKE = Instance.new("UIStroke", FRAME)
 STROKE.Color = Color3.fromRGB(60, 60, 60)
@@ -181,7 +196,7 @@ local function hideBack()
     t.Completed:Connect(function() FRAME.Visible = false end)
 end
 
-local TP_CONN, LAST_POS = nil, nil
+local TP_CONN, LAST_POS, SAVED_POS = nil, nil, nil
 local function tpTo(cf)
     if not HRP then return end
     LAST_POS = HRP.CFrame
@@ -219,7 +234,6 @@ local lastEquipTime = 0
 local function equipTool(toolName)
     if not CHAR then return nil end
 
-    -- Sudah di tangan?
     for _, child in ipairs(CHAR:GetChildren()) do
         if child:IsA("Tool") and child.Name == toolName then
             cachedTool = child
@@ -227,12 +241,10 @@ local function equipTool(toolName)
         end
     end
 
-    -- Cache masih valid?
     if cachedTool and cachedTool.Parent == CHAR then
         return cachedTool
     end
 
-    -- Cooldown equip
     if tick() - lastEquipTime < 2 then
         return cachedTool
     end
@@ -255,35 +267,38 @@ local function equipTool(toolName)
         end
         if tool then break end
     end
-    if not tool then return nil end
+    if not tool then
+        log("EQUIP", "Tool not found: " .. toolName)
+        return nil
+    end
 
-    -- Equip via remote
     if Remotes.EquipItem then
         pcall(function() Remotes.EquipItem:FireServer(toolName) end)
         task.wait(0.2)
         if CHAR:FindFirstChild(toolName) then
             cachedTool = CHAR:FindFirstChild(toolName)
+            log("EQUIP", "Equipped via string: " .. toolName)
             return cachedTool
         end
         pcall(function() Remotes.EquipItem:FireServer(tool) end)
         task.wait(0.2)
         if CHAR:FindFirstChild(toolName) then
             cachedTool = CHAR:FindFirstChild(toolName)
+            log("EQUIP", "Equipped via instance")
             return cachedTool
         end
     end
 
-    -- Humanoid equip
     if HUM then
         pcall(function() HUM:EquipTool(tool) end)
         task.wait(0.25)
         if CHAR:FindFirstChild(toolName) then
             cachedTool = CHAR:FindFirstChild(toolName)
+            log("EQUIP", "Equipped via Humanoid")
             return cachedTool
         end
     end
 
-    -- Last resort
     pcall(function() tool.Parent = CHAR end)
     task.wait(0.2)
     cachedTool = CHAR:FindFirstChild(toolName)
@@ -291,11 +306,17 @@ local function equipTool(toolName)
 end
 
 -- ==========================================
--- ATTACK TARGET (MULTI-VARIANT)
+-- ATTACK TARGET (MULTI-VARIANT + DEBUG)
 -- ==========================================
 local function attackTarget(target, tool, damageID)
-    if not target or not tool then return false end
-    if not target:IsDescendantOf(Workspace) then return false end
+    if not target or not tool then
+        log("ATTACK", "Missing target or tool")
+        return false
+    end
+    if not target:IsDescendantOf(Workspace) then
+        log("ATTACK", "Target not in workspace")
+        return false
+    end
 
     local mainPart = target:FindFirstChild("HumanoidRootPart")
         or target:FindFirstChild("Head")
@@ -303,7 +324,10 @@ local function attackTarget(target, tool, damageID)
         or target:FindFirstChild("MainPart")
         or target.PrimaryPart
         or target:FindFirstChildWhichIsA("BasePart")
-    if not mainPart then return false end
+    if not mainPart then
+        log("ATTACK", "No mainPart for: " .. target.Name)
+        return false
+    end
 
     -- Physical swing
     pcall(function() tool:Activate() end)
@@ -311,7 +335,10 @@ local function attackTarget(target, tool, damageID)
     local swing = tool:FindFirstChild("Swing")
     if swing then pcall(function() swing:FireServer() end) end
 
-    if not Remotes.ToolDamage then return false end
+    if not Remotes.ToolDamage then
+        log("ATTACK", "No ToolDamage remote")
+        return false
+    end
 
     local variants = {
         {target, tool, damageID},
@@ -320,27 +347,34 @@ local function attackTarget(target, tool, damageID)
         {target, tool, damageID, CFrame.new(mainPart.Position)},
         {target, tool, damageID, CFrame.new(mainPart.Position), false},
         {target, tool, damageID, CFrame.new(mainPart.Position), true},
+        {target, tool.Name, damageID, CFrame.new(mainPart.Position)},
     }
 
-    for _, args in ipairs(variants) do
+    for i, args in ipairs(variants) do
         local ok, result = pcall(function()
             return Remotes.ToolDamage:InvokeServer(unpack(args))
         end)
-        if ok then return true end
+        if ok then
+            log("ATTACK", "Success with variant " .. i .. " on " .. target.Name)
+            return true
+        end
     end
 
-    -- Fallback hit remote
     local hitRemote = findRemote("Hit") or findRemote("DealDamage")
     if hitRemote then
         local ok = pcall(function() hitRemote:FireServer(target, tool) end)
-        if ok then return true end
+        if ok then
+            log("ATTACK", "Success via fallback Hit remote")
+            return true
+        end
     end
 
+    log("ATTACK", "All variants failed for: " .. target.Name)
     return false
 end
 
 -- ==========================================
--- DRAG ITEM (ROBUST)
+-- DRAG ITEM
 -- ==========================================
 local function dragItemToPos(item, position)
     if not item or not item:IsDescendantOf(Workspace) then return end
@@ -419,11 +453,12 @@ local function getFilteredTrees()
             end
         end
     end
+    log("TREES", "Found " .. #trees .. " trees")
     return trees
 end
 
 -- ==========================================
--- CAMPFIRE POSITION
+-- CAMPFIRE & MOBS
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -445,9 +480,6 @@ local function getCampfirePosition()
     return Vector3.new(0, 19, 0)
 end
 
--- ==========================================
--- MOB SCANNER
--- ==========================================
 local function getMobs()
     local mobs = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -459,7 +491,7 @@ local function getMobs()
 end
 
 -- ==========================================
--- ENGINE LOOPS (FIXED)
+-- ENGINE LOOPS
 -- ==========================================
 
 -- 1. Chop Aura + Auto Wood
@@ -469,14 +501,20 @@ task.spawn(function()
             pcall(function()
                 if not HRP then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
-                if not tool then return end
+                if not tool then
+                    log("CHOP", "No tool equipped")
+                    return
+                end
                 local damageID = getDamageID(getgenv().W424.SelectedTool)
                 local radius = getgenv().W424.ChopAura and getgenv().W424.ChopRadius or getgenv().W424.WoodRadius
                 local trees = getFilteredTrees()
+                log("CHOP", "Scanning " .. #trees .. " trees within " .. radius .. " studs")
+
                 for _, tree in ipairs(trees) do
                     if not (getgenv().W424.ChopAura or getgenv().W424.AutoWood) then break end
                     local part = getTreePart(tree)
                     if part and part:IsDescendantOf(Workspace) and (HRP.Position - part.Position).Magnitude <= radius then
+                        log("CHOP", "Attacking: " .. tree.Name .. " at " .. tostring(math.floor((HRP.Position - part.Position).Magnitude)) .. " studs")
                         attackTarget(tree, tool, damageID)
                         task.wait(0.12)
                     end
@@ -519,7 +557,7 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Claim Drops (FIXED - Distance + Blacklist)
+-- 3. Auto Claim
 local claimedItems = {}
 task.spawn(function()
     while task.wait(0.6) do
@@ -529,7 +567,6 @@ task.spawn(function()
                 local itemsFolder = getItemsFolder()
                 if not itemsFolder then return end
 
-                -- Bersihkan blacklist item yang hilang
                 for item, _ in pairs(claimedItems) do
                     if not item or not item:IsDescendantOf(Workspace) then
                         claimedItems[item] = nil
@@ -553,7 +590,7 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Bring Selected Item (FIXED - Distance)
+-- 4. Auto Bring
 task.spawn(function()
     while task.wait(0.6) do
         if getgenv().W424.AutoBringSelected then
@@ -578,7 +615,7 @@ task.spawn(function()
     end
 end)
 
--- 5. Auto Feed Campfire
+-- 5. Auto Feed
 task.spawn(function()
     while task.wait(1.2) do
         if getgenv().W424.AutoFeed then
@@ -664,6 +701,7 @@ end)
 -- ESP SYSTEM
 -- ==========================================
 local ESP_OBJS = {}
+local espConnections = {}
 
 local function clearESP(tag)
     if not ESP_OBJS[tag] then ESP_OBJS[tag] = {} return end
@@ -705,7 +743,6 @@ local function createESP(obj, tag, color)
     table.insert(ESP_OBJS[tag], bb)
 end
 
-local espConnections = {}
 local function addESP(folder, tag, color)
     clearESP(tag)
     if not folder then return end
@@ -768,7 +805,7 @@ local function applyWalkSpeed(v)
 end
 
 -- ==========================================
--- ORVION LIB UI
+-- ORVION LIB UI (FIXED - NO SLIDER)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 
@@ -796,6 +833,7 @@ Tabs.Main:AddDropdown({
     Callback = function(v)
         getgenv().W424.SelectedTool = v
         cachedTool = nil
+        log("UI", "Selected tool: " .. v)
     end
 })
 
@@ -816,66 +854,82 @@ Tabs.Main:AddButton({
 })
 
 -- --- FARMING TAB ---
-Tabs.Farm:AddCollapsibleSection("Chop Aura", false):AddToggle({
+local chopSection = Tabs.Farm:AddCollapsibleSection("Chop Aura", false)
+chopSection:AddToggle({
     Title = "Enable Chop Aura",
     Default = false,
-    Callback = function(v) getgenv().W424.ChopAura = v end
+    Callback = function(v)
+        getgenv().W424.ChopAura = v
+        log("UI", "ChopAura: " .. tostring(v))
+    end
 })
-
-Tabs.Farm:AddSlider({
+chopSection:AddInput({
     Title = "Chop Radius",
-    Min = 10, Max = 60,
-    Default = 30,
-    Callback = function(v) getgenv().W424.ChopRadius = v end
+    Default = "30",
+    Placeholder = "10-60",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n then
+            getgenv().W424.ChopRadius = math.clamp(n, 10, 60)
+            log("UI", "ChopRadius: " .. getgenv().W424.ChopRadius)
+        end
+    end
 })
 
-Tabs.Farm:AddCollapsibleSection("Kill Aura", false):AddToggle({
+local killSection = Tabs.Farm:AddCollapsibleSection("Kill Aura", false)
+killSection:AddToggle({
     Title = "Enable Kill Aura",
     Default = false,
     Callback = function(v) getgenv().W424.KillAura = v end
 })
-
-Tabs.Farm:AddSlider({
+killSection:AddInput({
     Title = "Kill Radius",
-    Min = 10, Max = 60,
-    Default = 30,
-    Callback = function(v) getgenv().W424.KillRadius = v end
+    Default = "30",
+    Placeholder = "10-60",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n then getgenv().W424.KillRadius = math.clamp(n, 10, 60) end
+    end
 })
 
-Tabs.Farm:AddCollapsibleSection("Auto Wood", false):AddToggle({
+local woodSection = Tabs.Farm:AddCollapsibleSection("Auto Wood", false)
+woodSection:AddToggle({
     Title = "Enable Auto Wood",
     Default = false,
     Callback = function(v) getgenv().W424.AutoWood = v end
 })
-
-Tabs.Farm:AddSlider({
+woodSection:AddInput({
     Title = "Wood Radius",
-    Min = 10, Max = 60,
-    Default = 30,
-    Callback = function(v) getgenv().W424.WoodRadius = v end
+    Default = "30",
+    Placeholder = "10-60",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n then getgenv().W424.WoodRadius = math.clamp(n, 10, 60) end
+    end
 })
-
-Tabs.Farm:AddDropdown({
+woodSection:AddDropdown({
     Title = "Tree Type",
     Values = {"All Trees", "Small Trees", "Hard Trees", "Brightwood Trees", "Fairy Trees"},
     DefaultValue = "All Trees",
     Callback = function(v) getgenv().W424.TreeType = v end
 })
 
-Tabs.Farm:AddCollapsibleSection("Auto Hunt", false):AddToggle({
+local huntSection = Tabs.Farm:AddCollapsibleSection("Auto Hunt", false)
+huntSection:AddToggle({
     Title = "Enable Auto Hunt",
     Default = false,
     Callback = function(v) getgenv().W424.AutoHunt = v end
 })
-
-Tabs.Farm:AddSlider({
+huntSection:AddInput({
     Title = "Hunt Radius",
-    Min = 10, Max = 60,
-    Default = 30,
-    Callback = function(v) getgenv().W424.HuntRadius = v end
+    Default = "30",
+    Placeholder = "10-60",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n then getgenv().W424.HuntRadius = math.clamp(n, 10, 60) end
+    end
 })
-
-Tabs.Farm:AddDropdown({
+huntSection:AddDropdown({
     Title = "Target Mob",
     Values = {"Bunny", "Wolf", "Alpha Wolf", "Bear", "Cultist"},
     DefaultValue = "Wolf",
@@ -883,13 +937,15 @@ Tabs.Farm:AddDropdown({
 })
 
 -- --- LOOTING TAB ---
-Tabs.Loot:AddCollapsibleSection("Auto Claim", false):AddToggle({
+local claimSection = Tabs.Loot:AddCollapsibleSection("Auto Claim", false)
+claimSection:AddToggle({
     Title = "Auto Claim Drops",
     Default = false,
     Callback = function(v) getgenv().W424.AutoClaim = v end
 })
 
-Tabs.Loot:AddCollapsibleSection("Auto Bring", false):AddToggle({
+local bringSection = Tabs.Loot:AddCollapsibleSection("Auto Bring", false)
+bringSection:AddToggle({
     Title = "Auto Bring Selected Item",
     Default = false,
     Callback = function(v) getgenv().W424.AutoBringSelected = v end
@@ -908,32 +964,33 @@ Tabs.Loot:AddDropdown({
     Callback = function(v) getgenv().W424.SelectedItem = v end
 })
 
-Tabs.Loot:AddCollapsibleSection("Auto Loot Chest", false):AddToggle({
+local chestSection = Tabs.Loot:AddCollapsibleSection("Auto Loot Chest", false)
+chestSection:AddToggle({
     Title = "Auto Loot Chest",
     Default = false,
     Callback = function(v) getgenv().W424.AutoLootChest = v end
 })
 
-Tabs.Loot:AddCollapsibleSection("Auto Feed", false):AddToggle({
+local feedSection = Tabs.Loot:AddCollapsibleSection("Auto Feed", false)
+feedSection:AddToggle({
     Title = "Auto Feed Campfire",
     Default = false,
     Callback = function(v) getgenv().W424.AutoFeed = v end
 })
-
-Tabs.Loot:AddDropdown({
+feedSection:AddDropdown({
     Title = "Fuel Material",
     Values = {"Log", "Coal", "Biofuel", "Fuel Canister"},
     DefaultValue = "Log",
     Callback = function(v) getgenv().W424.FeedMaterial = v end
 })
 
-Tabs.Loot:AddCollapsibleSection("Auto Cook", false):AddToggle({
+local cookSection = Tabs.Loot:AddCollapsibleSection("Auto Cook", false)
+cookSection:AddToggle({
     Title = "Auto Cook",
     Default = false,
     Callback = function(v) getgenv().W424.AutoCook = v end
 })
-
-Tabs.Loot:AddDropdown({
+cookSection:AddDropdown({
     Title = "Cook Material",
     Values = {"Morsel", "Steak"},
     DefaultValue = "Morsel",
@@ -941,13 +998,17 @@ Tabs.Loot:AddDropdown({
 })
 
 -- --- MOVEMENT TAB ---
-Tabs.Move:AddSlider({
-    Title = "WalkSpeed",
-    Min = 16, Max = 250,
-    Default = 16,
+Tabs.Move:AddParagraph({Title = "WalkSpeed", Content = "Enter value (16-250)"})
+Tabs.Move:AddInput({
+    Title = "WalkSpeed Value",
+    Default = "16",
+    Placeholder = "16-250",
     Callback = function(v)
-        getgenv().W424.WalkSpeed = v
-        applyWalkSpeed(v)
+        local n = tonumber(v)
+        if n then
+            getgenv().W424.WalkSpeed = math.clamp(n, 16, 250)
+            applyWalkSpeed(getgenv().W424.WalkSpeed)
+        end
     end
 })
 
@@ -1081,7 +1142,7 @@ Tabs.Pos:AddButton({
 })
 
 -- ==========================================
--- BUBBLE TOGGLE BUTTON (OPEN/CLOSE UI)
+-- BUBBLE TOGGLE
 -- ==========================================
 local BubbleGui = Instance.new("ScreenGui")
 BubbleGui.Name = "W424_BubbleToggle"
@@ -1107,7 +1168,6 @@ local BubbleStroke = Instance.new("UIStroke", BubbleBtn)
 BubbleStroke.Color = Color3.fromRGB(100, 100, 100)
 BubbleStroke.Thickness = 2
 
--- Drag functionality
 local dragging, dragInput, dragStart, startPos
 BubbleBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1135,19 +1195,15 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
--- Toggle UI visibility
 local uiVisible = true
 BubbleBtn.MouseButton1Click:Connect(function()
     if dragging then return end
     uiVisible = not uiVisible
-    -- OrvionLib window toggle (gunakan metode yang tersedia)
-    -- Karena tidak ada method langsung, kita sembunyikan/tampilkan ScreenGui utama
     for _, gui in ipairs(CoreGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name:find("Orvion") or gui.Name:find("orvion") then
+        if gui:IsA("ScreenGui") and (gui.Name:find("Orvion") or gui.Name:find("orvion")) then
             gui.Enabled = uiVisible
         end
     end
-    
     if uiVisible then
         BubbleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         BubbleBtn.Text = "⚡"
@@ -1168,4 +1224,5 @@ end)
 -- NOTIFICATION
 -- ==========================================
 task.wait(0.5)
-OrvionLib:Notify("W424 Ultimate", "Rebuild loaded. Bubble toggle ready.", 5)
+OrvionLib:Notify("W424 Ultimate", "v2 Loaded - Check console (F9) for debug", 5)
+log("INIT", "W424 Hub loaded successfully")
