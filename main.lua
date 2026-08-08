@@ -1,6 +1,6 @@
 -- ==========================================
 -- W424 HUB | 99 NIGHTS IN THE FOREST
--- REBUILD v3 - FIXED REMOTES & DAMAGE IDS
+-- REBUILD v4 - REMOTE SPY FIX
 -- ==========================================
 
 local PLRS = game:GetService("Players")
@@ -14,48 +14,66 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
 -- ==========================================
--- DEBUG SYSTEM
+-- DEBUG
 -- ==========================================
 local DEBUG_MODE = true
 local function log(tag, msg)
-    if DEBUG_MODE then
-        print("[W424][" .. tag .. "] " .. tostring(msg))
-    end
+    if DEBUG_MODE then print("[W424][" .. tag .. "] " .. tostring(msg)) end
 end
 
 -- ==========================================
--- VALIDATED REMOTES (DARI SOURCE TERPERCAYA)
+-- REMOTES (DARI REMOTE SPY)
 -- ==========================================
 local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 5)
 
 local Remotes = {
-    ToolDamage = RemoteEvents:FindFirstChild("ToolDamageObject"),
-    EquipItem = RemoteEvents:FindFirstChild("EquipItemHandle"),
+    ToolDamage = RemoteEvents:WaitForChild("ToolDamageObject"),
+    EquipItem = RemoteEvents:WaitForChild("EquipItemHandle"),
     UnequipItem = RemoteEvents:FindFirstChild("UnequipItemHandle"),
-    StartDrag = RemoteEvents:FindFirstChild("RequestStartDraggingItem"),
-    StopDrag = RemoteEvents:FindFirstChild("StopDraggingItem"),
+    StartDrag = RemoteEvents:WaitForChild("RequestStartDraggingItem"),
+    StopDrag = RemoteEvents:WaitForChild("StopDraggingItem"),
     BurnItem = RemoteEvents:FindFirstChild("RequestBurnItem"),
     ConsumeItem = RemoteEvents:FindFirstChild("RequestConsumeItem"),
-    DamagePlayer = RemoteEvents:FindFirstChild("DamagePlayer"),
+    ReplicateSound = RemoteEvents:FindFirstChild("RequestReplicateSound"),
 }
 
--- Log remote status
-for name, remote in pairs(Remotes) do
-    log("REMOTE", name .. ": " .. (remote and remote.ClassName or "NIL"))
-end
+-- ==========================================
+-- DAMAGE ID AUTO-DETECT (DARI TOOL INSTANCE)
+-- ==========================================
+-- Damage ID disimpan di attribute/value tool, atau kita track dari server response
+local knownDamageIDs = {} -- cache per tool name
+local damageIDCounter = {} -- counter untuk generate ID baru
 
--- ==========================================
--- DAMAGE ID MAPPING (VALIDATED)
--- ==========================================
-local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
-    ["Good Axe"] = "112_8982038982",
-    ["Strong Axe"] = "116_8982038982",
-    ["Chainsaw"] = "647_8992824875",
-    ["Spear"] = "196_8999010016",
-}
-local function getDamageID(name)
-    return toolsDamageIDs[name] or "1_8982038982"
+local function getDamageID(toolInstance)
+    if not toolInstance then return "1_9883131443" end
+    
+    -- Coba ambil dari cache
+    if knownDamageIDs[toolInstance.Name] then
+        return knownDamageIDs[toolInstance.Name]
+    end
+    
+    -- Coba cari StringValue/NumberValue di dalam tool
+    for _, child in ipairs(toolInstance:GetDescendants()) do
+        if child:IsA("StringValue") and child.Name:find("Damage") or child.Name:find("ID") then
+            knownDamageIDs[toolInstance.Name] = child.Value
+            return child.Value
+        end
+    end
+    
+    -- Fallback: pakai pattern dari remote spy (format: number_9883131443)
+    -- Kita generate incremental ID
+    if not damageIDCounter[toolInstance.Name] then
+        damageIDCounter[toolInstance.Name] = math.random(15, 25)
+    else
+        damageIDCounter[toolInstance.Name] = damageIDCounter[toolInstance.Name] + 1
+        if damageIDCounter[toolInstance.Name] > 99 then
+            damageIDCounter[toolInstance.Name] = 15
+        end
+    end
+    
+    local id = tostring(damageIDCounter[toolInstance.Name]) .. "_9883131443"
+    knownDamageIDs[toolInstance.Name] = id
+    return id
 end
 
 -- ==========================================
@@ -79,7 +97,7 @@ getgenv().W424 = {
 }
 
 -- ==========================================
--- CHARACTER REFERENCES
+-- CHARACTER
 -- ==========================================
 local CHAR, HRP, HUM
 local function refreshCharacter()
@@ -95,18 +113,17 @@ LP.CharacterAdded:Connect(function(c)
     HRP = c:WaitForChild("HumanoidRootPart", 3)
     HUM = c:WaitForChild("Humanoid", 3)
     cachedTool = nil
-    log("CHAR", "Respawned, cache cleared")
 end)
 
 -- ==========================================
--- ITEM FOLDER (DARI SOURCE VALID)
+-- ITEM FOLDER
 -- ==========================================
 local function getItemsFolder()
     return Workspace:FindFirstChild("Items")
 end
 
 -- ==========================================
--- LOOT DETECTION (CASE INSENSITIVE)
+-- LOOT DETECTION
 -- ==========================================
 local lootKeywords = {"meat", "pelt", "log", "bolt", "sheet metal", "coal", "berry", "carrot", "morsel", "steak", "bunny foot", "medkit", "bandage"}
 local function isLootItem(item)
@@ -119,7 +136,7 @@ local function isLootItem(item)
 end
 
 -- ==========================================
--- BACK SYSTEM (TELEPORT)
+-- BACK SYSTEM
 -- ==========================================
 local SG = Instance.new("ScreenGui")
 SG.Name = "W424_BackUI"
@@ -214,122 +231,121 @@ BACK_BTN.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- TOOL SYSTEM (FIXED - PAKAI REMOTE YANG BENAR)
+-- TOOL SYSTEM (FIXED - DARI REMOTE SPY)
 -- ==========================================
 local cachedTool = nil
 local lastEquipTime = 0
 
 local function getToolFromInventory(toolName)
-    local containers = {
-        LP:FindFirstChild("Inventory"),
-        LP:FindFirstChild("Backpack"),
-        LP:FindFirstChild("StarterGear")
-    }
-    for _, container in ipairs(containers) do
-        if container then
-            for _, item in ipairs(container:GetChildren()) do
-                if item:IsA("Tool") and item.Name == toolName then
-                    return item
-                end
+    -- PRIORITAS: Player.Inventory (dari remote spy)
+    local inv = LP:FindFirstChild("Inventory")
+    if inv then
+        for _, item in ipairs(inv:GetChildren()) do
+            if item:IsA("Tool") and item.Name == toolName then
+                log("TOOL", "Found in Inventory: " .. toolName)
+                return item
             end
         end
     end
+    
+    -- Fallback: Backpack
+    local bp = LP:FindFirstChild("Backpack")
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if item:IsA("Tool") and item.Name == toolName then
+                log("TOOL", "Found in Backpack: " .. toolName)
+                return item
+            end
+        end
+    end
+    
+    -- Fallback: StarterGear
+    local sg = LP:FindFirstChild("StarterGear")
+    if sg then
+        for _, item in ipairs(sg:GetChildren()) do
+            if item:IsA("Tool") and item.Name == toolName then
+                log("TOOL", "Found in StarterGear: " .. toolName)
+                return item
+            end
+        end
+    end
+    
+    log("TOOL", "NOT FOUND anywhere: " .. toolName)
     return nil
 end
 
 local function equipTool(toolName)
     if not CHAR then return nil end
 
-    -- Cek sudah di tangan
+    -- Sudah di tangan?
     for _, child in ipairs(CHAR:GetChildren()) do
         if child:IsA("Tool") and child.Name == toolName then
             cachedTool = child
-            log("EQUIP", "Already in hand: " .. toolName)
             return child
         end
     end
 
-    -- Cache masih valid?
     if cachedTool and cachedTool.Parent == CHAR then
         return cachedTool
     end
 
-    -- Cooldown
-    if tick() - lastEquipTime < 1.5 then
+    if tick() - lastEquipTime < 1 then
         return cachedTool
     end
     lastEquipTime = tick()
 
     local tool = getToolFromInventory(toolName)
-    if not tool then
-        log("EQUIP", "Tool NOT FOUND in inventory: " .. toolName)
-        return nil
-    end
+    if not tool then return nil end
 
-    log("EQUIP", "Found tool in inventory: " .. toolName)
-
-    -- Method 1: Remote EquipItemHandle (dari source valid)
+    -- Method dari remote spy: EquipItemHandle:FireServer("FireAllClients", toolInstance)
     if Remotes.EquipItem then
         pcall(function()
             Remotes.EquipItem:FireServer("FireAllClients", tool)
         end)
-        task.wait(0.25)
-        local equipped = CHAR:FindFirstChild(toolName)
-        if equipped then
-            cachedTool = equipped
-            log("EQUIP", "Success via EquipItemHandle remote")
-            return equipped
+        task.wait(0.2)
+        
+        -- Cek lagi
+        for _, child in ipairs(CHAR:GetChildren()) do
+            if child:IsA("Tool") and child.Name == toolName then
+                cachedTool = child
+                log("EQUIP", "Success via EquipItemHandle")
+                return child
+            end
         end
     end
 
-    -- Method 2: Humanoid Equip
+    -- Fallback: Humanoid
     if HUM then
         pcall(function() HUM:EquipTool(tool) end)
-        task.wait(0.25)
-        local equipped = CHAR:FindFirstChild(toolName)
-        if equipped then
-            cachedTool = equipped
-            log("EQUIP", "Success via Humanoid")
-            return equipped
+        task.wait(0.2)
+        for _, child in ipairs(CHAR:GetChildren()) do
+            if child:IsA("Tool") and child.Name == toolName then
+                cachedTool = child
+                log("EQUIP", "Success via Humanoid")
+                return child
+            end
         end
     end
 
-    -- Method 3: Direct parent
+    -- Last resort
     pcall(function() tool.Parent = CHAR end)
     task.wait(0.2)
-    cachedTool = CHAR:FindFirstChild(toolName)
-    if cachedTool then
-        log("EQUIP", "Success via direct parent")
-    else
-        log("EQUIP", "ALL methods failed for: " .. toolName)
-    end
-    return cachedTool
-end
-
-local function unequipTool()
-    if not CHAR then return end
     for _, child in ipairs(CHAR:GetChildren()) do
-        if child:IsA("Tool") and Remotes.UnequipItem then
-            pcall(function()
-                Remotes.UnequipItem:FireServer("FireAllClients", child)
-            end)
+        if child:IsA("Tool") and child.Name == toolName then
+            cachedTool = child
+            return child
         end
     end
-    cachedTool = nil
+    
+    return nil
 end
 
 -- ==========================================
--- ATTACK TARGET (FIXED - PAKAI ToolDamageObject)
+-- ATTACK TARGET (EXACT DARI REMOTE SPY)
 -- ==========================================
 local function attackTarget(target, tool, damageID)
-    if not target or not tool then
-        log("ATTACK", "Missing target or tool")
-        return false
-    end
-    if not target:IsDescendantOf(Workspace) then
-        log("ATTACK", "Target not in workspace: " .. target.Name)
-        return false
-    end
+    if not target or not tool then return false end
+    if not target:IsDescendantOf(Workspace) then return false end
 
     local mainPart = target:FindFirstChild("HumanoidRootPart")
         or target:FindFirstChild("Head")
@@ -337,71 +353,49 @@ local function attackTarget(target, tool, damageID)
         or target:FindFirstChild("MainPart")
         or target.PrimaryPart
         or target:FindFirstChildWhichIsA("BasePart")
-    if not mainPart then
-        log("ATTACK", "No mainPart for: " .. target.Name)
-        return false
-    end
+    if not mainPart then return false end
 
-    -- Physical swing
+    -- Swing animasi
     pcall(function() tool:Activate() end)
     task.wait(0.05)
     local swing = tool:FindFirstChild("Swing")
     if swing then pcall(function() swing:FireServer() end) end
 
-    if not Remotes.ToolDamage then
-        log("ATTACK", "ToolDamageObject remote is NIL!")
-        return false
-    end
-
-    -- Method utama dari source valid
-    local ok, result = pcall(function()
-        return Remotes.ToolDamage:InvokeServer(target, tool, damageID, CFrame.new(mainPart.Position))
-    end)
-
-    if ok then
-        log("ATTACK", "SUCCESS on " .. target.Name .. " | Result: " .. tostring(result))
-        return true
-    else
-        log("ATTACK", "FAILED on " .. target.Name .. " | Error: " .. tostring(result))
-    end
-
-    -- Fallback variants
-    local variants = {
-        {target, tool, damageID},
-        {target, tool.Name, damageID},
-        {target, damageID},
-        {target, tool, damageID, CFrame.new(mainPart.Position), false},
-        {target, tool, damageID, CFrame.new(mainPart.Position), true},
-    }
-
-    for i, args in ipairs(variants) do
-        local ok2, result2 = pcall(function()
-            return Remotes.ToolDamage:InvokeServer(unpack(args))
+    -- Sound effect (opsional, dari remote spy)
+    if Remotes.ReplicateSound then
+        pcall(function()
+            Remotes.ReplicateSound:FireServer("FireAllClients", "WoodChop", {
+                Instance = CHAR and CHAR:FindFirstChild("Head"),
+                Volume = 0.4
+            })
         end)
-        if ok2 then
-            log("ATTACK", "Fallback " .. i .. " SUCCESS on " .. target.Name)
+    end
+
+    -- EXACT dari remote spy: InvokeServer(tree, tool, damageID, cframe, false)
+    if Remotes.ToolDamage then
+        local ok, result = pcall(function()
+            return Remotes.ToolDamage:InvokeServer(target, tool, damageID, CFrame.new(mainPart.Position), false)
+        end)
+        
+        if ok then
+            log("ATTACK", "SUCCESS on " .. target.Name .. " | ID=" .. damageID)
             return true
+        else
+            log("ATTACK", "FAIL on " .. target.Name .. " | " .. tostring(result))
         end
     end
 
-    log("ATTACK", "ALL variants failed for: " .. target.Name)
     return false
 end
 
 -- ==========================================
--- DRAG ITEM (FIXED - PAKAI RequestStartDraggingItem)
+-- DRAG ITEM (EXACT DARI SOURCE VALID)
 -- ==========================================
 local function moveItemToPos(item, position)
-    if not item or not item:IsDescendantOf(Workspace) then
-        log("DRAG", "Item invalid or not in workspace")
-        return
-    end
+    if not item or not item:IsDescendantOf(Workspace) then return end
 
     local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart") or item:FindFirstChild("Handle")
-    if not part then
-        log("DRAG", "No valid part in item: " .. item.Name)
-        return
-    end
+    if not part then return end
 
     if not item.PrimaryPart then
         pcall(function() item.PrimaryPart = part end)
@@ -410,26 +404,20 @@ local function moveItemToPos(item, position)
     pcall(function()
         if Remotes.StartDrag then
             Remotes.StartDrag:FireServer(item)
-            log("DRAG", "StartDrag fired for: " .. item.Name)
-        else
-            log("DRAG", "StartDrag remote is NIL!")
         end
-
+        
         task.wait(0.05)
-
+        
         if item:IsA("Model") and item.PrimaryPart then
             item:SetPrimaryPartCFrame(CFrame.new(position))
         elseif part then
             part.CFrame = CFrame.new(position)
         end
-
+        
         task.wait(0.05)
-
+        
         if Remotes.StopDrag then
             Remotes.StopDrag:FireServer(item)
-            log("DRAG", "StopDrag fired for: " .. item.Name)
-        else
-            log("DRAG", "StopDrag remote is NIL!")
         end
     end)
 end
@@ -485,7 +473,7 @@ local function getFilteredTrees()
 end
 
 -- ==========================================
--- CAMPFIRE POSITION
+-- CAMPFIRE
 -- ==========================================
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
@@ -508,7 +496,7 @@ local function getCampfirePosition()
 end
 
 -- ==========================================
--- MOB SCANNER (DARI SOURCE VALID: Workspace.Characters)
+-- MOB SCANNER
 -- ==========================================
 local function getMobs()
     local mobs = {}
@@ -520,19 +508,17 @@ local function getMobs()
             end
         end
     else
-        -- Fallback
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and obj ~= LP.Character then
                 table.insert(mobs, obj)
             end
         end
     end
-    log("MOBS", "Found " .. #mobs .. " mobs")
     return mobs
 end
 
 -- ==========================================
--- ENGINE LOOPS (FIXED)
+-- ENGINE LOOPS
 -- ==========================================
 
 -- 1. Chop Aura + Auto Wood
@@ -543,16 +529,16 @@ task.spawn(function()
                 if not HRP then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
                 if not tool then return end
-                local damageID = getDamageID(getgenv().W424.SelectedTool)
+                
+                -- Auto-detect damage ID
+                local damageID = getDamageID(tool)
                 local radius = getgenv().W424.ChopAura and getgenv().W424.ChopRadius or getgenv().W424.WoodRadius
                 local trees = getFilteredTrees()
-                log("CHOP", "Scanning " .. #trees .. " trees, radius=" .. radius)
-
+                
                 for _, tree in ipairs(trees) do
                     if not (getgenv().W424.ChopAura or getgenv().W424.AutoWood) then break end
                     local part = getTreePart(tree)
                     if part and part:IsDescendantOf(Workspace) and (HRP.Position - part.Position).Magnitude <= radius then
-                        log("CHOP", "Attacking: " .. tree.Name .. " dist=" .. math.floor((HRP.Position - part.Position).Magnitude))
                         attackTarget(tree, tool, damageID)
                         task.wait(0.15)
                     end
@@ -570,11 +556,11 @@ task.spawn(function()
                 if not HRP then return end
                 local tool = equipTool(getgenv().W424.SelectedTool)
                 if not tool then return end
-                local damageID = getDamageID(getgenv().W424.SelectedTool)
+                
+                local damageID = getDamageID(tool)
                 local radius = getgenv().W424.KillAura and getgenv().W424.KillRadius or getgenv().W424.HuntRadius
                 local mobs = getMobs()
-                log("KILL", "Scanning " .. #mobs .. " mobs, radius=" .. radius)
-
+                
                 for _, mob in ipairs(mobs) do
                     if not (getgenv().W424.KillAura or getgenv().W424.AutoHunt) then break end
                     local humanoid = mob:FindFirstChildOfClass("Humanoid")
@@ -586,19 +572,18 @@ task.spawn(function()
                         if shouldAttack then
                             local part = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
                             if part and part:IsDescendantOf(Workspace) and (HRP.Position - part.Position).Magnitude <= radius then
-                                log("KILL", "Attacking: " .. mob.Name .. " dist=" .. math.floor((HRP.Position - part.Position).Magnitude))
                                 attackTarget(mob, tool, damageID)
                                 task.wait(0.15)
                             end
                         end
                     end
                 end
-            end)
+            end())
         end
     end
 end)
 
--- 3. Auto Claim Drops (FIXED)
+-- 3. Auto Claim Drops
 local claimedItems = {}
 task.spawn(function()
     while task.wait(0.6) do
@@ -606,12 +591,8 @@ task.spawn(function()
             pcall(function()
                 if not HRP then return end
                 local itemsFolder = getItemsFolder()
-                if not itemsFolder then
-                    log("CLAIM", "Items folder not found!")
-                    return
-                end
+                if not itemsFolder then return end
 
-                -- Cleanup blacklist
                 for item, _ in pairs(claimedItems) do
                     if not item or not item:IsDescendantOf(Workspace) then
                         claimedItems[item] = nil
@@ -624,7 +605,6 @@ task.spawn(function()
                             local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
                             if part and (HRP.Position - part.Position).Magnitude <= 50 then
                                 claimedItems[item] = true
-                                log("CLAIM", "Bringing: " .. item.Name)
                                 moveItemToPos(item, HRP.Position + Vector3.new(0, 1.5, 0))
                                 task.wait(0.15)
                             end
@@ -636,7 +616,7 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Bring Selected Item (FIXED)
+-- 4. Auto Bring Selected Item
 task.spawn(function()
     while task.wait(0.6) do
         if getgenv().W424.AutoBringSelected then
@@ -645,14 +625,12 @@ task.spawn(function()
                 local itemsFolder = getItemsFolder()
                 if not itemsFolder then return end
                 local targetItem = getgenv().W424.SelectedItem
-                log("BRING", "Looking for: " .. targetItem)
-
+                
                 for _, item in ipairs(itemsFolder:GetChildren()) do
                     if item:IsA("Model") and item:IsDescendantOf(Workspace) and not item.Name:lower():find("chest") then
                         if targetItem == "All" or item.Name == targetItem then
                             local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
                             if part and (HRP.Position - part.Position).Magnitude <= 80 then
-                                log("BRING", "Bringing: " .. item.Name .. " dist=" .. math.floor((HRP.Position - part.Position).Magnitude))
                                 moveItemToPos(item, HRP.Position + Vector3.new(0, 1.5, 0))
                                 task.wait(0.15)
                             end
@@ -664,22 +642,18 @@ task.spawn(function()
     end
 end)
 
--- 5. Auto Feed Campfire
+-- 5. Auto Feed
 task.spawn(function()
     while task.wait(1.2) do
         if getgenv().W424.AutoFeed then
             pcall(function()
-                if not Remotes.BurnItem then
-                    log("FEED", "BurnItem remote is NIL")
-                    return
-                end
+                if not Remotes.BurnItem then return end
                 local inv = LP:FindFirstChild("Inventory") or LP:FindFirstChild("Backpack")
                 if not inv then return end
                 local feedMat = getgenv().W424.FeedMaterial:lower()
                 for _, item in ipairs(inv:GetChildren()) do
                     if item.Name:lower():find(feedMat) then
                         Remotes.BurnItem:FireServer(item)
-                        log("FEED", "Burned: " .. item.Name)
                         task.wait(0.4)
                     end
                 end
@@ -702,7 +676,6 @@ task.spawn(function()
                     if item:IsA("Model") and item.Name:lower():find(cookMat) then
                         local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
                         if part and (HRP.Position - part.Position).Magnitude <= 60 then
-                            log("COOK", "Moving: " .. item.Name)
                             moveItemToPos(item, campfirePos + Vector3.new(0, 1, 0))
                             task.wait(0.2)
                         end
@@ -887,7 +860,6 @@ Tabs.Main:AddDropdown({
     Callback = function(v)
         getgenv().W424.SelectedTool = v
         cachedTool = nil
-        log("UI", "Selected: " .. v)
     end
 })
 
@@ -912,10 +884,7 @@ local chopSection = Tabs.Farm:AddCollapsibleSection("Chop Aura", false)
 chopSection:AddToggle({
     Title = "Enable Chop Aura",
     Default = false,
-    Callback = function(v)
-        getgenv().W424.ChopAura = v
-        log("UI", "ChopAura: " .. tostring(v))
-    end
+    Callback = function(v) getgenv().W424.ChopAura = v end
 })
 chopSection:AddInput({
     Title = "Chop Radius",
@@ -1193,7 +1162,7 @@ Tabs.Pos:AddButton({
 })
 
 -- ==========================================
--- BUBBLE TOGGLE BUTTON
+-- BUBBLE TOGGLE
 -- ==========================================
 local BubbleGui = Instance.new("ScreenGui")
 BubbleGui.Name = "W424_BubbleToggle"
@@ -1219,7 +1188,6 @@ local BubbleStroke = Instance.new("UIStroke", BubbleBtn)
 BubbleStroke.Color = Color3.fromRGB(100, 100, 100)
 BubbleStroke.Thickness = 2
 
--- Drag
 local dragging, dragInput, dragStart, startPos
 BubbleBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1245,7 +1213,6 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
--- Toggle UI
 local uiVisible = true
 BubbleBtn.MouseButton1Click:Connect(function()
     if dragging then return end
@@ -1275,6 +1242,5 @@ end)
 -- NOTIFICATION
 -- ==========================================
 task.wait(0.5)
-OrvionLib:Notify("W424 Ultimate", "v3 Loaded - Remotes Fixed", 5)
-log("INIT", "=== W424 Hub v3 Initialized ===")
-log("INIT", "Open console (F9) to see debug logs")
+OrvionLib:Notify("W424 Ultimate", "v4 - Remote Spy Fix Applied", 5)
+log("INIT", "v4 Loaded. Damage ID auto-detect active.")
