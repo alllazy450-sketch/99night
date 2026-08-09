@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (FIXED DAMAGE ID & BURN ITEM)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (DETAILED FIX & ESP)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -13,9 +13,14 @@ local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
 local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
-local RemoteBurn = RemoteEvents:FindFirstChild("RequestBurnItem")
 
 local ScriptRunning = true
+
+-- ==========================================
+-- KOORDINAT ABSOLUT (SANGAT PENTING UNTUK AUTO FEED)
+-- ==========================================
+local CAMPFIRE_POS = Vector3.new(0, 19, 0)
+local MACHINE_POS = Vector3.new(21, 16, -5)
 
 -- ==========================================
 -- HELPER FUNCTIONS
@@ -26,25 +31,35 @@ local function getRootPart()
     return char:FindFirstChild("HumanoidRootPart")
 end
 
-local function teleportItemSafe(item, targetPos)
+-- Pengecekan rekursif untuk item yang tidak punya PrimaryPart (Misal: Rifle, Revolver)
+local function findValidPart(obj)
+    if obj:IsA("BasePart") then return obj end
+    if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart end
+    for _, child in ipairs(obj:GetDescendants()) do
+        if child:IsA("BasePart") or child:IsA("MeshPart") then return child end
+    end
+    return nil
+end
+
+local function dragItemToPos(item, pos)
     if not item or not item.Parent then return end
+    local part = findValidPart(item)
+    if not part then return end
     
     pcall(function()
-        local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart") or item:FindFirstChild("Handle")
-        if not part then return end
-
         local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
         
         if dragStart then dragStart:FireServer(item) end
         task.wait(0.05) 
 
-        if item:IsA("Model") then
-            item:SetPrimaryPartCFrame(CFrame.new(targetPos))
+        if item:IsA("Model") and item.PrimaryPart then
+            item:SetPrimaryPartCFrame(CFrame.new(pos))
         else
-            part.CFrame = CFrame.new(targetPos)
+            part.CFrame = CFrame.new(pos)
         end
-
+        
+        task.wait(0.05)
         if dragStop then dragStop:FireServer(item) end
     end)
 end
@@ -75,10 +90,7 @@ bubble.Text = "W"
 bubble.TextColor3 = Color3.fromRGB(255, 255, 255)
 bubble.TextSize = 22
 bubble.AutoButtonColor = true
-
-local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(1, 0)
-uiCorner.Parent = bubble
+Instance.new("UICorner", bubble).CornerRadius = UDim.new(1, 0)
 
 local dragging, dragInput, dragStart, startPos
 bubble.InputBegan:Connect(function(input)
@@ -103,70 +115,51 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-local uiVisible = true
 bubble.MouseButton1Click:Connect(function()
-    uiVisible = not uiVisible
     if Window.MainFrame and Window.MainFrame.Parent then
-        Window.MainFrame.Visible = uiVisible
+        Window.MainFrame.Visible = not Window.MainFrame.Visible
     end
 end)
 
+-- ==========================================
+-- TAMBAH TAB
+-- ==========================================
 local Tabs = {
     Main    = Window:AddTab("Main Farm"),
     Combat  = Window:AddTab("Aura"),
     ItemTP  = Window:AddTab("Item TP"),
+    Visuals = Window:AddTab("Visuals (ESP)"),
     Player  = Window:AddTab("Player"),
 }
 
 -- ==========================================
--- AURA & COMBAT TAB (FIXED DAMAGE ID & STRENGTHENED)
+-- AURA & COMBAT TAB (FIXED CHOP & BRUTAL KILL)
 -- ==========================================
 local killAuraEnabled = false
 local treeAuraEnabled = false
 local auraRadius = 200
 
--- Perbaikan: ID Damage sekarang digabung dengan LocalPlayer.UserId agar server menganggap serangan ini sah.
 local toolIds = {
-    ["Old Axe"] = "1", 
-    ["Good Axe"] = "112",
-    ["Strong Axe"] = "116",
-    ["Chainsaw"] = "647",
-    ["Spear"] = "196"
+    ["Old Axe"] = "1", ["Good Axe"] = "112", ["Strong Axe"] = "116",
+    ["Chainsaw"] = "647", ["Spear"] = "196"
 }
 
 local function getAnyToolWithDamageID()
     for toolName, prefix in pairs(toolIds) do
         local tool = LocalPlayer.Inventory:FindFirstChild(toolName)
-        if tool then 
-            return tool, prefix .. "_" .. tostring(LocalPlayer.UserId)
-        end
+        if tool then return tool, prefix .. "_" .. tostring(LocalPlayer.UserId) end
     end
     return nil, nil
 end
 
-Tabs.Combat:AddToggle({
-    Title    = "Kill Aura (Mobs Only)",
-    Default  = false,
-    Callback = function(state) killAuraEnabled = state end
-})
+Tabs.Combat:AddToggle({ Title = "Kill Aura (Mobs Only)", Default = false, Callback = function(state) killAuraEnabled = state end })
+Tabs.Combat:AddToggle({ Title = "Aura Chop (Trees Only)", Default = false, Callback = function(state) treeAuraEnabled = state end })
+Tabs.Combat:AddInput({ Title = "Aura Radius", Default = "200", Placeholder = "Radius...", Callback = function(value)
+    local num = tonumber(value)
+    if num then auraRadius = num end
+end})
 
-Tabs.Combat:AddToggle({
-    Title    = "Aura Chop (Trees Only)",
-    Default  = false,
-    Callback = function(state) treeAuraEnabled = state end
-})
-
-Tabs.Combat:AddInput({
-    Title       = "Aura Radius",
-    Default     = "200",
-    Placeholder = "Enter radius...",
-    Callback    = function(value)
-        local num = tonumber(value)
-        if num then auraRadius = num end
-    end
-})
-
--- 1. LOOP KILL AURA (Diperkuat)
+-- 1. KILL AURA (Diperkuat)
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -178,29 +171,27 @@ task.spawn(function()
                 local characters = Workspace:FindFirstChild("Characters")
                 if characters then
                     for _, mob in ipairs(characters:GetChildren()) do
-                        if mob:IsA("Model") and mob.Parent then
-                            local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
-                            if mobHumanoid and mobHumanoid.Health > 0 then
-                                local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
-                                if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
-                                    -- Eksekusi damage dalam thread terpisah agar tidak delay
-                                    task.spawn(function()
-                                        pcall(function()
-                                            RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, part.CFrame)
-                                        end)
+                        local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
+                        local hum = mob:FindFirstChildOfClass("Humanoid")
+                        if mobHrp and hum and hum.Health > 0 then
+                            if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
+                                task.spawn(function()
+                                    pcall(function()
+                                        RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame)
                                     end)
-                                end
+                                end)
                             end
                         end
                     end
                 end
             end
         end
-        task.wait(0.1) -- Jeda dikurangi dari 0.2 menjadi 0.1 agar lebih mematikan
+        task.wait(0.05) -- Brutal speed
     end
 end)
 
--- 2. LOOP AURA CHOP (Diperbaiki Deteksi Objeknya)
+-- 2. AURA CHOP (Dilengkapi Anti-Error / Debounce)
+local treeDebounce = {}
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled then
@@ -213,16 +204,20 @@ task.spawn(function()
                 if map and map:FindFirstChild("Foliage") then
                     for _, obj in ipairs(map.Foliage:GetChildren()) do
                         if obj:IsA("Model") then
-                            local trunk = obj:FindFirstChild("Trunk") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            local trunk = obj:FindFirstChild("Trunk")
+                            -- Pastikan Trunk ada, dan beri jeda 0.5 detik per pohon untuk menghindari game error
                             if trunk and (trunk.Position - hrp.Position).Magnitude <= auraRadius then
-                                task.spawn(function()
-                                    pcall(function()
-                                        RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                            Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
-                                        })
-                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame)
+                                if not treeDebounce[obj] or tick() - treeDebounce[obj] > 0.5 then
+                                    treeDebounce[obj] = tick()
+                                    task.spawn(function()
+                                        pcall(function()
+                                            RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
+                                                Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
+                                            })
+                                            RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame)
+                                        end)
                                     end)
-                                end)
+                                end
                             end
                         end
                     end
@@ -234,24 +229,15 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- MAIN FARM TAB (FIXED CAMPFIRE FEED VIA REMOTE)
+-- MAIN FARM TAB (FIXED DRAG ITEM TO ABSOLUTE POS)
 -- ==========================================
 local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 
-Tabs.Main:AddToggle({
-    Title    = "Auto Eat (HP Based)",
-    Default  = false,
-    Callback = function(state) autoEatEnabled = state end
-})
-
-Tabs.Main:AddToggle({
-    Title    = "Auto Cook Raw Food",
-    Default  = false,
-    Callback = function(state) autoCookEnabled = state end
-})
+Tabs.Main:AddToggle({ Title = "Auto Eat (HP Based)", Default = false, Callback = function(state) autoEatEnabled = state end })
+Tabs.Main:AddToggle({ Title = "Auto Cook Raw Food", Default = false, Callback = function(state) autoCookEnabled = state end })
 
 local autoGrindItems = {}
 Tabs.Main:AddDropdown({
@@ -269,43 +255,17 @@ Tabs.Main:AddDropdown({
     Callback     = function(value) autoFuelItems[value] = not autoFuelItems[value] end
 })
 
--- Background Worker Auto Feed & Grind
+-- Memastikan item di-drag ke koordinat mutlak
 task.spawn(function()
     while ScriptRunning do
-        local map = Workspace:FindFirstChild("Map")
-        local campfireCenter = nil
-        if map and map:FindFirstChild("Campground") and map.Campground:FindFirstChild("MainFire") then
-            campfireCenter = map.Campground.MainFire:FindFirstChild("Center") or map.Campground.MainFire
-        end
-
-        local structures = Workspace:FindFirstChild("Structures")
-        local machinePos = nil
-        if structures and structures:FindFirstChild("Biofuel Processor") then
-            local part = structures["Biofuel Processor"]:FindFirstChildWhichIsA("BasePart")
-            if part then machinePos = part.Position + Vector3.new(0, 5, 0) end
-        else
-            machinePos = Vector3.new(21, 19, -5)
-        end
-        
         for _, item in ipairs(ItemsFolder:GetChildren()) do
             if item and item.Parent then
                 if autoGrindItems[item.Name] then
-                    teleportItemSafe(item, machinePos)
-                    task.wait(0.05)
+                    dragItemToPos(item, MACHINE_POS)
+                    task.wait(0.1)
                 elseif autoFuelItems[item.Name] or (autoCookEnabled and table.find(rawFoodsToCook, item.Name)) then
-                    -- PERBAIKAN: Gunakan RemoteBurnItem jika ada, atau teleport langsung ke Center
-                    if RemoteBurn then
-                        pcall(function()
-                            if RemoteBurn:IsA("RemoteEvent") then
-                                RemoteBurn:FireServer(item)
-                            elseif RemoteBurn:IsA("RemoteFunction") then
-                                RemoteBurn:InvokeServer(item)
-                            end
-                        end)
-                    elseif campfireCenter and campfireCenter:IsA("BasePart") then
-                        teleportItemSafe(item, campfireCenter.Position)
-                    end
-                    task.wait(0.05)
+                    dragItemToPos(item, CAMPFIRE_POS)
+                    task.wait(0.1)
                 end
             end
         end
@@ -313,7 +273,6 @@ task.spawn(function()
     end
 end)
 
--- Background Worker Auto Eat
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -336,7 +295,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (BRING TERKELOMPOK)
+-- ITEM TP TAB (FIXED RECURSIVE PART FINDER)
 -- ==========================================
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -365,14 +324,108 @@ for catName, listItems in pairs(itemCategories) do
             for _, item in ipairs(ItemsFolder:GetChildren()) do
                 if item.Name == selectedCatItem and item.Parent then
                     local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                    teleportItemSafe(item, targetPos)
+                    dragItemToPos(item, targetPos)
                     count = count + 1
                 end
             end
-            OrvionLib:Notify("Success", "Berhasil menarik " .. count .. " " .. selectedCatItem, 3)
+            OrvionLib:Notify("Success", "Ditarik: " .. count .. " " .. selectedCatItem, 3)
         end
     })
 end
+
+-- ==========================================
+-- VISUALS (ESP) TAB
+-- ==========================================
+local espMobsEnabled = false
+local espItemsEnabled = false
+local espFolder = Instance.new("Folder")
+espFolder.Name = "W424_ESP_Folder"
+espFolder.Parent = CoreGui
+
+local function createESP(instance, name, color)
+    local part = findValidPart(instance)
+    if not part then return end
+
+    local hl = Instance.new("Highlight")
+    hl.Adornee = instance
+    hl.FillColor = color
+    hl.OutlineColor = Color3.new(1, 1, 1)
+    hl.FillTransparency = 0.6
+    hl.OutlineTransparency = 0
+    hl.Parent = espFolder
+
+    local bg = Instance.new("BillboardGui")
+    bg.Adornee = part
+    bg.Size = UDim2.new(0, 150, 0, 30)
+    bg.AlwaysOnTop = true
+    bg.StudsOffset = Vector3.new(0, 3, 0)
+    bg.Parent = espFolder
+
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.TextColor3 = color
+    txt.TextStrokeTransparency = 0.2
+    txt.Font = Enum.Font.GothamBold
+    txt.TextScaled = true
+    txt.Parent = bg
+
+    -- Update jarak secara live
+    task.spawn(function()
+        while bg.Parent and instance.Parent do
+            local hrp = getRootPart()
+            if hrp then
+                local dist = math.floor((part.Position - hrp.Position).Magnitude)
+                txt.Text = string.format("%s [%dm]", name, dist)
+            end
+            task.wait(0.5)
+        end
+        hl:Destroy()
+        bg:Destroy()
+    end)
+end
+
+local function refreshESP()
+    espFolder:ClearAllChildren()
+    if espMobsEnabled then
+        local chars = Workspace:FindFirstChild("Characters")
+        if chars then
+            for _, mob in ipairs(chars:GetChildren()) do
+                createESP(mob, mob.Name, Color3.fromRGB(255, 50, 50))
+            end
+        end
+    end
+    if espItemsEnabled then
+        for _, item in ipairs(ItemsFolder:GetChildren()) do
+            createESP(item, item.Name, Color3.fromRGB(50, 255, 50))
+        end
+    end
+end
+
+Tabs.Visuals:AddToggle({
+    Title    = "ESP Mobs (Wolf, Bear, Cultist, dll)",
+    Default  = false,
+    Callback = function(state)
+        espMobsEnabled = state
+        refreshESP()
+    end
+})
+
+Tabs.Visuals:AddToggle({
+    Title    = "ESP Items",
+    Default  = false,
+    Callback = function(state)
+        espItemsEnabled = state
+        refreshESP()
+    end
+})
+
+task.spawn(function()
+    while ScriptRunning do
+        if espMobsEnabled or espItemsEnabled then refreshESP() end
+        task.wait(5) -- Refresh struktur item baru tiap 5 detik
+    end
+end)
 
 -- ==========================================
 -- PLAYER TAB
@@ -389,4 +442,4 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script updated with Fixed Damage IDs & Burn Remote!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: Advanced ESP & Recursive TP Fixed!", 3)
