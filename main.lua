@@ -19,9 +19,6 @@ local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
 
--- ==========================================
--- HELPER FUNCTIONS
--- ==========================================
 local function getRootPart()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -37,62 +34,36 @@ local function findValidPart(obj)
     return nil
 end
 
--- ==========================================
--- TELEPORT ITEM DENGAN RETRY (TANPA REMOTE BARU)
--- ==========================================
-local function teleportItemToPos(item, targetPos, maxRetries)
-    maxRetries = maxRetries or 3
-    if not item or not item:IsDescendantOf(workspace) then return false end
-    
+local function dragItemToPos(item, pos)
+    if not item or not item:IsDescendantOf(workspace) then return end
     local part = findValidPart(item)
-    if not part then return false end
+    if not part then return end
+    
+    pcall(function()
+        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
+        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+        
+        if dragStart then dragStart:FireServer(item) end
+        task.wait(0.05) 
 
-    local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
-    local dragStop  = RemoteEvents:FindFirstChild("StopDraggingItem")
+        if not item:IsDescendantOf(workspace) then return end 
 
-    for attempt = 1, maxRetries do
-        if not item:IsDescendantOf(workspace) then break end
-
-        -- Mulai drag
-        if dragStart then
-            pcall(function() dragStart:FireServer(item) end)
-        end
-
-        task.wait(0.05)
-
-        -- Pindahkan posisi
         if item:IsA("Model") and item.PrimaryPart then
-            item:SetPrimaryPartCFrame(CFrame.new(targetPos))
+            item:SetPrimaryPartCFrame(CFrame.new(pos))
         else
-            part.CFrame = CFrame.new(targetPos)
+            part.CFrame = CFrame.new(pos)
         end
-
+        
         task.wait(0.05)
-
-        -- Stop drag
-        if dragStop then
-            pcall(function() dragStop:FireServer(item) end)
-        end
-
-        -- Verifikasi posisi
-        task.wait(0.1)
-        local currentPos = (item:IsA("Model") and item.PrimaryPart) and item.PrimaryPart.Position or part.Position
-        if (currentPos - targetPos).Magnitude < 2 then
-            return true
-        end
-    end
-    return false
+        if dragStop then dragStop:FireServer(item) end
+    end)
 end
 
--- ==========================================
--- BUILD GUI
--- ==========================================
 local Window = OrvionLib:CreateWindow({
     Title = "W424 Hub | 99 Nights",
     Icon  = ""
 })
 
--- Toggle Bubble (like before)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "W424_ToggleBubble"
 screenGui.Parent = CoreGui
@@ -158,9 +129,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- ==========================================
--- TABS
--- ==========================================
 local Tabs = {
     Main    = Window:AddTab("Main Farm"),
     Combat  = Window:AddTab("Aura"),
@@ -169,9 +137,6 @@ local Tabs = {
     Player  = Window:AddTab("Player"),
 }
 
--- ==========================================
--- COMBAT / AURA
--- ==========================================
 local killAuraEnabled = false
 local treeAuraEnabled = false
 local auraRadius = 200
@@ -191,12 +156,12 @@ end
 
 Tabs.Combat:AddToggle({ Title = "Kill Aura (Mobs Only)", Default = false, Callback = function(state) killAuraEnabled = state end })
 Tabs.Combat:AddToggle({ Title = "Aura Chop (Trees Only)", Default = false, Callback = function(state) treeAuraEnabled = state end })
+
 Tabs.Combat:AddInput({ Title = "Aura Radius (Angka)", Default = "200", Placeholder = "Ketik radius...", Callback = function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end})
 
--- Kill Aura Loop
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -227,8 +192,8 @@ task.spawn(function()
     end
 end)
 
--- Tree Aura Loop
 local choppedTrees = setmetatable({}, {__mode = "k"})
+
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled then
@@ -245,6 +210,7 @@ task.spawn(function()
                             if trunk and trunk:IsA("BasePart") then
                                 if (trunk.Position - hrp.Position).Magnitude <= auraRadius then
                                     choppedTrees[obj] = tick()
+                                    
                                     task.spawn(function()
                                         pcall(function()
                                             if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
@@ -255,6 +221,7 @@ task.spawn(function()
                                             end
                                         end)
                                     end)
+                                    
                                     task.delay(1.5, function() choppedTrees[obj] = nil end)
                                 end
                             end
@@ -267,9 +234,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AUTO EAT / COOK
--- ==========================================
 local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple", "Cake"}
@@ -278,9 +242,6 @@ local rawFoodsToCook = {"Morsel", "Steak"}
 Tabs.Main:AddToggle({ Title = "Auto Eat (HP Based)", Default = false, Callback = function(state) autoEatEnabled = state end })
 Tabs.Main:AddToggle({ Title = "Auto Cook Raw Food", Default = false, Callback = function(state) autoCookEnabled = state end })
 
--- ==========================================
--- AUTO GRIND & FUEL (menggunakan teleportItemToPos)
--- ==========================================
 local autoGrindItems = {}
 Tabs.Main:AddDropdown({
     Title        = "Auto Machine Grind",
@@ -297,16 +258,15 @@ Tabs.Main:AddDropdown({
     Callback     = function(value) autoFuelItems[value] = not autoFuelItems[value] end
 })
 
--- Loop untuk auto grind, cook, dan fuel (menggunakan teleportItemToPos)
 task.spawn(function()
     while ScriptRunning do
         for _, item in ipairs(ItemsFolder:GetChildren()) do
             if item and item:IsDescendantOf(workspace) then
                 if autoGrindItems[item.Name] then
-                    teleportItemToPos(item, MACHINE_POS)
+                    dragItemToPos(item, MACHINE_POS)
                     task.wait(0.1)
                 elseif autoFuelItems[item.Name] or (autoCookEnabled and table.find(rawFoodsToCook, item.Name)) then
-                    teleportItemToPos(item, CAMPFIRE_POS)
+                    dragItemToPos(item, CAMPFIRE_POS)
                     task.wait(0.1)
                 end
             end
@@ -315,7 +275,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Eat Loop
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -338,7 +297,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (SPECIFIC ITEMS + CONTINUOUS BRING)
+-- ITEM TP TAB (DENGAN PILIHAN SPESIFIK & AUTO BRING / DETEKSI SPAWN TERUS-MENERUS)
 -- ==========================================
 local specificBringItems = {"Berry", "Carrot", "Cake", "Bandage", "MedKit", "Pistol", "Revolver"}
 local selectedBringItem = specificBringItems[1]
@@ -367,7 +326,7 @@ Tabs.ItemTP:AddButton({
         for _, item in ipairs(ItemsFolder:GetDescendants()) do
             if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                 local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                teleportItemToPos(item, targetPos)
+                dragItemToPos(item, targetPos)
                 count = count + 1
             end
         end
@@ -375,7 +334,7 @@ Tabs.ItemTP:AddButton({
     end
 })
 
--- Continuous Bring Loop (pakai teleportItemToPos)
+-- Background Worker untuk mendeteksi item spawn baru secara terus-menerus jika toggle aktif
 task.spawn(function()
     while ScriptRunning do
         if continuousBringEnabled then
@@ -385,20 +344,17 @@ task.spawn(function()
                 for _, item in ipairs(ItemsFolder:GetDescendants()) do
                     if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                         local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                        teleportItemToPos(item, targetPos, 3)
+                        dragItemToPos(item, targetPos)
                         count = count + 1
-                        task.wait(0.05)
+                        task.wait(0.1)
                     end
                 end
             end
         end
-        task.wait(1) -- cek setiap 1 detik
+        task.wait(1.5) -- Cek spawn baru setiap 1.5 detik
     end
 end)
 
--- ==========================================
--- VISUALS (ESP)
--- ==========================================
 local espMobsEnabled = false
 local espItemsEnabled = false
 local espFolder = Instance.new("Folder")
@@ -474,9 +430,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- PLAYER TAB (WALKSPEED)
--- ==========================================
 Tabs.Player:AddInput({
     Title       = "WalkSpeed (Angka)",
     Default     = "16",
@@ -489,17 +442,4 @@ Tabs.Player:AddInput({
     end
 })
 
--- ==========================================
--- NOTIFICATION STARTUP
--- ==========================================
-OrvionLib:Notify("W424 Hub", "Script Loaded: Fully Fixed with Strong Teleport!", 3)
-
--- ==========================================
--- CLEANUP (jika script di-stop)
--- ==========================================
-local function onStop()
-    ScriptRunning = false
-    -- Optional: destroy GUI elements
-end
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(onStop)
-game:BindToClose(onStop)
+OrvionLib:Notify("W424 Hub", "Script Loaded: Continuous Bring & Specific Items Added!", 3)
