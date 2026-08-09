@@ -1,5 +1,6 @@
+
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (DEATHMODEL FIX & BROAD BRING)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (THE JACKPOT FOLIAGE FIX)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -31,7 +32,6 @@ local function getRootPart()
     return char:FindFirstChild("HumanoidRootPart")
 end
 
--- Pencarian BasePart secara rekursif hingga ke akar objek
 local function findValidPart(obj)
     if obj:IsA("BasePart") then return obj end
     if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart end
@@ -182,7 +182,7 @@ Tabs.Combat:AddInput({ Title = "Aura Radius (Angka)", Default = "200", Placehold
     if num then auraRadius = num end
 end})
 
--- 1. KILL AURA (Lebih Brutal & Cepat)
+-- 1. KILL AURA (Mobs)
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -200,7 +200,6 @@ task.spawn(function()
                             if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
                                 task.spawn(function()
                                     pcall(function()
-                                        -- Damage langsung tanpa jeda panjang
                                         RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame)
                                     end)
                                 end)
@@ -214,8 +213,10 @@ task.spawn(function()
     end
 end)
 
--- 2. AURA CHOP (DeathModels Crash Fix)
-local choppedTrees = {}
+-- 2. AURA CHOP (JACKPOT FIX - FOLIAGE PARENT CHECK & WEAK TABLE)
+-- Menggunakan weak table agar memori otomatis dibersihkan oleh garbage collector saat pohon hancur
+local choppedTrees = setmetatable({}, {__mode = "k"})
+
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled then
@@ -227,31 +228,34 @@ task.spawn(function()
                 local map = Workspace:FindFirstChild("Map")
                 if map and map:FindFirstChild("Foliage") then
                     for _, obj in ipairs(map.Foliage:GetChildren()) do
-                        if obj:IsA("Model") and not choppedTrees[obj] then
+                        -- JACKPOT: Pastikan pohon MASIH ADA di dalam folder map.Foliage.
+                        -- Jika sedang tumbang/mati, game memindahkannya ke Workspace sehingga script akan otomatis mengabaikannya.
+                        if obj:IsA("Model") and obj.Parent == map.Foliage then
                             local trunk = obj:FindFirstChild("Trunk")
-                            -- Pengecekan ekstra: Pastikan Trunk itu nyata dan bukan sisa-sisa DeathModel
                             if trunk and trunk:IsA("BasePart") and (trunk.Position - hrp.Position).Magnitude <= auraRadius then
-                                choppedTrees[obj] = true 
                                 
-                                task.spawn(function()
-                                    pcall(function()
-                                        RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                            Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
-                                        })
-                                        -- Menggunakan argument kelima (true) sesuai remote game
-                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
+                                -- Beri delay natural (0.6 detik) per pohon untuk meniru ayunan kapak asli 
+                                -- dan mencegah 'ghost hits' menumpuk di server
+                                if not choppedTrees[obj] or (tick() - choppedTrees[obj] > 0.6) then
+                                    choppedTrees[obj] = tick()
+                                    
+                                    task.spawn(function()
+                                        pcall(function()
+                                            RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
+                                                Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
+                                            })
+                                            RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
+                                        end)
                                     end)
-                                end)
+                                end
                                 
-                                -- Jeda 1.5 detik agar Tree Animation punya waktu untuk berjalan sebelum di-spam lagi
-                                task.delay(1.5, function() choppedTrees[obj] = nil end)
                             end
                         end
                     end
                 end
             end
         end
-        task.wait(0.2)
+        task.wait(0.1)
     end
 end)
 
@@ -321,7 +325,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (DETEKSI DIPERLUAS MENGGUNAKAN GETDESCENDANTS)
+-- ITEM TP TAB 
 -- ==========================================
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -347,9 +351,7 @@ for catName, listItems in pairs(itemCategories) do
             local hrp = getRootPart()
             if not hrp then return end
             
-            -- PENGGUNAAN GETDESCENDANTS(): Mencari hingga ke sub-folder tanpa batas
             for _, item in ipairs(ItemsFolder:GetDescendants()) do
-                -- Memastikan objek adalah Model atau Tool, bukan sekadar nama part sembarangan
                 if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                     local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
                     dragItemToPos(item, targetPos)
@@ -454,4 +456,4 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script Loaded: DeathModel Crashes Fixed!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: FOLIAGE JACKPOT FIX APPLIED!", 3)
