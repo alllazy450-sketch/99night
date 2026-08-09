@@ -1,7 +1,91 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (IMPROVED)
+-- W424 - 99 NIGHTS (ROBUST LOAD + ANTI-FREEZE)
 -- ==========================================
-local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
+
+-- ==========================================
+-- ROBUST LIBRARY LOADER (3 Method Fallback)
+-- ==========================================
+local OrvionLib
+local loadError = ""
+
+-- Method 1: game:HttpGet (PC Executor)
+local s1, r1 = pcall(function()
+    return game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua", true)
+end)
+if s1 and r1 and #r1 > 500 then
+    local s2, r2 = pcall(function() return loadstring(r1)() end)
+    if s2 and r2 then OrvionLib = r2 end
+end
+
+-- Method 2: request() (Mobile Executor: Delta, Codex, etc)
+if not OrvionLib and request then
+    local s3, r3 = pcall(function()
+        local res = request({
+            Url = "https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua",
+            Method = "GET",
+            Headers = {["User-Agent"] = "Mozilla/5.0"}
+        })
+        return res and res.Body
+    end)
+    if s3 and r3 and #r3 > 500 then
+        local s4, r4 = pcall(function() return loadstring(r3)() end)
+        if s4 and r4 then OrvionLib = r4 end
+    end
+end
+
+-- Method 3: http_request (Alternative mobile)
+if not OrvionLib and http_request then
+    local s5, r5 = pcall(function()
+        local res = http_request({
+            Url = "https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua",
+            Method = "GET",
+            Headers = {["User-Agent"] = "Mozilla/5.0"}
+        })
+        return res and res.Body
+    end)
+    if s5 and r5 and #r5 > 500 then
+        local s6, r6 = pcall(function() return loadstring(r5)() end)
+        if s6 and r6 then OrvionLib = r6 end
+    end
+end
+
+-- Jika masih gagal, beri error yang jelas
+if not OrvionLib then
+    local msg = [[
+    =========================================
+    ❌ ORVIONLIB GAGAL DI-LOAD!
+    =========================================
+    Penyebab umum:
+    • Executor mobile sering blok GitHub Raw
+    • Koneksi internet terbatas
+    • URL library sudah tidak valid
+    
+    Solusi:
+    1. Coba pakai executor PC (KRNL, Synapse, Fluxus)
+    2. Atau load library manual via Pastebin/Alternative URL
+    3. Atau gunakan VPN jika GitHub diblok
+    =========================================]]
+    warn(msg)
+    
+    -- Tampilkan di game juga
+    local sg = Instance.new("ScreenGui")
+    sg.Parent = game:GetService("CoreGui")
+    local tl = Instance.new("TextLabel")
+    tl.Parent = sg
+    tl.Size = UDim2.new(0, 400, 0, 200)
+    tl.Position = UDim2.new(0.5, -200, 0.5, -100)
+    tl.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+    tl.TextColor3 = Color3.fromRGB(255, 100, 100)
+    tl.TextWrapped = true
+    tl.Text = "❌ ORVIONLIB GAGAL LOAD!\n\nCek console (F9) untuk detail.\n\nSolusi:\n• Pakai executor PC\n• Atau load library manual\n• Atau gunakan VPN"
+    tl.TextSize = 18
+    Instance.new("UICorner", tl)
+    return -- STOP script
+end
+
+-- ==========================================
+-- SERVICES & VARIABLES
+-- ==========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -66,19 +150,15 @@ end
 -- ==========================================
 local function setItemPosition(item, targetPos)
     if not item or not item:IsDescendantOf(workspace) then return false end
-    
     local success = false
-    
     pcall(function()
         if item:IsA("BasePart") or item:IsA("MeshPart") then
             item.AssemblyLinearVelocity = Vector3.zero
             item.AssemblyAngularVelocity = Vector3.zero
             item.CFrame = CFrame.new(targetPos)
             success = true
-            
         elseif item:IsA("Model") then
             item:PivotTo(CFrame.new(targetPos))
-            
             for _, part in ipairs(item:GetDescendants()) do
                 if part:IsA("BasePart") or part:IsA("MeshPart") then
                     part.AssemblyLinearVelocity = Vector3.zero
@@ -88,7 +168,6 @@ local function setItemPosition(item, targetPos)
             success = true
         end
     end)
-    
     return success
 end
 
@@ -100,14 +179,12 @@ local lastProcessed = {}
 
 local function dragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
-    
     local itemId = tostring(item)
     local currentTime = tick()
     
     if lastProcessed[itemId] and (currentTime - lastProcessed[itemId]) < PROCESS_COOLDOWN then
         return false
     end
-    
     if processingItems[itemId] then return false end
     processingItems[itemId] = true
     
@@ -132,20 +209,13 @@ local function dragItemToPos(item, pos)
     
     for attempt = 1, RETRY_ATTEMPTS do
         if not item:IsDescendantOf(workspace) then break end
-        
         pcall(function()
-            if dragStart then 
-                dragStart:FireServer(item) 
-            end
+            if dragStart then dragStart:FireServer(item) end
             task.wait(TELEPORT_DELAY)
-            
             if not item:IsDescendantOf(workspace) then return end
-            
             setItemPosition(item, pos)
             task.wait(TELEPORT_DELAY)
-            
             if not item:IsDescendantOf(workspace) then return end
-            
             local newPos = getItemPosition(item)
             if newPos then
                 local distToTarget = (newPos - pos).Magnitude
@@ -156,20 +226,15 @@ local function dragItemToPos(item, pos)
                     task.wait(TELEPORT_DELAY)
                 end
             end
-            
-            if dragStop then 
-                dragStop:FireServer(item) 
-            end
+            if dragStop then dragStop:FireServer(item) end
             task.wait(0.1)
         end)
-        
         if success then break end
         task.wait(0.2)
     end
     
     lastProcessed[itemId] = tick()
     processingItems[itemId] = nil
-    
     return success
 end
 
@@ -211,13 +276,11 @@ bubble.InputBegan:Connect(function(input)
         dragStart = input.Position
         startPos = bubble.Position
         dragStartPos = input.Position
-        
         local connection
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
                 connection:Disconnect()
-                
                 if (input.Position - dragStartPos).Magnitude < 5 then
                     uiVisible = not uiVisible
                     for _, gui in ipairs(CoreGui:GetChildren()) do
@@ -287,7 +350,6 @@ task.spawn(function()
         if killAuraEnabled then
             local hrp = getRootPart()
             local tool, damageID = getAnyToolWithDamageID()
-            
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 local characters = Workspace:FindFirstChild("Characters")
@@ -322,7 +384,6 @@ task.spawn(function()
         if treeAuraEnabled then
             local hrp = getRootPart()
             local tool, damageID = getAnyToolWithDamageID()
-            
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 local map = Workspace:FindFirstChild("Map")
@@ -333,10 +394,8 @@ task.spawn(function()
                             if trunk and trunk:IsA("BasePart") then
                                 if (trunk.Position - hrp.Position).Magnitude <= auraRadius then
                                     choppedTrees[obj] = tick()
-                                    
                                     task.spawn(function()
                                         pcall(function()
-                                            -- Double-check sebelum InvokeServer
                                             if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
                                                 RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
                                                     Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), 
@@ -346,7 +405,6 @@ task.spawn(function()
                                             end
                                         end)
                                     end)
-                                    
                                     task.delay(1.5, function() choppedTrees[obj] = nil end)
                                 end
                             end
@@ -394,26 +452,19 @@ task.spawn(function()
         local hrp = getRootPart()
         if hrp then
             local items = ItemsFolder:GetChildren()
-            
             for _, item in ipairs(items) do
                 if not item or not item:IsDescendantOf(workspace) then continue end
-                
                 local shouldGrind = autoGrindItems[item.Name]
                 local shouldFuel = autoFuelItems[item.Name]
                 local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
-                
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
-                    
                     local itemPos = getItemPosition(item)
                     if itemPos then
                         local dist = (itemPos - hrp.Position).Magnitude
-                        
                         if dist <= MAX_GRIND_DISTANCE then
                             local ok = dragItemToPos(item, targetPos)
-                            if ok then
-                                task.wait(0.3)
-                            end
+                            if ok then task.wait(0.3) end
                         end
                     end
                 end
@@ -459,21 +510,18 @@ local itemCategories = {
 
 for catName, listItems in pairs(itemCategories) do
     local selectedCatItem = listItems[1]
-    
     Tabs.ItemTP:AddDropdown({
         Title        = "Bring: " .. catName:gsub("_", " "),
         Values       = listItems,
         DefaultValue = listItems[1],
         Callback     = function(value) selectedCatItem = value end
     })
-    
     Tabs.ItemTP:AddButton({
         Title    = "Execute Bring (" .. catName:gsub("_", " ") .. ")",
         Callback = function()
             local count = 0
             local hrp = getRootPart()
             if not hrp then return end
-            
             for _, item in ipairs(ItemsFolder:GetDescendants()) do
                 if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                     local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
@@ -498,7 +546,6 @@ espFolder.Parent = CoreGui
 local function createESP(instance, name, color)
     local part = findValidPart(instance)
     if not part then return end
-
     local hl = Instance.new("Highlight")
     hl.Adornee = instance
     hl.FillColor = color
@@ -506,14 +553,12 @@ local function createESP(instance, name, color)
     hl.FillTransparency = 0.6
     hl.OutlineTransparency = 0
     hl.Parent = espFolder
-
     local bg = Instance.new("BillboardGui")
     bg.Adornee = part
     bg.Size = UDim2.new(0, 150, 0, 30)
     bg.AlwaysOnTop = true
     bg.StudsOffset = Vector3.new(0, 3, 0)
     bg.Parent = espFolder
-
     local txt = Instance.new("TextLabel")
     txt.Size = UDim2.new(1, 0, 1, 0)
     txt.BackgroundTransparency = 1
@@ -522,7 +567,6 @@ local function createESP(instance, name, color)
     txt.Font = Enum.Font.GothamBold
     txt.TextScaled = true
     txt.Parent = bg
-
     task.spawn(function()
         while bg.Parent and instance.Parent do
             local hrp = getRootPart()
