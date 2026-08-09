@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (SEPARATED SYSTEMS)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (SEPARATED SYSTEMS & IMPROVED CATEGORIES)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -12,7 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
-local RemoteConsume = ReplicatedStorage:FindFirstChild("RequestConsumeItem")
+local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
 
@@ -157,7 +157,7 @@ local Tabs = {
 }
 
 -- ==========================================
--- AURA & COMBAT TAB (DIPISAH ANTARA KILL & CHOP)
+-- AURA & COMBAT TAB (DIPISAH TOTAL)
 -- ==========================================
 local killAuraEnabled = false
 local treeAuraEnabled = false
@@ -205,7 +205,7 @@ Tabs.Combat:AddInput({
     end
 })
 
--- 1. LOOP KHUSUS KILL AURA (Murni untuk Mobs)
+-- 1. LOOP KILL AURA MURNI (Hanya mendeteksi dan menyerang Mobs)
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -237,7 +237,7 @@ task.spawn(function()
     end
 end)
 
--- 2. LOOP KHUSUS AURA CHOP (Murni untuk Pohon/Foliage)
+-- 2. LOOP AURA CHOP MURNI (Hanya mendeteksi dan menebang Workspace.Map.Foliage)
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled then
@@ -248,9 +248,8 @@ task.spawn(function()
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 
                 local map = Workspace:FindFirstChild("Map")
-                if map then
-                    local foliage = map:FindFirstChild("Foliage") or map
-                    for _, obj in ipairs(foliage:GetDescendants()) do
+                if map and map:FindFirstChild("Foliage") then
+                    for _, obj in ipairs(map.Foliage:GetDescendants()) do
                         if obj:IsA("Model") and obj.Parent then
                             local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                             if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
@@ -273,16 +272,26 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- MAIN FARM TAB (FIXED AUTO GRIND & FEED)
+-- MAIN FARM TAB (FIXED AUTO GRIND, FEED & AUTO COOK)
 -- ==========================================
 local autoEatEnabled = false
+local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
+local rawFoodsToCook = {"Morsel", "Steak"}
 
 Tabs.Main:AddToggle({
     Title    = "Auto Eat (HP Based)",
     Default  = false,
     Callback = function(state)
         autoEatEnabled = state
+    end
+})
+
+Tabs.Main:AddToggle({
+    Title    = "Auto Cook Raw Food",
+    Default  = false,
+    Callback = function(state)
+        autoCookEnabled = state
     end
 })
 
@@ -306,7 +315,7 @@ Tabs.Main:AddDropdown({
     end
 })
 
--- Memperbaiki loop Auto Grind dan Feed agar benar-benar merespons data tabel
+-- Background Worker untuk Auto Grind, Auto Feed, dan Auto Cook
 task.spawn(function()
     while ScriptRunning do
         local machinePos = getMachinePosition()
@@ -316,14 +325,17 @@ task.spawn(function()
             if item and item.Parent then
                 if autoGrindItems[item.Name] then
                     teleportItemSafe(item, machinePos)
-                    task.wait(0.1)
+                    task.wait(0.05)
                 elseif autoFuelItems[item.Name] then
                     teleportItemSafe(item, firePos)
-                    task.wait(0.1)
+                    task.wait(0.05)
+                elseif autoCookEnabled and table.find(rawFoodsToCook, item.Name) then
+                    teleportItemSafe(item, firePos)
+                    task.wait(0.05)
                 end
             end
         end
-        task.wait(1)
+        task.wait(1.5)
     end
 end)
 
@@ -349,12 +361,13 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (BRING DIKELOMPOKKAN)
+-- ITEM TP TAB (BRING TERKELOMPOK & DITAMBAH ITEM WIKI)
 -- ==========================================
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
     Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave"},
-    Equipment_Weapons = {"Rifle", "Revolver", "Rifle Ammo", "Revolver Ammo", "Chainsaw", "Old Flashlight", "MedKit", "Bandage"}
+    Equipment_Weapons = {"Rifle", "Revolver", "Rifle Ammo", "Revolver Ammo", "Chainsaw", "Old Flashlight", "MedKit", "Bandage"},
+    Food_Consumables = {"Berry", "Carrot", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs", "Cake"}
 }
 
 for catName, listItems in pairs(itemCategories) do
@@ -406,4 +419,4 @@ Tabs.Player:AddInput({
 -- ==========================================
 -- NOTIFIKASI LOADED
 -- ==========================================
-OrvionLib:Notify("W424 Hub", "Script loaded with separated Aura & Categorized Bring!", 3)
+OrvionLib:Notify("W424 Hub", "Script updated with Separated Auras, Auto Cook, & Wiki Foods!", 3)
