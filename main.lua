@@ -1,7 +1,7 @@
 -- =============================================
 -- W424 - 99 NIGHTS ULTIMATE SCRIPT
 -- All-in-one cheat for 99 Nights in the Forest
--- UI: Rayfield (Fluent)
+-- UI: Rayfield
 -- Features: Kill Aura (BRUTAL), ESP, Teleport, Auto Farm, Player Mods, etc.
 -- =============================================
 
@@ -104,35 +104,36 @@ local function getMachinePosition()
 end
 
 -- Update dynamic positions
-campfireDropPos = getCampfirePosition()
-machineDropPos = getMachinePosition()
+local campfireDropPos = getCampfirePosition()
+local machineDropPos = getMachinePosition()
 
 -- =============================================
 -- 3. CREATE UI WINDOW
 -- =============================================
 local Window = Rayfield:CreateWindow({
     Name = "W424 - 99 Nights",
-    SubTitle = "All-in-one | by W424",
-    Theme = "Dark",
-    Acrylic = false,
-    Resize = true,
-    Size = UDim2.fromOffset(700, 500),
-    TabWidth = 160,
-    MinimizeKey = Enum.KeyCode.RightControl,
-    MinSize = Vector2.new(470, 380),
+    LoadingTitle = "All-in-one | by W424",
+    LoadingSubtitle = "W424 Hub",
+    Theme = "DarkBlue",
+    ConfigurationSaving = {
+        Enabled = false,
+        FolderName = "W424",
+        FileName = "99Nights"
+    },
+    KeySystem = false
 })
 
 -- =============================================
 -- 4. TABS
 -- =============================================
-local MainTab = Window:CreateTab({ Title = "Main", Icon = "phosphor-hammer-bold" })
-local ESPTab = Window:CreateTab({ Title = "ESP", Icon = "phosphor-eye-bold" })
-local ItemTPTab = Window:CreateTab({ Title = "Item TP", Icon = "phosphor-package-bold" })
-local GameTPTab = Window:CreateTab({ Title = "Game TP", Icon = "phosphor-map-pin-bold" })
-local MobTPTab = Window:CreateTab({ Title = "Mob TP", Icon = "phosphor-robot" })
-local PlayerTab = Window:CreateTab({ Title = "Player", Icon = "phosphor-user-bold" })
-local VisualTab = Window:CreateTab({ Title = "Visuals", Icon = "phosphor-palette" })
-local MiscTab = Window:CreateTab({ Title = "Misc", Icon = "phosphor-cube" })
+local MainTab = Window:CreateTab("Main", 4483345998)
+local ESPTab = Window:CreateTab("ESP", 4483345998)
+local ItemTPTab = Window:CreateTab("Item TP", 4483345998)
+local GameTPTab = Window:CreateTab("Game TP", 4483345998)
+local MobTPTab = Window:CreateTab("Mob TP", 4483345998)
+local PlayerTab = Window:CreateTab("Player", 4483345998)
+local VisualTab = Window:CreateTab("Visuals", 4483345998)
+local MiscTab = Window:CreateTab("Misc", 4483345998)
 
 -- =============================================
 -- 5. MAIN TAB - Kill Aura (BRUTAL)
@@ -170,14 +171,6 @@ local function equipTool(tool)
     end
 end
 
-local function unequipTool(tool)
-    if tool then
-        pcall(function()
-            RemoteEvents.UnequipItemHandle:FireServer("FireAllClients", tool)
-        end)
-    end
-end
-
 local function startKillAura()
     if killAuraConnection then return end
     killAuraConnection = RunService.Heartbeat:Connect(function()
@@ -197,8 +190,8 @@ local function startKillAura()
         if characters then
             for _, mob in ipairs(characters:GetChildren()) do
                 if mob:IsA("Model") then
-                    local humanoid = mob:FindFirstChildOfClass("Humanoid")
-                    if humanoid and humanoid.Health > 0 then
+                    local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
+                    if mobHumanoid and mobHumanoid.Health > 0 then
                         local part = mob:FindFirstChildWhichIsA("BasePart")
                         if part and (part.Position - hrp.Position).Magnitude <= killAuraRadius then
                             pcall(function()
@@ -307,12 +300,16 @@ MainTab:CreateToggle({
 local alwaysFeedEnabledItems = {}
 MainTab:CreateDropdown({
     Name = "Auto Feed Campfire (Always)",
-    Values = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
-    Multi = true,
-    Default = {},
+    Options = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
+    MultipleOptions = true,
+    CurrentOption = {},
     Flag = "AlwaysFeed",
     Callback = function(Value)
-        alwaysFeedEnabledItems = Value
+        -- Convert table from Rayfield to workable dictionary
+        alwaysFeedEnabledItems = {}
+        for _, item in ipairs(Value) do
+            alwaysFeedEnabledItems[item] = true
+        end
     end
 })
 
@@ -320,12 +317,15 @@ MainTab:CreateDropdown({
 local autoFuelEnabledItems = {}
 MainTab:CreateDropdown({
     Name = "Auto Feed Campfire (HP based)",
-    Values = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
-    Multi = true,
-    Default = {},
+    Options = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
+    MultipleOptions = true,
+    CurrentOption = {},
     Flag = "HPFeed",
     Callback = function(Value)
-        autoFuelEnabledItems = Value
+        autoFuelEnabledItems = {}
+        for _, item in ipairs(Value) do
+            autoFuelEnabledItems[item] = true
+        end
     end
 })
 
@@ -333,12 +333,15 @@ MainTab:CreateDropdown({
 local autoCookEnabledItems = {}
 MainTab:CreateDropdown({
     Name = "Auto Cook Food",
-    Values = {"Morsel", "Steak"},
-    Multi = true,
-    Default = {},
+    Options = {"Morsel", "Steak"},
+    MultipleOptions = true,
+    CurrentOption = {},
     Flag = "AutoCook",
     Callback = function(Value)
-        autoCookEnabledItems = Value
+        autoCookEnabledItems = {}
+        for _, item in ipairs(Value) do
+            autoCookEnabledItems[item] = true
+        end
     end
 })
 
@@ -347,12 +350,15 @@ local autoGrindEnabledItems = {}
 local autoGrindItems = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Cultist Experiment", "Cultist Component", "Gem of the Forest Fragment", "Broken Microwave"}
 MainTab:CreateDropdown({
     Name = "Auto Machine Grind",
-    Values = autoGrindItems,
-    Multi = true,
-    Default = {},
+    Options = autoGrindItems,
+    MultipleOptions = true,
+    CurrentOption = {},
     Flag = "AutoGrind",
     Callback = function(Value)
-        autoGrindEnabledItems = Value
+        autoGrindEnabledItems = {}
+        for _, item in ipairs(Value) do
+            autoGrindEnabledItems[item] = true
+        end
     end
 })
 
@@ -361,12 +367,15 @@ local autoBiofuelEnabledItems = {}
 local biofuelItems = {"Carrot", "Cooked Morsel", "Morsel", "Steak", "Cooked Steak", "Log"}
 MainTab:CreateDropdown({
     Name = "Auto Biofuel Processor",
-    Values = biofuelItems,
-    Multi = true,
-    Default = {},
+    Options = biofuelItems,
+    MultipleOptions = true,
+    CurrentOption = {},
     Flag = "AutoBiofuel",
     Callback = function(Value)
-        autoBiofuelEnabledItems = Value
+        autoBiofuelEnabledItems = {}
+        for _, item in ipairs(Value) do
+            autoBiofuelEnabledItems[item] = true
+        end
     end
 })
 
@@ -464,16 +473,6 @@ local function cleanupChamsESP()
         if folder then folder:Destroy() end
     end
     ChamsESPs = {}
-end
-
-local function handlePlayerESP(plr)
-    if espEnabled then createBillboardESP(plr) end
-    if chamsEnabled then createChamsESP(plr) end
-    plr.CharacterAdded:Connect(function()
-        task.wait(1)
-        if espEnabled then createBillboardESP(plr) end
-        if chamsEnabled then createChamsESP(plr) end
-    end)
 end
 
 ESPTab:CreateToggle({
@@ -585,7 +584,7 @@ local function createItemESP(model)
 end
 
 local function removeAllItemESP()
-    for _, model in ItemsFolder:GetChildren() do
+    for _, model in ipairs(ItemsFolder:GetChildren()) do
         local esp = model:FindFirstChild("ESP")
         if esp then esp:Destroy() end
     end
@@ -598,7 +597,7 @@ ESPTab:CreateToggle({
     Callback = function(Value)
         itemEspEnabled = Value
         if Value then
-            for _, model in ItemsFolder:GetChildren() do
+            for _, model in ipairs(ItemsFolder:GetChildren()) do
                 createItemESP(model)
             end
             local conn = ItemsFolder.ChildAdded:Connect(function(model)
@@ -633,27 +632,30 @@ local itemList = {
 
 local function getModelPart(model)
     if model.PrimaryPart then return model.PrimaryPart end
-    for _, part in pairs(model:GetChildren()) do
+    for _, part in ipairs(model:GetChildren()) do
         if part:IsA("BasePart") then return part end
     end
     return nil
 end
 
-local dropdownTP = ItemTPTab:CreateDropdown({
+local currentSelectedItemTP = itemList[1]
+ItemTPTab:CreateDropdown({
     Name = "Select Item",
-    Values = itemList,
-    Multi = false,
-    Default = itemList[1],
-    Flag = "ItemTPSelect"
+    Options = itemList,
+    CurrentOption = itemList[1],
+    Flag = "ItemTPSelect",
+    Callback = function(Option)
+        currentSelectedItemTP = Option
+    end
 })
 
 ItemTPTab:CreateButton({
     Name = "Teleport to Selected Item",
     Callback = function()
-        local selected = dropdownTP.Value
+        local selected = currentSelectedItemTP
         if not selected then return end
         local candidates = {}
-        for _, model in pairs(itemFolder:GetChildren()) do
+        for _, model in ipairs(itemFolder:GetChildren()) do
             if model:IsA("Model") and model.Name == selected then
                 local part = getModelPart(model)
                 if part then table.insert(candidates, part) end
@@ -694,7 +696,7 @@ local function teleportItem(itemName)
                     pcall(function()
                         RemoteEvents.RequestStartDraggingItem:FireServer(item)
                         local offset = Vector3.new(0, count * 2, 0)
-                        targetPart.CFrame = rootPart.CFrame + offset
+                        targetPart.CFrame = getRootPart().CFrame + offset
                         RemoteEvents.StopDraggingItem:FireServer(item)
                     end)
                     count = count + 1
@@ -719,20 +721,22 @@ local bringItemList = {
     "Gem of the Forest Fragment", "Tyre", "Washing Machine", "Broken Microwave"
 }
 
-local bringDropdown = ItemTPTab:CreateDropdown({
+local currentBringItem = bringItemList[1]
+ItemTPTab:CreateDropdown({
     Name = "Select Item to Bring",
-    Values = bringItemList,
-    Multi = false,
-    Default = bringItemList[1],
-    Flag = "BringItemSelect"
+    Options = bringItemList,
+    CurrentOption = bringItemList[1],
+    Flag = "BringItemSelect",
+    Callback = function(Option)
+        currentBringItem = Option
+    end
 })
 
 ItemTPTab:CreateButton({
     Name = "Bring Selected Item",
     Callback = function()
-        local selected = bringDropdown.Value
-        if selected then
-            teleportItem(selected)
+        if currentBringItem then
+            teleportItem(currentBringItem)
         end
     end
 })
@@ -755,8 +759,8 @@ local function teleportToTarget(cf, duration)
 end
 
 local storyCoords = {
-    {"Campsite", "0, 8, -0"},
-    {"Safe Zone", "0, 110, -0"},
+    {"Campsite", "0, 8, 0"},
+    {"Safe Zone", "0, 110, 0"},
     {"Stronghold", "50, 10, 20"},
     {"Cave Entrance", "100, 5, -30"}
 }
@@ -795,11 +799,12 @@ local function teleportCharacter(characterName)
     if not characterFolder then return end
     local count = 0
     local stackOffsetY = 3
+    local hrp = getRootPart()
     for _, model in ipairs(characterFolder:GetChildren()) do
         if model.Name == characterName then
             local mainPart = getMainPart(model)
-            if mainPart and rootPart then
-                local targetCFrame = rootPart.CFrame + Vector3.new(0, count * stackOffsetY, 0)
+            if mainPart and hrp then
+                local targetCFrame = hrp.CFrame + Vector3.new(0, count * stackOffsetY, 0)
                 if model.PrimaryPart then
                     model:SetPrimaryPartCFrame(targetCFrame)
                 else
@@ -812,20 +817,22 @@ local function teleportCharacter(characterName)
     print("Brought " .. count .. " " .. characterName .. "(s)")
 end
 
-local mobDropdown = MobTPTab:CreateDropdown({
+local currentMob = possibleCharacters[1]
+MobTPTab:CreateDropdown({
     Name = "Select Mob",
-    Values = possibleCharacters,
-    Multi = false,
-    Default = possibleCharacters[1],
-    Flag = "MobSelect"
+    Options = possibleCharacters,
+    CurrentOption = possibleCharacters[1],
+    Flag = "MobSelect",
+    Callback = function(Option)
+        currentMob = Option
+    end
 })
 
 MobTPTab:CreateButton({
     Name = "Bring Selected Mob",
     Callback = function()
-        local selected = mobDropdown.Value
-        if selected then
-            teleportCharacter(selected)
+        if currentMob then
+            teleportCharacter(currentMob)
         end
     end
 })
@@ -945,43 +952,6 @@ VisualTab:CreateToggle({
     end
 })
 
--- FOV Circle
-local fovCircle = Drawing.new("Circle")
-fovCircle.Visible = false
-fovCircle.Color = Color3.fromRGB(255,255,255)
-fovCircle.Transparency = 1
-fovCircle.Thickness = 1
-fovCircle.Filled = false
-fovCircle.ZIndex = 2
-local fovRadius = 100
-
-VisualTab:CreateToggle({
-    Name = "FOV Circle",
-    CurrentValue = false,
-    Flag = "FOVCircle",
-    Callback = function(Value)
-        fovCircle.Visible = Value
-    end
-})
-
-VisualTab:CreateSlider({
-    Name = "FOV Radius",
-    Range = {50, 200},
-    Increment = 10,
-    CurrentValue = 100,
-    Flag = "FOVRadius",
-    Callback = function(Value)
-        fovRadius = Value
-    end
-})
-
-RunService.RenderStepped:Connect(function()
-    if fovCircle.Visible then
-        fovCircle.Radius = fovRadius
-        fovCircle.Position = UserInputService:GetMouseLocation()
-    end
-end)
-
 -- =============================================
 -- 13. MISC TAB
 -- =============================================
@@ -1014,7 +984,7 @@ MiscTab:CreateToggle({
     end
 })
 
--- Infinite Yield (loadstring)
+-- Infinite Yield
 MiscTab:CreateButton({
     Name = "Load Infinite Yield",
     Callback = function()
@@ -1273,7 +1243,6 @@ local function unloadScript()
     pcall(function() Rayfield:Destroy() end)
 end
 
--- Tambahkan tombol unload di UI
 MiscTab:CreateButton({
     Name = "Unload Script",
     Callback = function()
@@ -1282,17 +1251,12 @@ MiscTab:CreateButton({
 })
 
 -- =============================================
--- 17. NOTIFICATION LOADED
+-- 17. INITIALIZATION FINISH
 -- =============================================
+Rayfield:LoadConfiguration()
+
 Rayfield:Notify({
     Title = "W424 Loaded",
     Content = "All features ready!",
     Duration = 3
 })
-
-print("W424 - 99 Nights Ultimate Script loaded successfully!")
-print("Kill Aura (BRUTAL) is ready. Use with caution!")
-
--- =============================================
--- END OF SCRIPT
--- =============================================
