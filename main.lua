@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (CONTINUOUS BRING & SPECIFIC ITEMS)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (IMPROVED)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -19,6 +19,18 @@ local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
 
+-- ==========================================
+-- ANTI-FREEZE CONFIG
+-- ==========================================
+local MAX_GRIND_DISTANCE = 500
+local TELEPORT_TIMEOUT = 8
+local RETRY_ATTEMPTS = 3
+local PROCESS_COOLDOWN = 2
+local TELEPORT_DELAY = 0.15
+
+-- ==========================================
+-- CORE FUNCTIONS
+-- ==========================================
 local function getRootPart()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -34,31 +46,136 @@ local function findValidPart(obj)
     return nil
 end
 
-local function dragItemToPos(item, pos)
-    if not item or not item:IsDescendantOf(workspace) then return end
-    local part = findValidPart(item)
-    if not part then return end
-    
-    pcall(function()
-        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
-        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
-        
-        if dragStart then dragStart:FireServer(item) end
-        task.wait(0.05) 
-
-        if not item:IsDescendantOf(workspace) then return end 
-
-        if item:IsA("Model") and item.PrimaryPart then
-            item:SetPrimaryPartCFrame(CFrame.new(pos))
-        else
-            part.CFrame = CFrame.new(pos)
-        end
-        
-        task.wait(0.05)
-        if dragStop then dragStop:FireServer(item) end
-    end)
+-- ==========================================
+-- ANTI-FREEZE: GET ITEM POSITION
+-- ==========================================
+local function getItemPosition(item)
+    if not item or not item:IsDescendantOf(workspace) then return nil end
+    if item:IsA("Model") then
+        return item:GetPivot().Position
+    elseif item:IsA("BasePart") or item:IsA("MeshPart") then
+        return item.Position
+    else
+        local part = findValidPart(item)
+        return part and part.Position or nil
+    end
 end
 
+-- ==========================================
+-- ANTI-FREEZE: SET POSITION WITH VELOCITY RESET
+-- ==========================================
+local function setItemPosition(item, targetPos)
+    if not item or not item:IsDescendantOf(workspace) then return false end
+    
+    local success = false
+    
+    pcall(function()
+        if item:IsA("BasePart") or item:IsA("MeshPart") then
+            item.AssemblyLinearVelocity = Vector3.zero
+            item.AssemblyAngularVelocity = Vector3.zero
+            item.CFrame = CFrame.new(targetPos)
+            success = true
+            
+        elseif item:IsA("Model") then
+            item:PivotTo(CFrame.new(targetPos))
+            
+            for _, part in ipairs(item:GetDescendants()) do
+                if part:IsA("BasePart") or part:IsA("MeshPart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+            success = true
+        end
+    end)
+    
+    return success
+end
+
+-- ==========================================
+-- ANTI-FREEZE: IMPROVED DRAG SYSTEM
+-- ==========================================
+local processingItems = {}
+local lastProcessed = {}
+
+local function dragItemToPos(item, pos)
+    if not item or not item:IsDescendantOf(workspace) then return false end
+    
+    local itemId = tostring(item)
+    local currentTime = tick()
+    
+    if lastProcessed[itemId] and (currentTime - lastProcessed[itemId]) < PROCESS_COOLDOWN then
+        return false
+    end
+    
+    if processingItems[itemId] then return false end
+    processingItems[itemId] = true
+    
+    local startPos = getItemPosition(item)
+    if not startPos then 
+        processingItems[itemId] = nil
+        return false 
+    end
+    
+    local hrp = getRootPart()
+    if hrp then
+        local distToPlayer = (startPos - hrp.Position).Magnitude
+        if distToPlayer > MAX_GRIND_DISTANCE then
+            processingItems[itemId] = nil
+            return false
+        end
+    end
+    
+    local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
+    local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+    local success = false
+    
+    for attempt = 1, RETRY_ATTEMPTS do
+        if not item:IsDescendantOf(workspace) then break end
+        
+        pcall(function()
+            if dragStart then 
+                dragStart:FireServer(item) 
+            end
+            task.wait(TELEPORT_DELAY)
+            
+            if not item:IsDescendantOf(workspace) then return end
+            
+            setItemPosition(item, pos)
+            task.wait(TELEPORT_DELAY)
+            
+            if not item:IsDescendantOf(workspace) then return end
+            
+            local newPos = getItemPosition(item)
+            if newPos then
+                local distToTarget = (newPos - pos).Magnitude
+                if distToTarget <= 10 then
+                    success = true
+                else
+                    setItemPosition(item, pos)
+                    task.wait(TELEPORT_DELAY)
+                end
+            end
+            
+            if dragStop then 
+                dragStop:FireServer(item) 
+            end
+            task.wait(0.1)
+        end)
+        
+        if success then break end
+        task.wait(0.2)
+    end
+    
+    lastProcessed[itemId] = tick()
+    processingItems[itemId] = nil
+    
+    return success
+end
+
+-- ==========================================
+-- UI SETUP
+-- ==========================================
 local Window = OrvionLib:CreateWindow({
     Title = "W424 Hub | 99 Nights",
     Icon  = ""
@@ -162,6 +279,9 @@ Tabs.Combat:AddInput({ Title = "Aura Radius (Angka)", Default = "200", Placehold
     if num then auraRadius = num end
 end})
 
+-- ==========================================
+-- KILL AURA LOOP
+-- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -192,6 +312,9 @@ task.spawn(function()
     end
 end)
 
+-- ==========================================
+-- AURA CHOP (TREES) - IMPROVED
+-- ==========================================
 local choppedTrees = setmetatable({}, {__mode = "k"})
 
 task.spawn(function()
@@ -213,9 +336,11 @@ task.spawn(function()
                                     
                                     task.spawn(function()
                                         pcall(function()
+                                            -- Double-check sebelum InvokeServer
                                             if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
                                                 RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                                    Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
+                                                    Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), 
+                                                    Volume = 0.4
                                                 })
                                                 RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
                                             end
@@ -234,9 +359,12 @@ task.spawn(function()
     end
 end)
 
+-- ==========================================
+-- MAIN FARM FEATURES
+-- ==========================================
 local autoEatEnabled = false
 local autoCookEnabled = false
-local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple", "Cake"}
+local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 
 Tabs.Main:AddToggle({ Title = "Auto Eat (HP Based)", Default = false, Callback = function(state) autoEatEnabled = state end })
@@ -258,23 +386,46 @@ Tabs.Main:AddDropdown({
     Callback     = function(value) autoFuelItems[value] = not autoFuelItems[value] end
 })
 
+-- ==========================================
+-- IMPROVED AUTO GRIND LOOP (ANTI-FREEZE)
+-- ==========================================
 task.spawn(function()
     while ScriptRunning do
-        for _, item in ipairs(ItemsFolder:GetChildren()) do
-            if item and item:IsDescendantOf(workspace) then
-                if autoGrindItems[item.Name] then
-                    dragItemToPos(item, MACHINE_POS)
-                    task.wait(0.1)
-                elseif autoFuelItems[item.Name] or (autoCookEnabled and table.find(rawFoodsToCook, item.Name)) then
-                    dragItemToPos(item, CAMPFIRE_POS)
-                    task.wait(0.1)
+        local hrp = getRootPart()
+        if hrp then
+            local items = ItemsFolder:GetChildren()
+            
+            for _, item in ipairs(items) do
+                if not item or not item:IsDescendantOf(workspace) then continue end
+                
+                local shouldGrind = autoGrindItems[item.Name]
+                local shouldFuel = autoFuelItems[item.Name]
+                local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
+                
+                if shouldGrind or shouldFuel or shouldCook then
+                    local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
+                    
+                    local itemPos = getItemPosition(item)
+                    if itemPos then
+                        local dist = (itemPos - hrp.Position).Magnitude
+                        
+                        if dist <= MAX_GRIND_DISTANCE then
+                            local ok = dragItemToPos(item, targetPos)
+                            if ok then
+                                task.wait(0.3)
+                            end
+                        end
+                    end
                 end
             end
         end
-        task.wait(1)
+        task.wait(1.5)
     end
 end)
 
+-- ==========================================
+-- AUTO EAT LOOP
+-- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -297,64 +448,47 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (DENGAN PILIHAN SPESIFIK & AUTO BRING / DETEKSI SPAWN TERUS-MENERUS)
+-- ITEM TELEPORT
 -- ==========================================
-local specificBringItems = {"Berry", "Carrot", "Cake", "Bandage", "MedKit", "Pistol", "Revolver"}
-local selectedBringItem = specificBringItems[1]
-local continuousBringEnabled = false
+local itemCategories = {
+    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
+    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave"},
+    Equipment_Weapons = {"Rifle", "Revolver", "Rifle Ammo", "Revolver Ammo", "Chainsaw", "Old Flashlight", "MedKit", "Bandage"},
+    Food_Consumables = {"Berry", "Carrot", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs", "Cake"}
+}
 
-Tabs.ItemTP:AddDropdown({
-    Title        = "Pilih Item untuk Ditarik",
-    Values       = specificBringItems,
-    DefaultValue = specificBringItems[1],
-    Callback     = function(value) selectedBringItem = value end
-})
-
-Tabs.ItemTP:AddToggle({
-    Title    = "Auto Bring Terus-Menerus (Deteksi Spawn)",
-    Default  = false,
-    Callback = function(state) continuousBringEnabled = state end
-})
-
-Tabs.ItemTP:AddButton({
-    Title    = "Execute Bring Sekali Tarik",
-    Callback = function()
-        local count = 0
-        local hrp = getRootPart()
-        if not hrp then return end
-        
-        for _, item in ipairs(ItemsFolder:GetDescendants()) do
-            if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                dragItemToPos(item, targetPos)
-                count = count + 1
-            end
-        end
-        OrvionLib:Notify("Success", "Berhasil menarik: " .. count .. " " .. selectedBringItem, 3)
-    end
-})
-
--- Background Worker untuk mendeteksi item spawn baru secara terus-menerus jika toggle aktif
-task.spawn(function()
-    while ScriptRunning do
-        if continuousBringEnabled then
+for catName, listItems in pairs(itemCategories) do
+    local selectedCatItem = listItems[1]
+    
+    Tabs.ItemTP:AddDropdown({
+        Title        = "Bring: " .. catName:gsub("_", " "),
+        Values       = listItems,
+        DefaultValue = listItems[1],
+        Callback     = function(value) selectedCatItem = value end
+    })
+    
+    Tabs.ItemTP:AddButton({
+        Title    = "Execute Bring (" .. catName:gsub("_", " ") .. ")",
+        Callback = function()
+            local count = 0
             local hrp = getRootPart()
-            if hrp then
-                local count = 0
-                for _, item in ipairs(ItemsFolder:GetDescendants()) do
-                    if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                        local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                        dragItemToPos(item, targetPos)
-                        count = count + 1
-                        task.wait(0.1)
-                    end
+            if not hrp then return end
+            
+            for _, item in ipairs(ItemsFolder:GetDescendants()) do
+                if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+                    local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
+                    dragItemToPos(item, targetPos)
+                    count = count + 1
                 end
             end
+            OrvionLib:Notify("Success", "Ditarik: " .. count + 0 .. " " .. selectedCatItem, 3)
         end
-        task.wait(1.5) -- Cek spawn baru setiap 1.5 detik
-    end
-end)
+    })
+end
 
+-- ==========================================
+-- ESP SYSTEM
+-- ==========================================
 local espMobsEnabled = false
 local espItemsEnabled = false
 local espFolder = Instance.new("Folder")
@@ -421,7 +555,7 @@ local function refreshESP()
 end
 
 Tabs.Visuals:AddToggle({ Title = "ESP Mobs", Default = false, Callback = function(state) espMobsEnabled = state refreshESP() end })
-Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() end })
+Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() and refreshESP() end })
 
 task.spawn(function()
     while ScriptRunning do
@@ -430,6 +564,9 @@ task.spawn(function()
     end
 end)
 
+-- ==========================================
+-- PLAYER TAB
+-- ==========================================
 Tabs.Player:AddInput({
     Title       = "WalkSpeed (Angka)",
     Default     = "16",
@@ -442,4 +579,19 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script Loaded: Continuous Bring & Specific Items Added!", 3)
+-- ==========================================
+-- CACHE CLEANUP
+-- ==========================================
+task.spawn(function()
+    while ScriptRunning do
+        local currentTime = tick()
+        for id, time in pairs(lastProcessed) do
+            if currentTime - time > 30 then
+                lastProcessed[id] = nil
+            end
+        end
+        task.wait(10)
+    end
+end)
+
+OrvionLib:Notify("W424 Hub", "Script Loaded: Anti-Freeze System Active!", 3)
