@@ -1,5 +1,5 @@
 -- =============================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (FIXED & BRUTAL)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (FIXED TP & PHYSICS)
 -- =============================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -8,81 +8,86 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
-local Lighting = game:GetService("Lighting")
-
 local LocalPlayer = Players.LocalPlayer
-local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
 local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
-local AllConnections = {}
 
-local function trackConnection(conn)
-    if conn then table.insert(AllConnections, conn) end
-    return conn
-end
-
+-- Helper untuk posisi player
 local function getRootPart()
     local char = LocalPlayer.Character
     if not char then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
 
+-- Helper untuk posisi mesin/api (ditambah ketinggian agar jatuh natural)
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
-    if not map then return Vector3.new(0, 19, 0) end
-    local campground = map:FindFirstChild("Campground")
-    if not campground then return Vector3.new(0, 19, 0) end
-    local mainFire = campground:FindFirstChild("MainFire")
-    if not mainFire then return Vector3.new(0, 19, 0) end
-    local center = mainFire:FindFirstChild("Center") or mainFire
-    if center:IsA("BasePart") then
-        return center.Position + Vector3.new(0, 2, 0)
+    if map and map:FindFirstChild("Campground") and map.Campground:FindFirstChild("MainFire") then
+        local center = map.Campground.MainFire:FindFirstChild("Center") or map.Campground.MainFire
+        if center:IsA("BasePart") then
+            return center.Position + Vector3.new(0, 5, 0) -- Jatuh dari atas
+        end
     end
-    return Vector3.new(0, 19, 0)
+    return Vector3.new(0, 22, 0)
 end
 
 local function getMachinePosition()
     local structures = Workspace:FindFirstChild("Structures")
-    if not structures then return Vector3.new(21, 16, -5) end
-    local processor = structures:FindFirstChild("Biofuel Processor")
-    if not processor then return Vector3.new(21, 16, -5) end
-    local part = processor:FindFirstChildWhichIsA("BasePart")
-    if part then
-        return part.Position + Vector3.new(0, 2, 0)
+    if structures and structures:FindFirstChild("Biofuel Processor") then
+        local part = structures["Biofuel Processor"]:FindFirstChildWhichIsA("BasePart")
+        if part then
+            return part.Position + Vector3.new(0, 5, 0) -- Jatuh dari atas
+        end
     end
-    return Vector3.new(21, 16, -5)
+    return Vector3.new(21, 19, -5)
 end
 
-local campfireDropPos = getCampfirePosition()
-local machineDropPos = getMachinePosition()
+-- =============================================
+-- SAFE TELEPORT ITEM LOGIC (ANTI-BUG/HILANG)
+-- =============================================
+local function teleportItemSafe(item, targetPos)
+    pcall(function()
+        local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+        if not part then return end
+
+        -- 1. Minta izin ke server untuk memegang item
+        RemoteEvents.RequestStartDraggingItem:FireServer(item)
+        task.wait(0.05) -- Jeda wajib agar server memberikan hak akses fisik (Network Ownership)
+
+        -- 2. Pindahkan posisi
+        if item:IsA("Model") then
+            item:SetPrimaryPartCFrame(CFrame.new(targetPos))
+        else
+            part.CFrame = CFrame.new(targetPos)
+        end
+
+        -- 3. Lepaskan item agar gravitasi bekerja
+        RemoteEvents.StopDraggingItem:FireServer(item)
+    end)
+end
 
 -- =============================================
--- CREATE UI WINDOW
+-- UI SETUP
 -- =============================================
 local Window = Rayfield:CreateWindow({
-    Name = "W424 - 99 Nights (BRUTAL)",
+    Name = "W424 - 99 Nights (ULTIMATE)",
     LoadingTitle = "All-in-one | by W424",
-    LoadingSubtitle = "Fixing TP & Dropdowns",
+    LoadingSubtitle = "Physics & TP Fixed",
     Theme = "DarkBlue",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
 
 local MainTab = Window:CreateTab("Main Farm", 4483345998)
-local ESPTab = Window:CreateTab("ESP", 4483345998)
 local ItemTPTab = Window:CreateTab("Item TP", 4483345998)
-local GameTPTab = Window:CreateTab("Game TP", 4483345998)
 local PlayerTab = Window:CreateTab("Player", 4483345998)
 
 -- =============================================
--- TOOLS & COMBAT LOGIC
+-- COMBAT / AURA
 -- =============================================
 local toolsDamageIDs = {
     ["Old Axe"] = "1_8982038982",
@@ -100,16 +105,7 @@ local function getAnyToolWithDamageID()
     return nil, nil
 end
 
-local function equipTool(tool)
-    if tool then
-        pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-    end
-end
-
--- =============================================
--- MAIN TAB - AURA
--- =============================================
-MainTab:CreateSection("🔥 Aura (BRUTAL)")
+MainTab:CreateSection("🔥 Aura (Combat & Gathering)")
 
 local killAuraEnabled = false
 local treeAuraEnabled = false
@@ -120,28 +116,22 @@ MainTab:CreateSlider({
     Range = {20, 500},
     Increment = 10,
     CurrentValue = 200,
-    Callback = function(Value)
-        auraRadius = Value
-    end
+    Callback = function(Value) auraRadius = Value end
 })
 
 MainTab:CreateToggle({
     Name = "Kill Aura (BRUTAL MOBS)",
     CurrentValue = false,
-    Callback = function(Value)
-        killAuraEnabled = Value
-    end
+    Callback = function(Value) killAuraEnabled = Value end
 })
 
 MainTab:CreateToggle({
     Name = "Aura Chop (TREES)",
     CurrentValue = false,
-    Callback = function(Value)
-        treeAuraEnabled = Value
-    end
+    Callback = function(Value) treeAuraEnabled = Value end
 })
 
--- MAIN AURA LOOP (MOBS & TREES)
+-- MAIN AURA LOOP
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled or treeAuraEnabled then
@@ -149,7 +139,7 @@ task.spawn(function()
             local tool, damageID = getAnyToolWithDamageID()
             
             if hrp and tool and damageID then
-                equipTool(tool)
+                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 
                 -- KILL AURA
                 if killAuraEnabled then
@@ -162,8 +152,7 @@ task.spawn(function()
                                     local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
                                     if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
                                         task.spawn(function()
-                                            -- Serangan BRUTAL: multi-hit per loop
-                                            for i = 1, 4 do
+                                            for i = 1, 3 do -- 3x hit agar cepat tapi tidak merusak server
                                                 RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
                                             end
                                         end)
@@ -174,7 +163,7 @@ task.spawn(function()
                     end
                 end
                 
-                -- TREE AURA (AURA CHOP)
+                -- AURA CHOP (Trees)
                 if treeAuraEnabled then
                     local map = Workspace:FindFirstChild("Map")
                     if map then
@@ -183,26 +172,24 @@ task.spawn(function()
                                 local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                                 if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
                                     task.spawn(function()
-                                        for i = 1, 2 do
-                                            RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(part.Position))
-                                        end
+                                        -- Cukup 1x hit per loop agar server sempat merespon item drop
+                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(part.Position))
                                     end)
                                 end
                             end
                         end
                     end
                 end
-                
             end
         end
-        task.wait(0.1) -- Loop sangat cepat
+        task.wait(0.2)
     end
 end)
 
 -- =============================================
--- MAIN TAB - AUTO FARM & GRIND
+-- AUTO FARM & GRIND
 -- =============================================
-MainTab:CreateSection("⚡ Auto Farm / Grind (Fixed TP)")
+MainTab:CreateSection("⚡ Auto Farm / Grind (Fixed Physics)")
 
 local autoEatEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
@@ -210,9 +197,7 @@ local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple
 MainTab:CreateToggle({
     Name = "Auto Eat (HP Based)",
     CurrentValue = false,
-    Callback = function(Value)
-        autoEatEnabled = Value
-    end
+    Callback = function(Value) autoEatEnabled = Value end
 })
 
 local autoGrindItems = {}
@@ -239,46 +224,42 @@ MainTab:CreateDropdown({
     end
 })
 
-local function processAutoTP(itemSet, destination)
+local function processAutoTP(itemSet, destinationPos)
     for itemName, enabled in pairs(itemSet) do
         if enabled then
             for _, item in ipairs(ItemsFolder:GetChildren()) do
                 if item.Name == itemName then
-                    pcall(function()
-                        local part = item:FindFirstChildWhichIsA("BasePart") or item.PrimaryPart
-                        if part then
-                            part.Anchored = false -- Unanchor agar tidak stuck di udara
-                            part.CFrame = CFrame.new(destination)
-                        end
-                    end)
+                    -- Menggunakan fungsi aman
+                    teleportItemSafe(item, destinationPos)
+                    task.wait(0.1) -- Jeda antar item agar tidak nabrak
                 end
             end
         end
     end
 end
 
+-- Loop Auto TP Grind / Feed
 task.spawn(function()
     while ScriptRunning do
-        processAutoTP(autoGrindItems, machineDropPos)
-        processAutoTP(autoFuelItems, campfireDropPos)
-        task.wait(1.5)
+        processAutoTP(autoGrindItems, getMachinePosition())
+        processAutoTP(autoFuelItems, getCampfirePosition())
+        task.wait(2)
     end
 end)
 
+-- Loop Auto Eat
 task.spawn(function()
     while ScriptRunning do
-        if autoEatEnabled then
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                local hp = LocalPlayer.Character.Humanoid.Health
-                local maxHp = LocalPlayer.Character.Humanoid.MaxHealth
-                if hp < (maxHp * 0.7) then
-                    local available = {}
-                    for _, item in ipairs(ItemsFolder:GetChildren()) do
-                        if table.find(autoEatFoods, item.Name) then table.insert(available, item) end
-                    end
-                    if #available > 0 then
-                        pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end)
-                    end
+        if autoEatEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            local hp = LocalPlayer.Character.Humanoid.Health
+            local maxHp = LocalPlayer.Character.Humanoid.MaxHealth
+            if hp < (maxHp * 0.7) then
+                local available = {}
+                for _, item in ipairs(ItemsFolder:GetChildren()) do
+                    if table.find(autoEatFoods, item.Name) then table.insert(available, item) end
+                end
+                if #available > 0 then
+                    pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end)
                 end
             end
         end
@@ -287,7 +268,7 @@ task.spawn(function()
 end)
 
 -- =============================================
--- ITEM TP TAB (FIXED STRINGS)
+-- ITEM TP TAB
 -- =============================================
 ItemTPTab:CreateSection("📦 Bring Item to You")
 
@@ -304,7 +285,6 @@ ItemTPTab:CreateDropdown({
     Options = bringItemList,
     CurrentOption = bringItemList[1],
     Callback = function(Option)
-        -- FIX: Rayfield Dropdown mengembalikan Table, kita ambil index ke-1 sebagai Teks
         currentBringItem = type(Option) == "table" and Option[1] or Option
     end
 })
@@ -321,65 +301,15 @@ ItemTPTab:CreateButton({
         
         for _, item in ipairs(ItemsFolder:GetChildren()) do
             if item.Name == selected then
-                local targetPart = item:FindFirstChildWhichIsA("BasePart") or item.PrimaryPart
-                if targetPart then
-                    pcall(function()
-                        targetPart.Anchored = false
-                        RemoteEvents.RequestStartDraggingItem:FireServer(item)
-                        targetPart.CFrame = hrp.CFrame + (hrp.CFrame.LookVector * 4) + Vector3.new(0, count * 2, 0)
-                        RemoteEvents.StopDraggingItem:FireServer(item)
-                    end)
-                    count = count + 1
-                end
+                -- Susun secara rapi ke atas agar tidak nyangkut di tanah
+                local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
+                teleportItemSafe(item, targetPos)
+                count = count + 1
             end
         end
-        Rayfield:Notify({Title = "Bring Success", Content = "Brought " .. count .. " " .. selected, Duration = 2})
+        Rayfield:Notify({Title = "Bring Success", Content = "Berhasil menarik " .. count .. " " .. selected, Duration = 3})
     end
 })
-
--- =============================================
--- ESP TAB (SEDERHANA)
--- =============================================
-ESPTab:CreateSection("👁️ ESP")
-local espEnabled = false
-ESPTab:CreateToggle({
-    Name = "Item ESP",
-    CurrentValue = false,
-    Callback = function(Value)
-        espEnabled = Value
-        if not Value then
-            for _, model in ipairs(ItemsFolder:GetChildren()) do
-                local esp = model:FindFirstChild("W424_ESP")
-                if esp then esp:Destroy() end
-            end
-        end
-    end
-})
-
-task.spawn(function()
-    while ScriptRunning do
-        if espEnabled then
-            for _, model in ipairs(ItemsFolder:GetChildren()) do
-                if model:IsA("Model") and model.PrimaryPart and not model:FindFirstChild("W424_ESP") then
-                    local bb = Instance.new("BillboardGui")
-                    bb.Name = "W424_ESP"
-                    bb.Size = UDim2.new(0, 100, 0, 30)
-                    bb.Adornee = model.PrimaryPart
-                    bb.AlwaysOnTop = true
-                    local lbl = Instance.new("TextLabel", bb)
-                    lbl.Size = UDim2.new(1, 0, 1, 0)
-                    lbl.BackgroundTransparency = 1
-                    lbl.TextColor3 = Color3.new(0, 1, 0)
-                    lbl.TextStrokeTransparency = 0.5
-                    lbl.Font = Enum.Font.GothamBold
-                    lbl.Text = model.Name
-                    bb.Parent = model
-                end
-            end
-        end
-        task.wait(2)
-    end
-end)
 
 -- =============================================
 -- PLAYER TAB
