@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (CONTINUOUS BRING & SPECIFIC ITEMS)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (ABSOLUTE CHILD SAFETY CHECK)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -72,7 +72,7 @@ screenGui.ResetOnSpawn = false
 local bubble = Instance.new("TextButton")
 bubble.Name = "BubbleButton"
 bubble.Parent = screenGui
-bubble.BackgroundColor3 = Color3=.fromRGB(20, 20, 30)
+bubble.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 bubble.BorderColor3 = Color3.fromRGB(0, 160, 255)
 bubble.BorderSizePixel = 2
 bubble.Position = UDim2.new(0.05, 0, 0.15, 0)
@@ -206,6 +206,7 @@ task.spawn(function()
                 if map and map:FindFirstChild("Foliage") then
                     for _, obj in ipairs(map.Foliage:GetChildren()) do
                         if obj:IsA("Model") and obj.Parent == map.Foliage and not choppedTrees[obj] then
+                            -- Pengecekan aman: pastikan objek benar-benar memiliki anak bernama "Trunk" sebelum diakses
                             local trunk = obj:FindFirstChild("Trunk")
                             if trunk and trunk:IsA("BasePart") then
                                 if (trunk.Position - hrp.Position).Magnitude <= auraRadius then
@@ -213,6 +214,7 @@ task.spawn(function()
                                     
                                     task.spawn(function()
                                         pcall(function()
+                                            -- Cek ulang pengaman sebelum InvokeServer dikirim ke server
                                             if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
                                                 RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
                                                     Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
@@ -236,7 +238,7 @@ end)
 
 local autoEatEnabled = false
 local autoCookEnabled = false
-local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple", "Cake"}
+local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 
 Tabs.Main:AddToggle({ Title = "Auto Eat (HP Based)", Default = false, Callback = function(state) autoEatEnabled = state end })
@@ -296,64 +298,41 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- ITEM TP TAB (DENGAN PILIHAN SPESIFIK & AUTO BRING / DETEKSI SPAWN TERUS-MENERUS)
--- ==========================================
-local specificBringItems = {"Berry", "Carrot", "Cake", "Bandage", "MedKit", "Pistol", "Revolver"}
-local selectedBringItem = specificBringItems[1]
-local continuousBringEnabled = false
+local itemCategories = {
+    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
+    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave"},
+    Equipment_Weapons = {"Rifle", "Revolver", "Rifle Ammo", "Revolver Ammo", "Chainsaw", "Old Flashlight", "MedKit", "Bandage"},
+    Food_Consumables = {"Berry", "Carrot", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs", "Cake"}
+}
 
-Tabs.ItemTP:AddDropdown({
-    Title        = "Pilih Item untuk Ditarik",
-    Values       = specificBringItems,
-    DefaultValue = specificBringItems[1],
-    Callback     = function(value) selectedBringItem = value end
-})
-
-Tabs.ItemTP:AddToggle({
-    Title    = "Auto Bring Terus-Menerus (Deteksi Spawn)",
-    Default  = false,
-    Callback = function(state) continuousBringEnabled = state end
-})
-
-Tabs.ItemTP:AddButton({
-    Title    = "Execute Bring Sekali Tarik",
-    Callback = function()
-        local count = 0
-        local hrp = getRootPart()
-        if not hrp then return end
-        
-        for _, item in ipairs(ItemsFolder:GetDescendants()) do
-            if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                dragItemToPos(item, targetPos)
-                count = count + 1
-            end
-        end
-        OrvionLib:Notify("Success", "Berhasil menarik: " .. count .. " " .. selectedBringItem, 3)
-    end
-})
-
--- Background Worker untuk mendeteksi item spawn baru secara terus-menerus jika toggle aktif
-task.spawn(function()
-    while ScriptRunning do
-        if continuousBringEnabled then
+for catName, listItems in pairs(itemCategories) do
+    local selectedCatItem = listItems[1]
+    
+    Tabs.ItemTP:AddDropdown({
+        Title        = "Bring: " .. catName:gsub("_", " "),
+        Values       = listItems,
+        DefaultValue = listItems[1],
+        Callback     = function(value) selectedCatItem = value end
+    })
+    
+    Tabs.ItemTP:AddButton({
+        Title    = "Execute Bring (" .. catName:gsub("_", " ") .. ")",
+        Callback = function()
+            local count = 0
             local hrp = getRootPart()
-            if hrp then
-                local count = 0
-                for _, item in ipairs(ItemsFolder:GetDescendants()) do
-                    if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                        local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                        dragItemToPos(item, targetPos)
-                        count = count + 1
-                        task.wait(0.1)
-                    end
+            if not hrp then return end
+            
+            for _, item in ipairs(ItemsFolder:GetDescendants()) do
+                if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+                    local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
+                    dragItemToPos(item, targetPos)
+                    count = count + 1
                 end
             end
+            OrvionLib:Notify("Success", "Ditarik: " .. count + 0 .. " " .. selectedCatItem, 3)
         end
-        task.wait(1.5) -- Cek spawn baru setiap 1.5 detik
-    end
-end)
+    })
+end
 
 local espMobsEnabled = false
 local espItemsEnabled = false
@@ -421,7 +400,7 @@ local function refreshESP()
 end
 
 Tabs.Visuals:AddToggle({ Title = "ESP Mobs", Default = false, Callback = function(state) espMobsEnabled = state refreshESP() end })
-Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() end })
+Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() and refreshESP() end })
 
 task.spawn(function()
     while ScriptRunning do
@@ -442,4 +421,4 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script Loaded: Continuous Bring & Specific Items Added!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: Absolute Trunk Validation Applied!", 3)
