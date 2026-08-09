@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (DETAILED FIX & ESP)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (BUBBLE FIXED & FULL DETAIL)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -65,13 +65,16 @@ local function dragItemToPos(item, pos)
 end
 
 -- ==========================================
--- BUAT WINDOW ORVION & FLOATING BUBBLE
+-- BUAT WINDOW ORVION
 -- ==========================================
 local Window = OrvionLib:CreateWindow({
     Title = "W424 Hub | 99 Nights",
     Icon  = ""
 })
 
+-- ==========================================
+-- BUAT FLOATING BUBBLE (HURUF W) - FIXED LOGIC
+-- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "W424_ToggleBubble"
 screenGui.Parent = CoreGui
@@ -93,31 +96,50 @@ bubble.AutoButtonColor = true
 Instance.new("UICorner", bubble).CornerRadius = UDim.new(1, 0)
 
 local dragging, dragInput, dragStart, startPos
+local dragStartPos = Vector2.new(0, 0)
+local uiVisible = true
+
+-- Memisahkan logika CLICK murni dan DRAG (Geser)
 bubble.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = bubble.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        dragStartPos = input.Position
+        
+        local connection
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                connection:Disconnect()
+                
+                -- DETEKSI KLIK: Jika kursor bergeser kurang dari 5 pixel, anggap sebagai KLIK (Bukan Drag)
+                if (input.Position - dragStartPos).Magnitude < 5 then
+                    uiVisible = not uiVisible
+                    -- Cari ScreenGui milik Orvion dan matikan/nyalakan
+                    for _, gui in ipairs(CoreGui:GetChildren()) do
+                        if gui:IsA("ScreenGui") and gui.Name ~= "W424_ToggleBubble" then
+                            if gui:FindFirstChild("MainFrame") or gui:FindFirstChild("Container") or gui:FindFirstChild("Main") then
+                                gui.Enabled = uiVisible
+                            end
+                        end
+                    end
+                end
+            end
         end)
     end
 end)
+
 bubble.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         dragInput = input
     end
 end)
+
 UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         local delta = input.Position - dragStart
         bubble.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-bubble.MouseButton1Click:Connect(function()
-    if Window.MainFrame and Window.MainFrame.Parent then
-        Window.MainFrame.Visible = not Window.MainFrame.Visible
     end
 end)
 
@@ -442,4 +464,4 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script Loaded: Advanced ESP & Recursive TP Fixed!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: UI Bubble Click Fixed!", 3)
