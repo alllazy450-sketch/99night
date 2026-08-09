@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (BUBBLE FIXED & FULL DETAIL)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (CRASH-PROOF & NO SLIDERS)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
 local ScriptRunning = true
 
 -- ==========================================
--- KOORDINAT ABSOLUT (SANGAT PENTING UNTUK AUTO FEED)
+-- KOORDINAT ABSOLUT
 -- ==========================================
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
@@ -31,7 +31,6 @@ local function getRootPart()
     return char:FindFirstChild("HumanoidRootPart")
 end
 
--- Pengecekan rekursif untuk item yang tidak punya PrimaryPart (Misal: Rifle, Revolver)
 local function findValidPart(obj)
     if obj:IsA("BasePart") then return obj end
     if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart end
@@ -42,7 +41,9 @@ local function findValidPart(obj)
 end
 
 local function dragItemToPos(item, pos)
-    if not item or not item.Parent then return end
+    -- Mencegah error "item is no longer in workspace"
+    if not item or not item:IsDescendantOf(workspace) then return end
+    
     local part = findValidPart(item)
     if not part then return end
     
@@ -52,6 +53,8 @@ local function dragItemToPos(item, pos)
         
         if dragStart then dragStart:FireServer(item) end
         task.wait(0.05) 
+
+        if not item:IsDescendantOf(workspace) then return end -- Cek ganda
 
         if item:IsA("Model") and item.PrimaryPart then
             item:SetPrimaryPartCFrame(CFrame.new(pos))
@@ -73,7 +76,7 @@ local Window = OrvionLib:CreateWindow({
 })
 
 -- ==========================================
--- BUAT FLOATING BUBBLE (HURUF W) - FIXED LOGIC
+-- BUAT FLOATING BUBBLE (HURUF W) - KLIK MURNI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "W424_ToggleBubble"
@@ -99,7 +102,6 @@ local dragging, dragInput, dragStart, startPos
 local dragStartPos = Vector2.new(0, 0)
 local uiVisible = true
 
--- Memisahkan logika CLICK murni dan DRAG (Geser)
 bubble.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
@@ -113,10 +115,9 @@ bubble.InputBegan:Connect(function(input)
                 dragging = false
                 connection:Disconnect()
                 
-                -- DETEKSI KLIK: Jika kursor bergeser kurang dari 5 pixel, anggap sebagai KLIK (Bukan Drag)
+                -- Jika kursor tidak bergeser jauh, hitung sebagai KLIK
                 if (input.Position - dragStartPos).Magnitude < 5 then
                     uiVisible = not uiVisible
-                    -- Cari ScreenGui milik Orvion dan matikan/nyalakan
                     for _, gui in ipairs(CoreGui:GetChildren()) do
                         if gui:IsA("ScreenGui") and gui.Name ~= "W424_ToggleBubble" then
                             if gui:FindFirstChild("MainFrame") or gui:FindFirstChild("Container") or gui:FindFirstChild("Main") then
@@ -155,7 +156,7 @@ local Tabs = {
 }
 
 -- ==========================================
--- AURA & COMBAT TAB (FIXED CHOP & BRUTAL KILL)
+-- AURA & COMBAT TAB
 -- ==========================================
 local killAuraEnabled = false
 local treeAuraEnabled = false
@@ -176,12 +177,14 @@ end
 
 Tabs.Combat:AddToggle({ Title = "Kill Aura (Mobs Only)", Default = false, Callback = function(state) killAuraEnabled = state end })
 Tabs.Combat:AddToggle({ Title = "Aura Chop (Trees Only)", Default = false, Callback = function(state) treeAuraEnabled = state end })
-Tabs.Combat:AddInput({ Title = "Aura Radius", Default = "200", Placeholder = "Radius...", Callback = function(value)
+
+-- INPUT ANGKA (TIDAK ADA SLIDER)
+Tabs.Combat:AddInput({ Title = "Aura Radius (Angka)", Default = "200", Placeholder = "Ketik radius...", Callback = function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end})
 
--- 1. KILL AURA (Diperkuat)
+-- 1. KILL AURA
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -208,12 +211,12 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.05) -- Brutal speed
+        task.wait(0.05)
     end
 end)
 
--- 2. AURA CHOP (Dilengkapi Anti-Error / Debounce)
-local treeDebounce = {}
+-- 2. AURA CHOP (DENGAN MEMORI DEBOUNCE 5 DETIK UNTUK MENCEGAH ERROR GAME)
+local choppedTrees = {}
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled then
@@ -225,21 +228,23 @@ task.spawn(function()
                 local map = Workspace:FindFirstChild("Map")
                 if map and map:FindFirstChild("Foliage") then
                     for _, obj in ipairs(map.Foliage:GetChildren()) do
-                        if obj:IsA("Model") then
+                        if obj:IsA("Model") and not choppedTrees[obj] then
                             local trunk = obj:FindFirstChild("Trunk")
-                            -- Pastikan Trunk ada, dan beri jeda 0.5 detik per pohon untuk menghindari game error
                             if trunk and (trunk.Position - hrp.Position).Magnitude <= auraRadius then
-                                if not treeDebounce[obj] or tick() - treeDebounce[obj] > 0.5 then
-                                    treeDebounce[obj] = tick()
-                                    task.spawn(function()
-                                        pcall(function()
-                                            RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                                Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
-                                            })
-                                            RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame)
-                                        end)
+                                -- Tandai pohon sudah ditebang agar tidak di-spam saat animasi tumbang
+                                choppedTrees[obj] = true 
+                                
+                                task.spawn(function()
+                                    pcall(function()
+                                        RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
+                                            Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
+                                        })
+                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame)
                                     end)
-                                end
+                                end)
+                                
+                                -- Hapus dari memori setelah 5 detik
+                                task.delay(5, function() choppedTrees[obj] = nil end)
                             end
                         end
                     end
@@ -251,7 +256,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- MAIN FARM TAB (FIXED DRAG ITEM TO ABSOLUTE POS)
+-- MAIN FARM TAB 
 -- ==========================================
 local autoEatEnabled = false
 local autoCookEnabled = false
@@ -277,11 +282,10 @@ Tabs.Main:AddDropdown({
     Callback     = function(value) autoFuelItems[value] = not autoFuelItems[value] end
 })
 
--- Memastikan item di-drag ke koordinat mutlak
 task.spawn(function()
     while ScriptRunning do
         for _, item in ipairs(ItemsFolder:GetChildren()) do
-            if item and item.Parent then
+            if item and item:IsDescendantOf(workspace) then
                 if autoGrindItems[item.Name] then
                     dragItemToPos(item, MACHINE_POS)
                     task.wait(0.1)
@@ -303,7 +307,7 @@ task.spawn(function()
             if hp < (maxHp * 0.7) then
                 local available = {}
                 for _, item in ipairs(ItemsFolder:GetChildren()) do
-                    if table.find(autoEatFoods, item.Name) and item.Parent then 
+                    if table.find(autoEatFoods, item.Name) and item:IsDescendantOf(workspace) then 
                         table.insert(available, item) 
                     end
                 end
@@ -317,7 +321,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (FIXED RECURSIVE PART FINDER)
+-- ITEM TP TAB 
 -- ==========================================
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -344,7 +348,7 @@ for catName, listItems in pairs(itemCategories) do
             if not hrp then return end
             
             for _, item in ipairs(ItemsFolder:GetChildren()) do
-                if item.Name == selectedCatItem and item.Parent then
+                if item.Name == selectedCatItem and item:IsDescendantOf(workspace) then
                     local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
                     dragItemToPos(item, targetPos)
                     count = count + 1
@@ -392,7 +396,6 @@ local function createESP(instance, name, color)
     txt.TextScaled = true
     txt.Parent = bg
 
-    -- Update jarak secara live
     task.spawn(function()
         while bg.Parent and instance.Parent do
             local hrp = getRootPart()
@@ -424,38 +427,24 @@ local function refreshESP()
     end
 end
 
-Tabs.Visuals:AddToggle({
-    Title    = "ESP Mobs (Wolf, Bear, Cultist, dll)",
-    Default  = false,
-    Callback = function(state)
-        espMobsEnabled = state
-        refreshESP()
-    end
-})
-
-Tabs.Visuals:AddToggle({
-    Title    = "ESP Items",
-    Default  = false,
-    Callback = function(state)
-        espItemsEnabled = state
-        refreshESP()
-    end
-})
+Tabs.Visuals:AddToggle({ Title = "ESP Mobs", Default = false, Callback = function(state) espMobsEnabled = state refreshESP() end })
+Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() end })
 
 task.spawn(function()
     while ScriptRunning do
         if espMobsEnabled or espItemsEnabled then refreshESP() end
-        task.wait(5) -- Refresh struktur item baru tiap 5 detik
+        task.wait(5)
     end
 end)
 
 -- ==========================================
 -- PLAYER TAB
 -- ==========================================
+-- INPUT ANGKA (TIDAK ADA SLIDER)
 Tabs.Player:AddInput({
-    Title       = "WalkSpeed",
+    Title       = "WalkSpeed (Angka)",
     Default     = "16",
-    Placeholder = "Set speed...",
+    Placeholder = "Ketik speed...",
     Callback    = function(value)
         local speed = tonumber(value)
         if speed and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -464,4 +453,4 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script Loaded: UI Bubble Click Fixed!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: Crash-Proof Trees & No Sliders!", 3)
