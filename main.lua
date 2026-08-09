@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (CRASH-PROOF & NO SLIDERS)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (DEATHMODEL FIX & BROAD BRING)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -31,6 +31,7 @@ local function getRootPart()
     return char:FindFirstChild("HumanoidRootPart")
 end
 
+-- Pencarian BasePart secara rekursif hingga ke akar objek
 local function findValidPart(obj)
     if obj:IsA("BasePart") then return obj end
     if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart end
@@ -41,7 +42,6 @@ local function findValidPart(obj)
 end
 
 local function dragItemToPos(item, pos)
-    -- Mencegah error "item is no longer in workspace"
     if not item or not item:IsDescendantOf(workspace) then return end
     
     local part = findValidPart(item)
@@ -54,7 +54,7 @@ local function dragItemToPos(item, pos)
         if dragStart then dragStart:FireServer(item) end
         task.wait(0.05) 
 
-        if not item:IsDescendantOf(workspace) then return end -- Cek ganda
+        if not item:IsDescendantOf(workspace) then return end 
 
         if item:IsA("Model") and item.PrimaryPart then
             item:SetPrimaryPartCFrame(CFrame.new(pos))
@@ -76,7 +76,7 @@ local Window = OrvionLib:CreateWindow({
 })
 
 -- ==========================================
--- BUAT FLOATING BUBBLE (HURUF W) - KLIK MURNI
+-- BUAT FLOATING BUBBLE (HURUF W)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "W424_ToggleBubble"
@@ -115,7 +115,6 @@ bubble.InputBegan:Connect(function(input)
                 dragging = false
                 connection:Disconnect()
                 
-                -- Jika kursor tidak bergeser jauh, hitung sebagai KLIK
                 if (input.Position - dragStartPos).Magnitude < 5 then
                     uiVisible = not uiVisible
                     for _, gui in ipairs(CoreGui:GetChildren()) do
@@ -178,13 +177,12 @@ end
 Tabs.Combat:AddToggle({ Title = "Kill Aura (Mobs Only)", Default = false, Callback = function(state) killAuraEnabled = state end })
 Tabs.Combat:AddToggle({ Title = "Aura Chop (Trees Only)", Default = false, Callback = function(state) treeAuraEnabled = state end })
 
--- INPUT ANGKA (TIDAK ADA SLIDER)
 Tabs.Combat:AddInput({ Title = "Aura Radius (Angka)", Default = "200", Placeholder = "Ketik radius...", Callback = function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end})
 
--- 1. KILL AURA
+-- 1. KILL AURA (Lebih Brutal & Cepat)
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -202,6 +200,7 @@ task.spawn(function()
                             if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
                                 task.spawn(function()
                                     pcall(function()
+                                        -- Damage langsung tanpa jeda panjang
                                         RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame)
                                     end)
                                 end)
@@ -215,7 +214,7 @@ task.spawn(function()
     end
 end)
 
--- 2. AURA CHOP (DENGAN MEMORI DEBOUNCE 5 DETIK UNTUK MENCEGAH ERROR GAME)
+-- 2. AURA CHOP (DeathModels Crash Fix)
 local choppedTrees = {}
 task.spawn(function()
     while ScriptRunning do
@@ -230,8 +229,8 @@ task.spawn(function()
                     for _, obj in ipairs(map.Foliage:GetChildren()) do
                         if obj:IsA("Model") and not choppedTrees[obj] then
                             local trunk = obj:FindFirstChild("Trunk")
-                            if trunk and (trunk.Position - hrp.Position).Magnitude <= auraRadius then
-                                -- Tandai pohon sudah ditebang agar tidak di-spam saat animasi tumbang
+                            -- Pengecekan ekstra: Pastikan Trunk itu nyata dan bukan sisa-sisa DeathModel
+                            if trunk and trunk:IsA("BasePart") and (trunk.Position - hrp.Position).Magnitude <= auraRadius then
                                 choppedTrees[obj] = true 
                                 
                                 task.spawn(function()
@@ -239,12 +238,13 @@ task.spawn(function()
                                         RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
                                             Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
                                         })
-                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame)
+                                        -- Menggunakan argument kelima (true) sesuai remote game
+                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
                                     end)
                                 end)
                                 
-                                -- Hapus dari memori setelah 5 detik
-                                task.delay(5, function() choppedTrees[obj] = nil end)
+                                -- Jeda 1.5 detik agar Tree Animation punya waktu untuk berjalan sebelum di-spam lagi
+                                task.delay(1.5, function() choppedTrees[obj] = nil end)
                             end
                         end
                     end
@@ -256,7 +256,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- MAIN FARM TAB 
+-- MAIN FARM TAB (TIDAK DISENTUH SAMA SEKALI)
 -- ==========================================
 local autoEatEnabled = false
 local autoCookEnabled = false
@@ -321,7 +321,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB 
+-- ITEM TP TAB (DETEKSI DIPERLUAS MENGGUNAKAN GETDESCENDANTS)
 -- ==========================================
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -347,8 +347,10 @@ for catName, listItems in pairs(itemCategories) do
             local hrp = getRootPart()
             if not hrp then return end
             
-            for _, item in ipairs(ItemsFolder:GetChildren()) do
-                if item.Name == selectedCatItem and item:IsDescendantOf(workspace) then
+            -- PENGGUNAAN GETDESCENDANTS(): Mencari hingga ke sub-folder tanpa batas
+            for _, item in ipairs(ItemsFolder:GetDescendants()) do
+                -- Memastikan objek adalah Model atau Tool, bukan sekadar nama part sembarangan
+                if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                     local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
                     dragItemToPos(item, targetPos)
                     count = count + 1
@@ -440,7 +442,6 @@ end)
 -- ==========================================
 -- PLAYER TAB
 -- ==========================================
--- INPUT ANGKA (TIDAK ADA SLIDER)
 Tabs.Player:AddInput({
     Title       = "WalkSpeed (Angka)",
     Default     = "16",
@@ -453,4 +454,4 @@ Tabs.Player:AddInput({
     end
 })
 
-OrvionLib:Notify("W424 Hub", "Script Loaded: Crash-Proof Trees & No Sliders!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: DeathModel Crashes Fixed!", 3)
