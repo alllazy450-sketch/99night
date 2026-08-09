@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (ORVION UI)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (SEPARATED SYSTEMS)
 -- ==========================================
 local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
@@ -12,7 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
-local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
+local RemoteConsume = ReplicatedStorage:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
 
@@ -157,7 +157,7 @@ local Tabs = {
 }
 
 -- ==========================================
--- AURA & COMBAT TAB
+-- AURA & COMBAT TAB (DIPISAH ANTARA KILL & CHOP)
 -- ==========================================
 local killAuraEnabled = false
 local treeAuraEnabled = false
@@ -180,7 +180,7 @@ local function getAnyToolWithDamageID()
 end
 
 Tabs.Combat:AddToggle({
-    Title    = "Kill Aura (BRUTAL MOBS)",
+    Title    = "Kill Aura (Mobs Only)",
     Default  = false,
     Callback = function(state)
         killAuraEnabled = state
@@ -188,7 +188,7 @@ Tabs.Combat:AddToggle({
 })
 
 Tabs.Combat:AddToggle({
-    Title    = "Aura Chop (TREES)",
+    Title    = "Aura Chop (Trees Only)",
     Default  = false,
     Callback = function(state)
         treeAuraEnabled = state
@@ -205,53 +205,27 @@ Tabs.Combat:AddInput({
     end
 })
 
--- Main Aura Loop (Using Workspace.Map.Foliage path)
+-- 1. LOOP KHUSUS KILL AURA (Murni untuk Mobs)
 task.spawn(function()
     while ScriptRunning do
-        if killAuraEnabled or treeAuraEnabled then
+        if killAuraEnabled then
             local hrp = getRootPart()
             local tool, damageID = getAnyToolWithDamageID()
             
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 
-                if killAuraEnabled then
-                    local characters = Workspace:FindFirstChild("Characters")
-                    if characters then
-                        for _, mob in ipairs(characters:GetChildren()) do
-                            if mob:IsA("Model") and mob.Parent then
-                                local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
-                                if mobHumanoid and mobHumanoid.Health > 0 then
-                                    local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
-                                    if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
-                                        task.spawn(function()
-                                            RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position), true)
-                                        end)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-                
-                if treeAuraEnabled then
-                    local map = Workspace:FindFirstChild("Map")
-                    if map then
-                        local foliage = map:FindFirstChild("Foliage") or map
-                        for _, obj in ipairs(foliage:GetDescendants()) do
-                            if obj:IsA("Model") and obj.Parent then
-                                local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                local characters = Workspace:FindFirstChild("Characters")
+                if characters then
+                    for _, mob in ipairs(characters:GetChildren()) do
+                        if mob:IsA("Model") and mob.Parent then
+                            local mobHumanoid = mob:FindFirstChildOfClass("Humanoid")
+                            if mobHumanoid and mobHumanoid.Health > 0 then
+                                local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
                                 if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
-                                    task.spawn(function()
-                                        pcall(function()
-                                            RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                                Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"),
-                                                Volume = 0.4
-                                            })
-                                        end)
-                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(part.Position), true)
+                                    pcall(function()
+                                        RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position), true)
                                     end)
-                                    task.wait(0.3)
                                 end
                             end
                         end
@@ -259,12 +233,47 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.6)
+        task.wait(0.2)
+    end
+end)
+
+-- 2. LOOP KHUSUS AURA CHOP (Murni untuk Pohon/Foliage)
+task.spawn(function()
+    while ScriptRunning do
+        if treeAuraEnabled then
+            local hrp = getRootPart()
+            local tool, damageID = getAnyToolWithDamageID()
+            
+            if hrp and tool and damageID then
+                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
+                
+                local map = Workspace:FindFirstChild("Map")
+                if map then
+                    local foliage = map:FindFirstChild("Foliage") or map
+                    for _, obj in ipairs(foliage:GetDescendants()) do
+                        if obj:IsA("Model") and obj.Parent then
+                            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
+                                pcall(function()
+                                    RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
+                                        Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"),
+                                        Volume = 0.4
+                                    })
+                                    RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(part.Position), true)
+                                end)
+                                task.wait(0.25)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.4)
     end
 end)
 
 -- ==========================================
--- MAIN FARM TAB
+-- MAIN FARM TAB (FIXED AUTO GRIND & FEED)
 -- ==========================================
 local autoEatEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
@@ -283,7 +292,7 @@ Tabs.Main:AddDropdown({
     Values       = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
     DefaultValue = "",
     Callback     = function(value)
-        autoGrindItems[value] = true
+        autoGrindItems[value] = not autoGrindItems[value]
     end
 })
 
@@ -293,28 +302,28 @@ Tabs.Main:AddDropdown({
     Values       = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
     DefaultValue = "",
     Callback     = function(value)
-        autoFuelItems[value] = true
+        autoFuelItems[value] = not autoFuelItems[value]
     end
 })
 
-local function processAutoTP(itemSet, destinationPos)
-    for itemName, enabled in pairs(itemSet) do
-        if enabled then
-            for _, item in ipairs(ItemsFolder:GetChildren()) do
-                if item.Name == itemName and item.Parent then
-                    teleportItemSafe(item, destinationPos)
+-- Memperbaiki loop Auto Grind dan Feed agar benar-benar merespons data tabel
+task.spawn(function()
+    while ScriptRunning do
+        local machinePos = getMachinePosition()
+        local firePos = getCampfirePosition()
+        
+        for _, item in ipairs(ItemsFolder:GetChildren()) do
+            if item and item.Parent then
+                if autoGrindItems[item.Name] then
+                    teleportItemSafe(item, machinePos)
+                    task.wait(0.1)
+                elseif autoFuelItems[item.Name] then
+                    teleportItemSafe(item, firePos)
                     task.wait(0.1)
                 end
             end
         end
-    end
-end
-
-task.spawn(function()
-    while ScriptRunning do
-        processAutoTP(autoGrindItems, getMachinePosition())
-        processAutoTP(autoFuelItems, getCampfirePosition())
-        task.wait(2)
+        task.wait(1)
     end
 end)
 
@@ -340,45 +349,44 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TP TAB (Bring Item)
+-- ITEM TP TAB (BRING DIKELOMPOKKAN)
 -- ==========================================
-local bringItemList = {
-    "Alien Chest", "Berry", "Biofuel", "Bolt", "Broken Fan", "Carrot", "Coal", "Coin Stack",
-    "Cooked Morsel", "Cooked Steak", "Chainsaw", "Cultist Gem", "Fuel Canister", "Item Chest",
-    "Log", "MedKit", "Morsel", "Old Flashlight", "Old Radio", "Oil Barrel", "Old Car Engine",
-    "Rifle", "Revolver", "Sheet Metal", "Steak", "Wolf Pelt", "Tyre", "Washing Machine"
+local itemCategories = {
+    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
+    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave"},
+    Equipment_Weapons = {"Rifle", "Revolver", "Rifle Ammo", "Revolver Ammo", "Chainsaw", "Old Flashlight", "MedKit", "Bandage"}
 }
 
-local currentBringItem = bringItemList[1]
-Tabs.ItemTP:AddDropdown({
-    Title        = "Select Item to Bring",
-    Values       = bringItemList,
-    DefaultValue = bringItemList[1],
-    Callback     = function(value)
-        currentBringItem = value
-    end
-})
-
-Tabs.ItemTP:AddButton({
-    Title    = "Bring Selected Item",
-    Callback = function()
-        local selected = currentBringItem
-        if not selected then return end
-        
-        local count = 0
-        local hrp = getRootPart()
-        if not hrp then return end
-        
-        for _, item in ipairs(ItemsFolder:GetChildren()) do
-            if item.Name == selected and item.Parent then
-                local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                teleportItemSafe(item, targetPos)
-                count = count + 1
-            end
+for catName, listItems in pairs(itemCategories) do
+    local selectedCatItem = listItems[1]
+    
+    Tabs.ItemTP:AddDropdown({
+        Title        = "Bring: " .. catName:gsub("_", " "),
+        Values       = listItems,
+        DefaultValue = listItems[1],
+        Callback     = function(value)
+            selectedCatItem = value
         end
-        OrvionLib:Notify("Success", "Ditarik: " .. count .. " " .. selected, 3)
-    end
-})
+    })
+    
+    Tabs.ItemTP:AddButton({
+        Title    = "Execute Bring (" .. catName:gsub("_", " ") .. ")",
+        Callback = function()
+            local count = 0
+            local hrp = getRootPart()
+            if not hrp then return end
+            
+            for _, item in ipairs(ItemsFolder:GetChildren()) do
+                if item.Name == selectedCatItem and item.Parent then
+                    local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
+                    teleportItemSafe(item, targetPos)
+                    count = count + 1
+                end
+            end
+            OrvionLib:Notify("Success", "Berhasil menarik " .. count .. " " .. selectedCatItem, 3)
+        end
+    })
+end
 
 -- ==========================================
 -- PLAYER TAB (WalkSpeed)
@@ -398,4 +406,4 @@ Tabs.Player:AddInput({
 -- ==========================================
 -- NOTIFIKASI LOADED
 -- ==========================================
-OrvionLib:Notify("W424 Hub", "Script successfully rebuilt & loaded!", 3)
+OrvionLib:Notify("W424 Hub", "Script loaded with separated Aura & Categorized Bring!", 3)
