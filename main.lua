@@ -1,5 +1,6 @@
 -- =============================================
--- W424 - 99 NIGHTS ULTIMATE SCRIPT (FIXED TP & PHYSICS)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (FINAL PERFECTED)
+-- UI: Rayfield
 -- =============================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -16,14 +17,15 @@ local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
 
--- Helper untuk posisi player
+-- =============================================
+-- HELPER FUNCTIONS
+-- =============================================
 local function getRootPart()
     local char = LocalPlayer.Character
     if not char then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
 
--- Helper untuk posisi mesin/api (ditambah ketinggian agar jatuh natural)
 local function getCampfirePosition()
     local map = Workspace:FindFirstChild("Map")
     if map and map:FindFirstChild("Campground") and map.Campground:FindFirstChild("MainFire") then
@@ -46,26 +48,21 @@ local function getMachinePosition()
     return Vector3.new(21, 19, -5)
 end
 
--- =============================================
--- SAFE TELEPORT ITEM LOGIC (ANTI-BUG/HILANG)
--- =============================================
+-- Metode Teleport Aman (Anti-Hilang Ditelan Server)
 local function teleportItemSafe(item, targetPos)
     pcall(function()
         local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
         if not part then return end
 
-        -- 1. Minta izin ke server untuk memegang item
         RemoteEvents.RequestStartDraggingItem:FireServer(item)
-        task.wait(0.05) -- Jeda wajib agar server memberikan hak akses fisik (Network Ownership)
+        task.wait(0.05) -- Jeda wajib agar server memberikan hak akses
 
-        -- 2. Pindahkan posisi
         if item:IsA("Model") then
             item:SetPrimaryPartCFrame(CFrame.new(targetPos))
         else
             part.CFrame = CFrame.new(targetPos)
         end
 
-        -- 3. Lepaskan item agar gravitasi bekerja
         RemoteEvents.StopDraggingItem:FireServer(item)
     end)
 end
@@ -74,9 +71,9 @@ end
 -- UI SETUP
 -- =============================================
 local Window = Rayfield:CreateWindow({
-    Name = "W424 - 99 Nights (ULTIMATE)",
-    LoadingTitle = "All-in-one | by W424",
-    LoadingSubtitle = "Physics & TP Fixed",
+    Name = "W424 - 99 Nights",
+    LoadingTitle = "Ultimate Edition | by W424",
+    LoadingSubtitle = "100% Fixed (Aura & TP)",
     Theme = "DarkBlue",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
@@ -84,13 +81,14 @@ local Window = Rayfield:CreateWindow({
 
 local MainTab = Window:CreateTab("Main Farm", 4483345998)
 local ItemTPTab = Window:CreateTab("Item TP", 4483345998)
+local ESPTab = Window:CreateTab("ESP", 4483345998)
 local PlayerTab = Window:CreateTab("Player", 4483345998)
 
 -- =============================================
--- COMBAT / AURA
+-- COMBAT / AURA (WITH REMOTE SPY FIX)
 -- =============================================
 local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
+    ["Old Axe"] = "1_9883131443", -- Updated ID
     ["Good Axe"] = "112_8982038982",
     ["Strong Axe"] = "116_8982038982",
     ["Chainsaw"] = "647_8992824875",
@@ -152,8 +150,9 @@ task.spawn(function()
                                     local part = mob.PrimaryPart or mob:FindFirstChildWhichIsA("BasePart")
                                     if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
                                         task.spawn(function()
-                                            for i = 1, 3 do -- 3x hit agar cepat tapi tidak merusak server
-                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position))
+                                            for i = 1, 3 do
+                                                -- 5th Argument FALSE added
+                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, CFrame.new(part.Position), false)
                                             end
                                         end)
                                     end
@@ -167,13 +166,14 @@ task.spawn(function()
                 if treeAuraEnabled then
                     local map = Workspace:FindFirstChild("Map")
                     if map then
-                        for _, obj in ipairs(map:GetDescendants()) do
+                        local foliage = map:FindFirstChild("Foliage") or map
+                        for _, obj in ipairs(foliage:GetDescendants()) do
                             if obj:IsA("Model") and (obj.Name:find("Tree") or obj.Name:find("Log")) then
                                 local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                                 if part and (part.Position - hrp.Position).Magnitude <= auraRadius then
                                     task.spawn(function()
-                                        -- Cukup 1x hit per loop agar server sempat merespon item drop
-                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(part.Position))
+                                        -- 5th Argument FALSE added
+                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, CFrame.new(part.Position), false)
                                     end)
                                 end
                             end
@@ -182,7 +182,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.2)
+        task.wait(0.3)
     end
 end)
 
@@ -229,9 +229,8 @@ local function processAutoTP(itemSet, destinationPos)
         if enabled then
             for _, item in ipairs(ItemsFolder:GetChildren()) do
                 if item.Name == itemName then
-                    -- Menggunakan fungsi aman
                     teleportItemSafe(item, destinationPos)
-                    task.wait(0.1) -- Jeda antar item agar tidak nabrak
+                    task.wait(0.1)
                 end
             end
         end
@@ -285,6 +284,7 @@ ItemTPTab:CreateDropdown({
     Options = bringItemList,
     CurrentOption = bringItemList[1],
     Callback = function(Option)
+        -- FIXED DROPDOWN TABLE ISSUE
         currentBringItem = type(Option) == "table" and Option[1] or Option
     end
 })
@@ -301,15 +301,58 @@ ItemTPTab:CreateButton({
         
         for _, item in ipairs(ItemsFolder:GetChildren()) do
             if item.Name == selected then
-                -- Susun secara rapi ke atas agar tidak nyangkut di tanah
                 local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
                 teleportItemSafe(item, targetPos)
                 count = count + 1
             end
         end
-        Rayfield:Notify({Title = "Bring Success", Content = "Berhasil menarik " .. count .. " " .. selected, Duration = 3})
+        Rayfield:Notify({Title = "Success", Content = "Ditarik: " .. count .. " " .. selected, Duration = 3})
     end
 })
+
+-- =============================================
+-- ESP TAB
+-- =============================================
+ESPTab:CreateSection("👁️ ESP")
+local espEnabled = false
+ESPTab:CreateToggle({
+    Name = "Item ESP",
+    CurrentValue = false,
+    Callback = function(Value)
+        espEnabled = Value
+        if not Value then
+            for _, model in ipairs(ItemsFolder:GetChildren()) do
+                local esp = model:FindFirstChild("W424_ESP")
+                if esp then esp:Destroy() end
+            end
+        end
+    end
+})
+
+task.spawn(function()
+    while ScriptRunning do
+        if espEnabled then
+            for _, model in ipairs(ItemsFolder:GetChildren()) do
+                if model:IsA("Model") and model.PrimaryPart and not model:FindFirstChild("W424_ESP") then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "W424_ESP"
+                    bb.Size = UDim2.new(0, 100, 0, 30)
+                    bb.Adornee = model.PrimaryPart
+                    bb.AlwaysOnTop = true
+                    local lbl = Instance.new("TextLabel", bb)
+                    lbl.Size = UDim2.new(1, 0, 1, 0)
+                    lbl.BackgroundTransparency = 1
+                    lbl.TextColor3 = Color3.new(0, 1, 0)
+                    lbl.TextStrokeTransparency = 0.5
+                    lbl.Font = Enum.Font.GothamBold
+                    lbl.Text = model.Name
+                    bb.Parent = model
+                end
+            end
+        end
+        task.wait(2)
+    end
+end)
 
 -- =============================================
 -- PLAYER TAB
