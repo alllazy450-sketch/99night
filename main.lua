@@ -1,91 +1,7 @@
 -- ==========================================
--- W424 - 99 NIGHTS (ROBUST LOAD + ANTI-FREEZE)
+-- W424 - 99 NIGHTS ULTIMATE SCRIPT (CONTINUOUS BRING & SPECIFIC ITEMS)
 -- ==========================================
-
--- ==========================================
--- ROBUST LIBRARY LOADER (3 Method Fallback)
--- ==========================================
-local OrvionLib
-local loadError = ""
-
--- Method 1: game:HttpGet (PC Executor)
-local s1, r1 = pcall(function()
-    return game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua", true)
-end)
-if s1 and r1 and #r1 > 500 then
-    local s2, r2 = pcall(function() return loadstring(r1)() end)
-    if s2 and r2 then OrvionLib = r2 end
-end
-
--- Method 2: request() (Mobile Executor: Delta, Codex, etc)
-if not OrvionLib and request then
-    local s3, r3 = pcall(function()
-        local res = request({
-            Url = "https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua",
-            Method = "GET",
-            Headers = {["User-Agent"] = "Mozilla/5.0"}
-        })
-        return res and res.Body
-    end)
-    if s3 and r3 and #r3 > 500 then
-        local s4, r4 = pcall(function() return loadstring(r3)() end)
-        if s4 and r4 then OrvionLib = r4 end
-    end
-end
-
--- Method 3: http_request (Alternative mobile)
-if not OrvionLib and http_request then
-    local s5, r5 = pcall(function()
-        local res = http_request({
-            Url = "https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua",
-            Method = "GET",
-            Headers = {["User-Agent"] = "Mozilla/5.0"}
-        })
-        return res and res.Body
-    end)
-    if s5 and r5 and #r5 > 500 then
-        local s6, r6 = pcall(function() return loadstring(r5)() end)
-        if s6 and r6 then OrvionLib = r6 end
-    end
-end
-
--- Jika masih gagal, beri error yang jelas
-if not OrvionLib then
-    local msg = [[
-    =========================================
-    ❌ ORVIONLIB GAGAL DI-LOAD!
-    =========================================
-    Penyebab umum:
-    • Executor mobile sering blok GitHub Raw
-    • Koneksi internet terbatas
-    • URL library sudah tidak valid
-    
-    Solusi:
-    1. Coba pakai executor PC (KRNL, Synapse, Fluxus)
-    2. Atau load library manual via Pastebin/Alternative URL
-    3. Atau gunakan VPN jika GitHub diblok
-    =========================================]]
-    warn(msg)
-    
-    -- Tampilkan di game juga
-    local sg = Instance.new("ScreenGui")
-    sg.Parent = game:GetService("CoreGui")
-    local tl = Instance.new("TextLabel")
-    tl.Parent = sg
-    tl.Size = UDim2.new(0, 400, 0, 200)
-    tl.Position = UDim2.new(0.5, -200, 0.5, -100)
-    tl.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
-    tl.TextColor3 = Color3.fromRGB(255, 100, 100)
-    tl.TextWrapped = true
-    tl.Text = "❌ ORVIONLIB GAGAL LOAD!\n\nCek console (F9) untuk detail.\n\nSolusi:\n• Pakai executor PC\n• Atau load library manual\n• Atau gunakan VPN"
-    tl.TextSize = 18
-    Instance.new("UICorner", tl)
-    return -- STOP script
-end
-
--- ==========================================
--- SERVICES & VARIABLES
--- ==========================================
+local OrvionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/KnullXDgt/orvion/refs/heads/main/orvionlibrary.lua"))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -103,18 +19,6 @@ local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
 
--- ==========================================
--- ANTI-FREEZE CONFIG
--- ==========================================
-local MAX_GRIND_DISTANCE = 500
-local TELEPORT_TIMEOUT = 8
-local RETRY_ATTEMPTS = 3
-local PROCESS_COOLDOWN = 2
-local TELEPORT_DELAY = 0.15
-
--- ==========================================
--- CORE FUNCTIONS
--- ==========================================
 local function getRootPart()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -130,117 +34,31 @@ local function findValidPart(obj)
     return nil
 end
 
--- ==========================================
--- ANTI-FREEZE: GET ITEM POSITION
--- ==========================================
-local function getItemPosition(item)
-    if not item or not item:IsDescendantOf(workspace) then return nil end
-    if item:IsA("Model") then
-        return item:GetPivot().Position
-    elseif item:IsA("BasePart") or item:IsA("MeshPart") then
-        return item.Position
-    else
-        local part = findValidPart(item)
-        return part and part.Position or nil
-    end
-end
-
--- ==========================================
--- ANTI-FREEZE: SET POSITION WITH VELOCITY RESET
--- ==========================================
-local function setItemPosition(item, targetPos)
-    if not item or not item:IsDescendantOf(workspace) then return false end
-    local success = false
-    pcall(function()
-        if item:IsA("BasePart") or item:IsA("MeshPart") then
-            item.AssemblyLinearVelocity = Vector3.zero
-            item.AssemblyAngularVelocity = Vector3.zero
-            item.CFrame = CFrame.new(targetPos)
-            success = true
-        elseif item:IsA("Model") then
-            item:PivotTo(CFrame.new(targetPos))
-            for _, part in ipairs(item:GetDescendants()) do
-                if part:IsA("BasePart") or part:IsA("MeshPart") then
-                    part.AssemblyLinearVelocity = Vector3.zero
-                    part.AssemblyAngularVelocity = Vector3.zero
-                end
-            end
-            success = true
-        end
-    end)
-    return success
-end
-
--- ==========================================
--- ANTI-FREEZE: IMPROVED DRAG SYSTEM
--- ==========================================
-local processingItems = {}
-local lastProcessed = {}
-
 local function dragItemToPos(item, pos)
-    if not item or not item:IsDescendantOf(workspace) then return false end
-    local itemId = tostring(item)
-    local currentTime = tick()
+    if not item or not item:IsDescendantOf(workspace) then return end
+    local part = findValidPart(item)
+    if not part then return end
     
-    if lastProcessed[itemId] and (currentTime - lastProcessed[itemId]) < PROCESS_COOLDOWN then
-        return false
-    end
-    if processingItems[itemId] then return false end
-    processingItems[itemId] = true
-    
-    local startPos = getItemPosition(item)
-    if not startPos then 
-        processingItems[itemId] = nil
-        return false 
-    end
-    
-    local hrp = getRootPart()
-    if hrp then
-        local distToPlayer = (startPos - hrp.Position).Magnitude
-        if distToPlayer > MAX_GRIND_DISTANCE then
-            processingItems[itemId] = nil
-            return false
+    pcall(function()
+        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
+        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+        
+        if dragStart then dragStart:FireServer(item) end
+        task.wait(0.05) 
+
+        if not item:IsDescendantOf(workspace) then return end 
+
+        if item:IsA("Model") and item.PrimaryPart then
+            item:SetPrimaryPartCFrame(CFrame.new(pos))
+        else
+            part.CFrame = CFrame.new(pos)
         end
-    end
-    
-    local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
-    local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
-    local success = false
-    
-    for attempt = 1, RETRY_ATTEMPTS do
-        if not item:IsDescendantOf(workspace) then break end
-        pcall(function()
-            if dragStart then dragStart:FireServer(item) end
-            task.wait(TELEPORT_DELAY)
-            if not item:IsDescendantOf(workspace) then return end
-            setItemPosition(item, pos)
-            task.wait(TELEPORT_DELAY)
-            if not item:IsDescendantOf(workspace) then return end
-            local newPos = getItemPosition(item)
-            if newPos then
-                local distToTarget = (newPos - pos).Magnitude
-                if distToTarget <= 10 then
-                    success = true
-                else
-                    setItemPosition(item, pos)
-                    task.wait(TELEPORT_DELAY)
-                end
-            end
-            if dragStop then dragStop:FireServer(item) end
-            task.wait(0.1)
-        end)
-        if success then break end
-        task.wait(0.2)
-    end
-    
-    lastProcessed[itemId] = tick()
-    processingItems[itemId] = nil
-    return success
+        
+        task.wait(0.05)
+        if dragStop then dragStop:FireServer(item) end
+    end)
 end
 
--- ==========================================
--- UI SETUP
--- ==========================================
 local Window = OrvionLib:CreateWindow({
     Title = "W424 Hub | 99 Nights",
     Icon  = ""
@@ -254,7 +72,7 @@ screenGui.ResetOnSpawn = false
 local bubble = Instance.new("TextButton")
 bubble.Name = "BubbleButton"
 bubble.Parent = screenGui
-bubble.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+bubble.BackgroundColor3 = Color3=.fromRGB(20, 20, 30)
 bubble.BorderColor3 = Color3.fromRGB(0, 160, 255)
 bubble.BorderSizePixel = 2
 bubble.Position = UDim2.new(0.05, 0, 0.15, 0)
@@ -276,11 +94,13 @@ bubble.InputBegan:Connect(function(input)
         dragStart = input.Position
         startPos = bubble.Position
         dragStartPos = input.Position
+        
         local connection
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
                 connection:Disconnect()
+                
                 if (input.Position - dragStartPos).Magnitude < 5 then
                     uiVisible = not uiVisible
                     for _, gui in ipairs(CoreGui:GetChildren()) do
@@ -342,14 +162,12 @@ Tabs.Combat:AddInput({ Title = "Aura Radius (Angka)", Default = "200", Placehold
     if num then auraRadius = num end
 end})
 
--- ==========================================
--- KILL AURA LOOP
--- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
             local hrp = getRootPart()
             local tool, damageID = getAnyToolWithDamageID()
+            
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 local characters = Workspace:FindFirstChild("Characters")
@@ -374,9 +192,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AURA CHOP (TREES) - IMPROVED
--- ==========================================
 local choppedTrees = setmetatable({}, {__mode = "k"})
 
 task.spawn(function()
@@ -384,6 +199,7 @@ task.spawn(function()
         if treeAuraEnabled then
             local hrp = getRootPart()
             local tool, damageID = getAnyToolWithDamageID()
+            
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 local map = Workspace:FindFirstChild("Map")
@@ -394,17 +210,18 @@ task.spawn(function()
                             if trunk and trunk:IsA("BasePart") then
                                 if (trunk.Position - hrp.Position).Magnitude <= auraRadius then
                                     choppedTrees[obj] = tick()
+                                    
                                     task.spawn(function()
                                         pcall(function()
                                             if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
                                                 RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                                    Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), 
-                                                    Volume = 0.4
+                                                    Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4
                                                 })
                                                 RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
                                             end
                                         end)
                                     end)
+                                    
                                     task.delay(1.5, function() choppedTrees[obj] = nil end)
                                 end
                             end
@@ -417,12 +234,9 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- MAIN FARM FEATURES
--- ==========================================
 local autoEatEnabled = false
 local autoCookEnabled = false
-local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
+local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple", "Cake"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 
 Tabs.Main:AddToggle({ Title = "Auto Eat (HP Based)", Default = false, Callback = function(state) autoEatEnabled = state end })
@@ -444,39 +258,23 @@ Tabs.Main:AddDropdown({
     Callback     = function(value) autoFuelItems[value] = not autoFuelItems[value] end
 })
 
--- ==========================================
--- IMPROVED AUTO GRIND LOOP (ANTI-FREEZE)
--- ==========================================
 task.spawn(function()
     while ScriptRunning do
-        local hrp = getRootPart()
-        if hrp then
-            local items = ItemsFolder:GetChildren()
-            for _, item in ipairs(items) do
-                if not item or not item:IsDescendantOf(workspace) then continue end
-                local shouldGrind = autoGrindItems[item.Name]
-                local shouldFuel = autoFuelItems[item.Name]
-                local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
-                if shouldGrind or shouldFuel or shouldCook then
-                    local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
-                    local itemPos = getItemPosition(item)
-                    if itemPos then
-                        local dist = (itemPos - hrp.Position).Magnitude
-                        if dist <= MAX_GRIND_DISTANCE then
-                            local ok = dragItemToPos(item, targetPos)
-                            if ok then task.wait(0.3) end
-                        end
-                    end
+        for _, item in ipairs(ItemsFolder:GetChildren()) do
+            if item and item:IsDescendantOf(workspace) then
+                if autoGrindItems[item.Name] then
+                    dragItemToPos(item, MACHINE_POS)
+                    task.wait(0.1)
+                elseif autoFuelItems[item.Name] or (autoCookEnabled and table.find(rawFoodsToCook, item.Name)) then
+                    dragItemToPos(item, CAMPFIRE_POS)
+                    task.wait(0.1)
                 end
             end
         end
-        task.wait(1.5)
+        task.wait(1)
     end
 end)
 
--- ==========================================
--- AUTO EAT LOOP
--- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -499,44 +297,64 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ITEM TELEPORT
+-- ITEM TP TAB (DENGAN PILIHAN SPESIFIK & AUTO BRING / DETEKSI SPAWN TERUS-MENERUS)
 -- ==========================================
-local itemCategories = {
-    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
-    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave"},
-    Equipment_Weapons = {"Rifle", "Revolver", "Rifle Ammo", "Revolver Ammo", "Chainsaw", "Old Flashlight", "MedKit", "Bandage"},
-    Food_Consumables = {"Berry", "Carrot", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs", "Cake"}
-}
+local specificBringItems = {"Berry", "Carrot", "Cake", "Bandage", "MedKit", "Pistol", "Revolver"}
+local selectedBringItem = specificBringItems[1]
+local continuousBringEnabled = false
 
-for catName, listItems in pairs(itemCategories) do
-    local selectedCatItem = listItems[1]
-    Tabs.ItemTP:AddDropdown({
-        Title        = "Bring: " .. catName:gsub("_", " "),
-        Values       = listItems,
-        DefaultValue = listItems[1],
-        Callback     = function(value) selectedCatItem = value end
-    })
-    Tabs.ItemTP:AddButton({
-        Title    = "Execute Bring (" .. catName:gsub("_", " ") .. ")",
-        Callback = function()
-            local count = 0
+Tabs.ItemTP:AddDropdown({
+    Title        = "Pilih Item untuk Ditarik",
+    Values       = specificBringItems,
+    DefaultValue = specificBringItems[1],
+    Callback     = function(value) selectedBringItem = value end
+})
+
+Tabs.ItemTP:AddToggle({
+    Title    = "Auto Bring Terus-Menerus (Deteksi Spawn)",
+    Default  = false,
+    Callback = function(state) continuousBringEnabled = state end
+})
+
+Tabs.ItemTP:AddButton({
+    Title    = "Execute Bring Sekali Tarik",
+    Callback = function()
+        local count = 0
+        local hrp = getRootPart()
+        if not hrp then return end
+        
+        for _, item in ipairs(ItemsFolder:GetDescendants()) do
+            if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+                local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
+                dragItemToPos(item, targetPos)
+                count = count + 1
+            end
+        end
+        OrvionLib:Notify("Success", "Berhasil menarik: " .. count .. " " .. selectedBringItem, 3)
+    end
+})
+
+-- Background Worker untuk mendeteksi item spawn baru secara terus-menerus jika toggle aktif
+task.spawn(function()
+    while ScriptRunning do
+        if continuousBringEnabled then
             local hrp = getRootPart()
-            if not hrp then return end
-            for _, item in ipairs(ItemsFolder:GetDescendants()) do
-                if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                    local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                    dragItemToPos(item, targetPos)
-                    count = count + 1
+            if hrp then
+                local count = 0
+                for _, item in ipairs(ItemsFolder:GetDescendants()) do
+                    if item.Name == selectedBringItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+                        local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
+                        dragItemToPos(item, targetPos)
+                        count = count + 1
+                        task.wait(0.1)
+                    end
                 end
             end
-            OrvionLib:Notify("Success", "Ditarik: " .. count + 0 .. " " .. selectedCatItem, 3)
         end
-    })
-end
+        task.wait(1.5) -- Cek spawn baru setiap 1.5 detik
+    end
+end)
 
--- ==========================================
--- ESP SYSTEM
--- ==========================================
 local espMobsEnabled = false
 local espItemsEnabled = false
 local espFolder = Instance.new("Folder")
@@ -546,6 +364,7 @@ espFolder.Parent = CoreGui
 local function createESP(instance, name, color)
     local part = findValidPart(instance)
     if not part then return end
+
     local hl = Instance.new("Highlight")
     hl.Adornee = instance
     hl.FillColor = color
@@ -553,12 +372,14 @@ local function createESP(instance, name, color)
     hl.FillTransparency = 0.6
     hl.OutlineTransparency = 0
     hl.Parent = espFolder
+
     local bg = Instance.new("BillboardGui")
     bg.Adornee = part
     bg.Size = UDim2.new(0, 150, 0, 30)
     bg.AlwaysOnTop = true
     bg.StudsOffset = Vector3.new(0, 3, 0)
     bg.Parent = espFolder
+
     local txt = Instance.new("TextLabel")
     txt.Size = UDim2.new(1, 0, 1, 0)
     txt.BackgroundTransparency = 1
@@ -567,6 +388,7 @@ local function createESP(instance, name, color)
     txt.Font = Enum.Font.GothamBold
     txt.TextScaled = true
     txt.Parent = bg
+
     task.spawn(function()
         while bg.Parent and instance.Parent do
             local hrp = getRootPart()
@@ -599,7 +421,7 @@ local function refreshESP()
 end
 
 Tabs.Visuals:AddToggle({ Title = "ESP Mobs", Default = false, Callback = function(state) espMobsEnabled = state refreshESP() end })
-Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() and refreshESP() end })
+Tabs.Visuals:AddToggle({ Title = "ESP Items", Default = false, Callback = function(state) espItemsEnabled = state refreshESP() end })
 
 task.spawn(function()
     while ScriptRunning do
@@ -608,9 +430,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- PLAYER TAB
--- ==========================================
 Tabs.Player:AddInput({
     Title       = "WalkSpeed (Angka)",
     Default     = "16",
@@ -623,19 +442,4 @@ Tabs.Player:AddInput({
     end
 })
 
--- ==========================================
--- CACHE CLEANUP
--- ==========================================
-task.spawn(function()
-    while ScriptRunning do
-        local currentTime = tick()
-        for id, time in pairs(lastProcessed) do
-            if currentTime - time > 30 then
-                lastProcessed[id] = nil
-            end
-        end
-        task.wait(10)
-    end
-end)
-
-OrvionLib:Notify("W424 Hub", "Script Loaded: Anti-Freeze System Active!", 3)
+OrvionLib:Notify("W424 Hub", "Script Loaded: Continuous Bring & Specific Items Added!", 3)
