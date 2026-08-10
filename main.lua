@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v3 - MOBILE FAST)
+-- W424 - 99 NIGHTS (KAIRO UI v4 - STABLE)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -36,18 +36,27 @@ local function findValidPart(obj)
     return nil
 end
 
+local function getItemPosition(item)
+    if not item or not item:IsDescendantOf(workspace) then return nil end
+    if item:IsA("Model") then
+        return item:GetPivot().Position
+    elseif item:IsA("BasePart") or item:IsA("MeshPart") then
+        return item.Position
+    else
+        local part = findValidPart(item)
+        return part and part.Position or nil
+    end
+end
+
 -- ==========================================
--- FAST TELEPORT (Anti-freeze, no cooldown)
+-- TELEPORT FUNCTIONS
 -- ==========================================
-local function fastTeleport(item, pos)
-    if not item or not item:IsDescendantOf(workspace) then return end
+local function resetVelocity(item)
     pcall(function()
         if item:IsA("BasePart") or item:IsA("MeshPart") then
             item.AssemblyLinearVelocity = Vector3.zero
             item.AssemblyAngularVelocity = Vector3.zero
-            item.CFrame = CFrame.new(pos)
         elseif item:IsA("Model") then
-            item:PivotTo(CFrame.new(pos))
             for _, part in ipairs(item:GetDescendants()) do
                 if part:IsA("BasePart") or part:IsA("MeshPart") then
                     part.AssemblyLinearVelocity = Vector3.zero
@@ -58,6 +67,17 @@ local function fastTeleport(item, pos)
     end)
 end
 
+local function setItemCFrame(item, pos)
+    pcall(function()
+        if item:IsA("BasePart") or item:IsA("MeshPart") then
+            item.CFrame = CFrame.new(pos)
+        elseif item:IsA("Model") then
+            item:PivotTo(CFrame.new(pos))
+        end
+    end)
+end
+
+-- Fast drag untuk Item TP (instant, parallel)
 local function fastDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return end
     pcall(function()
@@ -65,22 +85,49 @@ local function fastDragItemToPos(item, pos)
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
         if dragStart then dragStart:FireServer(item) end
         task.wait(0.02)
-        fastTeleport(item, pos)
+        resetVelocity(item)
+        setItemCFrame(item, pos)
         task.wait(0.02)
         if dragStop then dragStop:FireServer(item) end
     end)
 end
 
+-- Stable drag untuk Auto Grind/Fuel (sequential, anti-glitch)
+local function stableDragItemToPos(item, pos)
+    if not item or not item:IsDescendantOf(workspace) then return false end
+    local success = false
+    pcall(function()
+        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
+        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+        
+        if dragStart then dragStart:FireServer(item) end
+        task.wait(0.08)
+        
+        if not item:IsDescendantOf(workspace) then return end
+        resetVelocity(item)
+        setItemCFrame(item, pos)
+        task.wait(0.08)
+        
+        if not item:IsDescendantOf(workspace) then return end
+        resetVelocity(item)
+        
+        if dragStop then dragStop:FireServer(item) end
+        task.wait(0.05)
+        success = true
+    end)
+    return success
+end
+
 -- ==========================================
--- MOBILE UI SIZE (Auto-fit screen)
+-- MOBILE UI SIZE (Auto-fit)
 -- ==========================================
 local cam = workspace.CurrentCamera
 local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
-local uiWidth = math.min(380, math.max(300, screenSize.X * 0.92))
-local uiHeight = math.min(440, math.max(350, screenSize.Y * 0.82))
+local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
+local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
 
 -- ==========================================
--- KAIRO UI - MIDNIGHT (BIRU TUA)
+-- KAIRO UI - MIDNIGHT
 -- ==========================================
 local Window = Kairo:CreateWindow({
     Title = "W424 Hub",
@@ -89,7 +136,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v3.2"},
+    Badges = {"MOBILE", "v4.0"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -109,7 +156,7 @@ local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 -- ==========================================
 -- MAIN FARM TAB
 -- ==========================================
-Window:AddParagraph(MainTab, "Auto Farm", "Fast auto farm settings")
+Window:AddParagraph(MainTab, "Auto Farm", "Stable auto farm settings")
 
 local autoEatEnabled = false
 local autoCookEnabled = false
@@ -127,7 +174,7 @@ Window:AddToggle(MainTab, "Auto Cook", "Cook raw at campfire", false,
 Window:AddDivider(MainTab, "Grind & Fuel")
 
 local autoGrindItems = {}
-Window:AddMultiDropdown(MainTab, "Auto Grind", "Select items to grind",
+Window:AddMultiDropdown(MainTab, "Auto Grind", "Items to machine grind",
     {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
     {}, function(selected)
         autoGrindItems = {}
@@ -136,7 +183,7 @@ Window:AddMultiDropdown(MainTab, "Auto Grind", "Select items to grind",
 )
 
 local autoFuelItems = {}
-Window:AddMultiDropdown(MainTab, "Auto Fuel", "Select fuel for campfire",
+Window:AddMultiDropdown(MainTab, "Auto Fuel", "Fuel for campfire",
     {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
     {}, function(selected)
         autoFuelItems = {}
@@ -145,20 +192,18 @@ Window:AddMultiDropdown(MainTab, "Auto Fuel", "Select fuel for campfire",
 )
 
 -- ==========================================
--- AURA TAB
+-- AURA TAB (Kill Aura only - Chop removed)
 -- ==========================================
-Window:AddParagraph(CombatTab, "Combat", "Aura attack settings")
+Window:AddParagraph(CombatTab, "Combat", "Kill aura settings")
 
 local killAuraEnabled = false
-local treeAuraEnabled = false
-local auraRadius = 100
+local auraRadius = 200
 
 local toolIds = {
     ["Old Axe"] = "1", ["Good Axe"] = "112", ["Strong Axe"] = "116",
     ["Chainsaw"] = "647", ["Spear"] = "196"
 }
 
--- Cari tool di Inventory, Backpack, DAN Character + auto-equip
 local function getAnyToolWithDamageID()
     local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
     for _, loc in ipairs(locations) do
@@ -182,11 +227,7 @@ Window:AddToggle(CombatTab, "Kill Aura", "Attack nearby mobs", false,
     function(state) killAuraEnabled = state end, "KillAura"
 )
 
-Window:AddToggle(CombatTab, "Aura Chop", "Chop nearby small trees", false,
-    function(state) treeAuraEnabled = state end, "SmalltreesAura"
-)
-
-Window:AddInput(CombatTab, "Radius", "Attack radius", "100",
+Window:AddInput(CombatTab, "Radius", "Attack radius", "200",
     function(value)
         local num = tonumber(value)
         if num then auraRadius = num end
@@ -196,7 +237,7 @@ Window:AddInput(CombatTab, "Radius", "Attack radius", "100",
 -- ==========================================
 -- ITEM TP TAB (FAST & WIDE)
 -- ==========================================
-Window:AddParagraph(ItemTPTab, "Item TP", "Fast item teleport")
+Window:AddParagraph(ItemTPTab, "Item TP", "Fast teleport items")
 
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -216,7 +257,7 @@ for catName, listItems in pairs(itemCategories) do
         "TP_" .. catName
     )
     
-    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Teleport all matching items",
+    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Teleport all items",
         "rbxassetid://16932740082",
         function()
             local hrp = getRootPart()
@@ -231,6 +272,7 @@ for catName, listItems in pairs(itemCategories) do
                         fastDragItemToPos(item, pos)
                     end)
                     count = count + 1
+                    task.wait(0.03) -- small delay antar item biar tidak lag
                 end
             end
             
@@ -366,58 +408,10 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- AURA CHOP (TREES) - FIXED
+-- STABLE AUTO GRIND & FUEL (Anti-Glitch)
 -- ==========================================
-local choppedTrees = {}
+local processingItems = {}
 
-task.spawn(function()
-    while ScriptRunning do
-        if treeAuraEnabled then
-            local hrp = getRootPart()
-            local tool, damageID = getAnyToolWithDamageID()
-            if hrp and tool and damageID then
-                -- Equip dulu
-                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                task.wait(0.1) -- TUNGGU equip selesai
-                
-                local map = Workspace:FindFirstChild("Map")
-                if map and map:FindFirstChild("Foliage") then
-                    for _, obj in ipairs(map.Foliage:GetChildren()) do
-                        if obj:IsA("Model") and obj.Parent == map.Foliage and not choppedTrees[obj] then
-                            local trunk = obj:FindFirstChild("Trunk")
-                            if trunk and trunk:IsA("BasePart") then
-                                if (trunk.Position - hrp.Position).Magnitude <= auraRadius then
-                                    choppedTrees[obj] = tick()
-                                    task.spawn(function()
-                                        -- Sound (ignore error)
-                                        pcall(function()
-                                            RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                                Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"),
-                                                Volume = 0.4
-                                            })
-                                        end)
-                                        -- Damage (main)
-                                        pcall(function()
-                                            if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
-                                                RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
-                                            end
-                                        end)
-                                    end)
-                                    task.delay(1.5, function() choppedTrees[obj] = nil end)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.2)
-    end
-end)
-
--- ==========================================
--- SUPER FAST AUTO GRIND & FUEL LOOP
--- ==========================================
 task.spawn(function()
     while ScriptRunning do
         local hrp = getRootPart()
@@ -425,20 +419,40 @@ task.spawn(function()
             for _, item in ipairs(ItemsFolder:GetChildren()) do
                 if not item or not item:IsDescendantOf(workspace) then continue end
                 
+                local itemId = tostring(item)
+                if processingItems[itemId] then continue end -- skip kalau masih diproses
+                
                 local shouldGrind = autoGrindItems[item.Name] == true
                 local shouldFuel = autoFuelItems[item.Name] == true
                 local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
                 
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
-                    -- PARALLEL + FAST: no distance check, no cooldown, instant
-                    task.spawn(function()
-                        fastDragItemToPos(item, targetPos)
+                    
+                    -- Cek apakah item sudah dekat target (skip biar tidak glitch)
+                    local itemPos = getItemPosition(item)
+                    if itemPos then
+                        local distToTarget = (itemPos - targetPos).Magnitude
+                        if distToTarget < 12 then continue end -- sudah sampai, skip
+                    end
+                    
+                    -- Mark as processing
+                    processingItems[itemId] = true
+                    
+                    -- Sequential drag (tidak parallel) untuk stabilitas
+                    stableDragItemToPos(item, targetPos)
+                    
+                    -- Unmark setelah selesai
+                    task.delay(0.5, function()
+                        processingItems[itemId] = nil
                     end)
+                    
+                    -- Delay antar item biar tidak race condition
+                    task.wait(0.15)
                 end
             end
         end
-        task.wait(0.1) -- LOOP CEPAT: 0.1 detik
+        task.wait(0.6) -- Loop stabil, tidak terlalu cepat
     end
 end)
 
@@ -481,7 +495,7 @@ end)
 Window:Notify({
     Title = "W424 Hub",
     Description = "Loaded",
-    Content = "Mobile UI + Fast Grind + Aura Chop Fixed!",
+    Content = "Stable Grind + Fast TP + Mobile UI v4!",
     Color = Color3.fromRGB(10, 30, 60),
     Delay = 5
 })
