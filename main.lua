@@ -1,6 +1,5 @@
-
 -- ==========================================
--- W424 HUB | v5.13 (FIXED AVATAR TAB VISIBILITY)
+-- W424 HUB | v5.18 (FIXED ASSET CLONE & DELAY LOAD)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -16,7 +15,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
-local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
+local RemoteConsume = ReplicatedStorage:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
@@ -118,30 +117,59 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
--- LOCAL FAKE AVATAR MORPH SYSTEM
+-- ROBUST ASSET CLONE AVATAR MORPH SYSTEM
 -- ==========================================
-local function applyLocalAvatarMorph(username)
-    local success = pcall(function()
+local function applyFullAssetCloneMorph(username)
+    local success = false
+    pcall(function()
         local userId = Players:GetUserIdFromNameAsync(username)
         if not userId then return end
         
         local char = LocalPlayer.Character
         if not char then return end
         
+        -- Hapus aksesoris, pakaian, dan muka lama
         for _, v in ipairs(char:GetChildren()) do
             if v:IsA("Accessory") or v:IsA("Clothing") or v:IsA("ShirtGraphic") then
                 v:Destroy()
+            elseif v.Name == "Head" then
+                local face = v:FindFirstChildOfClass("Decal")
+                if face then face:Destroy() end
             end
         end
         
+        -- Mengambil appearance dengan sistem pcall pengaman
         local appearanceModel = Players:GetCharacterAppearanceAsync(userId)
         if appearanceModel then
-            for _, v in ipairs(appearanceModel:GetChildren()) do
+            task.wait(0.5) -- Berikan waktu jeda render aset agar masuk sempurna
+            for _, v in ipairs(appearanceModel:GetDescendants()) do
                 if v:IsA("Accessory") or v:IsA("Clothing") or v:IsA("ShirtGraphic") then
-                    v:Clone().Parent = char
+                    pcall(function() v:Clone().Parent = char end)
+                elseif v:IsA("SpecialMesh") and v.Parent.Name == "Head" then
+                    local localHead = char:FindFirstChild("Head")
+                    if localHead then
+                        local existingMesh = localHead:FindFirstChildOfClass("SpecialMesh")
+                        if existingMesh then existingMesh:Destroy() end
+                        pcall(function() v:Clone().Parent = localHead end)
+                    end
+                elseif v:IsA("Decal") and v.Parent.Name == "Head" then
+                    local localHead = char:FindFirstChild("Head")
+                    if localHead then
+                        pcall(function() v:Clone().Parent = localHead end)
+                    end
+                elseif v:IsA("MeshPart") then
+                    local targetPartName = v.Name
+                    local localPart = char:FindFirstChild(targetPartName)
+                    if localPart and localPart:IsA("MeshPart") then
+                        pcall(function()
+                            localPart.MeshId = v.MeshId
+                            localPart.TextureID = v.TextureID
+                        end)
+                    end
                 end
             end
             appearanceModel:Destroy()
+            success = true
         end
     end)
     return success
@@ -162,7 +190,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.13"},
+    Badges = {"MOBILE", "v5.18"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -175,7 +203,7 @@ local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
-local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082") -- TAB AVATAR YANG SEBELUMNYA KETINGGALAN
+local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082")
 local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 
 -- ==========================================
@@ -300,20 +328,20 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- FAKE AVATAR TAB (LOCAL MORPH)
+-- FAKE AVATAR TAB (ROBUST ASSET CLONE)
 -- ==========================================
-Window:AddParagraph(AvatarTab, "Local Fake Avatar", "Ubah tampilan karakter secara lokal menggunakan USN")
+Window:AddParagraph(AvatarTab, "Full Asset Morph", "Kloning rambut, wajah, aksesori, & Korblox secara lokal")
 
 local customUsn = ""
 Window:AddInput(AvatarTab, "Ketik Username (USN)", "Masukkan username...", "", function(v) customUsn = v end, "CustomUsnInput")
 
-Window:AddButton(AvatarTab, "Apply Avatar Morph", "Terapkan pakaian/aksesori target ke karaktermu", "rbxassetid://16932740082", function()
+Window:AddButton(AvatarTab, "Apply Full Morph", "Terapkan seluruh aset target secara utuh", "rbxassetid://16932740082", function()
     if customUsn ~= "" then
-        Window:Notify({Title = "Loading", Description = "Avatar Morph", Content = "Memuat avatar " .. customUsn .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
+        Window:Notify({Title = "Loading", Description = "Asset Morph", Content = "Mengkloning aset dari " .. customUsn .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
         task.spawn(function()
-            local success = applyLocalAvatarMorph(customUsn)
+            local success = applyFullAssetCloneMorph(customUsn)
             if success then
-                Window:Notify({Title = "Success", Description = "Avatar Morphed", Content = "Berhasil mengubah tampilan ke " .. customUsn, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
+                Window:Notify({Title = "Success", Description = "Morph Complete", Content = "Berhasil menerapkan semua aset " .. customUsn, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
             else
                 Window:Notify({Title = "Error", Description = "Failed", Content = "USN tidak ditemukan atau gagal dimuat!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
             end
@@ -556,4 +584,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.13: Avatar Tab Fixed & Visible!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.18: Robust Asset Clone Morph Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
