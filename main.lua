@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.20 (IMPROVED POTATO MODE & OPTIMIZED)
+-- W424 HUB | v5.22 (WEAPON BLACKLIST FIX FOR AUTO GRIND)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -25,6 +25,17 @@ local LostChildPath = nil
 pcall(function()
     LostChildPath = workspace.Map.Landmarks["Jail Cellar1"].Dino
 end)
+
+-- Daftar item senjata/penting yang DILARANG keras untuk ditarik ke mesin
+local weaponBlacklist = {
+    ["Rifle"] = true,
+    ["Pistol"] = true,
+    ["Revolver"] = true,
+    ["Air Rifle"] = true,
+    ["Chainsaw"] = true,
+    ["Spear"] = true,
+    ["Old Flashlight"] = true
+}
 
 -- ==========================================
 -- CORE FUNCTIONS
@@ -96,7 +107,7 @@ local function reliableDragItemToPos(item, pos)
         resetVelocity(item)
         setItemCFrame(item, pos)
         
-        task.wait(0.2) 
+        task.wait(0.1) 
         
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
@@ -126,12 +137,12 @@ local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
 
 local Window = Kairo:CreateWindow({
     Title = "W424 Hub",
-    Theme = "Neon",
+    Theme = "Midnight",
     Size = UDim2.fromOffset(uiWidth, uiHeight),
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.20"},
+    Badges = {"MOBILE", "v5.22"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -149,19 +160,21 @@ local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 -- ==========================================
 -- MAIN TAB
 -- ==========================================
-Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
+Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan, Grind & Foliage")
 
 local autoEatEnabled = false
 local autoCookEnabled = false
+local autoFoliageChop = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
-local maxGrindRadius = 10000 
+local maxGrindRadius = 1000 
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
+Window:AddToggle(MainTab, "Auto Chop Foliage", "Tebang pohon/objek di workspace.Map.Foliage otomatis", false, function(state) autoFoliageChop = state end, "AutoFoliage")
 
 Window:AddDivider(MainTab, "Grind & Fuel")
-Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item", "1000", function(value)
+Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item", "10000", function(value)
     local num = tonumber(value)
     if num then maxGrindRadius = num end
 end, "MaxGrabRadius")
@@ -201,7 +214,7 @@ end)
 -- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
 local killAuraEnabled = false
-local auraRadius = 600 
+local auraRadius = 350 
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
 local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
 
@@ -219,7 +232,7 @@ local function getBestSpoofTool()
 end
 
 Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
-Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "600", function(value)
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "10000", function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end, "AuraRadius")
@@ -260,15 +273,15 @@ for catName, listItems in pairs(itemCategories) do
             local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
             task.spawn(function() reliableDragItemToPos(item, tpPos) end)
             count = count + 1
-            if i % 2 == 0 then task.wait(0.10) end 
+            if i % 2 == 0 then task.wait(0.15) end 
         end
-        Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 2})
+        Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
     end)
     Window:AddDivider(ItemTPTab, "")
 end
 
 -- ==========================================
--- MISC TAB 
+-- MISC TAB (POTATO MODE)
 -- ==========================================
 Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
 
@@ -297,25 +310,22 @@ end, "FullbrightToggle")
 
 Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur, part kecil & efek berat untuk boost FPS", "rbxassetid://16932740082", function()
     pcall(function()
-        -- 1. Optimasi Material & Hapus Tekstur/Decal
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
                 obj.Material = Enum.Material.SmoothPlastic
                 obj.Reflectance = 0
-                -- Hapus part dekorasi kecil di bawah ukuran tertentu untuk meringankan beban GPU
                 if obj.Size.Magnitude < 1.5 and not obj.Anchored and not obj:IsDescendantOf(LocalPlayer.Character) then
                     obj:Destroy()
                 end
             elseif obj:IsA("Texture") or obj:IsA("Decal") then
                 obj:Destroy()
             elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-                obj:Destroy() -- Hapus efek partikel berat
+                obj:Destroy()
             elseif obj:IsA("PostEffect") then
                 obj.Enabled = false
             end
         end
         
-        -- 2. Bersihkan Efek Pencahayaan Berat di Lighting
         for _, effect in ipairs(Lighting:GetChildren()) do
             if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
                 effect:Destroy()
@@ -464,7 +474,31 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.01) 
+        task.wait(0.02) 
+    end
+end)
+
+task.spawn(function()
+    while ScriptRunning do
+        if autoFoliageChop then
+            local hrp = getRootPart()
+            local tool, damageID = getBestSpoofTool()
+            local foliageFolder = workspace.Map:FindFirstChild("Foliage")
+            if hrp and tool and damageID and foliageFolder then
+                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
+                for _, foliageObj in ipairs(foliageFolder:GetChildren()) do
+                    if not autoFoliageChop then break end
+                    local part = findValidPart(foliageObj)
+                    if part and (part.Position - hrp.Position).Magnitude <= 40 then
+                        pcall(function()
+                            RemoteEvents.ToolDamageObject:InvokeServer(foliageObj, tool, damageID, part.CFrame)
+                        end)
+                        task.wait(0.1)
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
     end
 end)
 
@@ -476,6 +510,10 @@ task.spawn(function()
             for _, item in ipairs(ItemsFolder:GetDescendants()) do
                 if not item or not item:IsDescendantOf(workspace) then continue end
                 if not (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then continue end
+                
+                -- Cegah senjata (Rifle, Pistol, dll) agar TIDAK IKUT TERBAWA KE MESIN
+                if weaponBlacklist[item.Name] then continue end
+                
                 local itemId = tostring(item)
                 if processingItems[itemId] then continue end
                 local shouldGrind = autoGrindItems[item.Name] == true
@@ -499,7 +537,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.2) 
+        task.wait(0.5) 
     end
 end)
 
@@ -515,8 +553,8 @@ task.spawn(function()
                 if #available > 0 then pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end) end
             end
         end
-        task.wait(1)
+        task.wait(2)
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.20: Improved Potato Mode Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.22: Weapon Blacklist Added (Rifle Safe)!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
