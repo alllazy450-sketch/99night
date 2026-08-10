@@ -96,7 +96,7 @@ local function reliableDragItemToPos(item, pos)
         resetVelocity(item)
         setItemCFrame(item, pos)
         
-        task.wait(0.1) 
+        task.wait(0.2) 
         
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
@@ -126,7 +126,7 @@ local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
 
 local Window = Kairo:CreateWindow({
     Title = "W424 Hub",
-    Theme = "Midnight",
+    Theme = "Neon",
     Size = UDim2.fromOffset(uiWidth, uiHeight),
     Center = true,
     Draggable = true,
@@ -201,7 +201,7 @@ end)
 -- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
 local killAuraEnabled = false
-local auraRadius = 350 
+local auraRadius = 600 
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
 local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
 
@@ -219,7 +219,7 @@ local function getBestSpoofTool()
 end
 
 Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
-Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "350", function(value)
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "600", function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end, "AuraRadius")
@@ -268,7 +268,7 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- MISC TAB (IMPROVED POTATO MODE)
+-- MISC TAB 
 -- ==========================================
 Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
 
@@ -464,7 +464,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.02) 
+        task.wait(0.01) 
     end
 end)
 
@@ -499,7 +499,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.5) 
+        task.wait(0.2) 
     end
 end)
 
