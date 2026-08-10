@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.6 (KAIRO UI - KORBLOX & GLOBAL AVATAR)
+-- W424 HUB | v5.7 (MISC: FULLBRIGHT, REDUCE MAP, FPS/PING)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -8,7 +8,8 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
-local StarterGui = game:GetService("StarterGui")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
@@ -24,9 +25,6 @@ pcall(function()
     LostChildPath = workspace.Map.Landmarks["Jail Cellar1"].Dino
 end)
 
--- ==========================================
--- CORE FUNCTIONS
--- ==========================================
 local function getRootPart()
     local char = LocalPlayer.Character
     return char and char:FindFirstChild("HumanoidRootPart")
@@ -82,27 +80,20 @@ end
 
 local function reliableDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
-    local success = false
     pcall(function()
         local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
         
         if dragStart then dragStart:FireServer(item) end
         task.wait(0.1) 
-        
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
         setItemCFrame(item, pos)
-        
         task.wait(0.1) 
-        
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
         if dragStop then dragStop:FireServer(item) end
-        
-        success = true
     end)
-    return success
 end
 
 local function teleportPlayerTo(pos)
@@ -114,9 +105,6 @@ local function teleportPlayerTo(pos)
     end
 end
 
--- ==========================================
--- GLOBAL FAKE AVATAR SYSTEM
--- ==========================================
 local function rgb(c) 
     return { r = math.floor(c.R * 255), g = math.floor(c.G * 255), b = math.floor(c.B * 255), IsRGBTable = true }
 end
@@ -183,9 +171,6 @@ local function applyGlobalAvatar(username)
     return successMsg
 end
 
--- ==========================================
--- MOBILE UI SETUP
--- ==========================================
 local cam = workspace.CurrentCamera
 local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
 local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
@@ -198,7 +183,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.6"},
+    Badges = {"MOBILE", "v5.7"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -212,14 +197,10 @@ local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082")
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082")
+local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082") -- Tab Baru Misc
 
--- ==========================================
--- MAIN TAB
--- ==========================================
 Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
-
-local autoEatEnabled = false
-local autoCookEnabled = false
+local autoEatEnabled, autoCookEnabled = false, false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 local maxGrindRadius = 1000 
@@ -251,9 +232,6 @@ Window:AddMultiDropdown(MainTab, "Auto Fuel", "Pilih bahan bakar Campfire",
     end, "AutoFuel"
 )
 
--- ==========================================
--- TELEPORTS TAB
--- ==========================================
 Window:AddParagraph(TeleportsTab, "Locations", "Teleportasi Karakter")
 Window:AddButton(TeleportsTab, "TP to Campfire", "Kembali ke area perapian", "rbxassetid://16932740082", function() teleportPlayerTo(CAMPFIRE_POS) end)
 Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cellar)", "rbxassetid://16932740082", function()
@@ -263,9 +241,6 @@ Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cella
     end
 end)
 
--- ==========================================
--- AURA TAB
--- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
 local killAuraEnabled = false
 local auraRadius = 300 
@@ -291,9 +266,6 @@ Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "300", function(value
     if num then auraRadius = num end
 end, "AuraRadius")
 
--- ==========================================
--- ITEM TP TAB
--- ==========================================
 Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter melingkar")
 
 local itemCategories = {
@@ -309,7 +281,7 @@ local selectedItems = {}
 
 for catName, listItems in pairs(itemCategories) do
     selectedItems[catName] = listItems[1]
-    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" + catName)
+    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" .. catName)
     Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Tarik semua item", "rbxassetid://16932740082", function()
         local hrp = getRootPart()
         if not hrp then return end
@@ -338,27 +310,8 @@ for catName, listItems in pairs(itemCategories) do
     Window:AddDivider(ItemTPTab, "")
 end
 
--- ==========================================
--- FAKE AVATAR TAB (PRESET KORBLOX & GLOBAL USN)
--- ==========================================
 Window:AddParagraph(AvatarTab, "Global Fake Avatar", "Pilih preset Korblox/Keren atau ketik USN")
-
--- Daftar 12 Preset: 2 permintaanmu + 10 pilihan Korblox/Aesthetic keren
-local presetAvatars = {
-    "Lordtherion", 
-    "haenessey", 
-    "Builderman", 
-    "ROBLOX", 
-    "Shedletsky", 
-    "Stickmasterluke", 
-    "Telamon", 
-    "BrightEyes", 
-    "Zepther", 
-    "Valkyrie", 
-    "CorruptedVex", 
-    "Nightmare"
-}
-
+local presetAvatars = {"Lordtherion", "haenessey", "Builderman", "ROBLOX", "Shedletsky", "Stickmasterluke", "Telamon", "BrightEyes", "Zepther", "Valkyrie", "CorruptedVex", "Nightmare"}
 local selectedPreset = presetAvatars[1]
 
 Window:AddDropdown(AvatarTab, "Preset Favorit", "Pilih karakter", presetAvatars, false, selectedPreset, function(value)
@@ -367,7 +320,6 @@ end, "PresetDropdown")
 
 Window:AddButton(AvatarTab, "Apply Preset Avatar", "Pasang avatar pilihan", "rbxassetid://16932740082", function()
     Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Memuat avatar " .. selectedPreset .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
-    
     task.spawn(function()
         local success = applyGlobalAvatar(selectedPreset)
         if success then
@@ -397,8 +349,93 @@ Window:AddButton(AvatarTab, "Apply Custom USN", "Cari & pasang avatar lain", "rb
 end)
 
 -- ==========================================
--- VISUALS TAB
+-- MISC TAB (FULLBRIGHT, REDUCE MAP, FPS & PING)
 -- ==========================================
+Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
+
+-- 1. Fullbright Toggle
+local fullbrightConn = nil
+Window:AddToggle(MiscTab, "Fullbright", "Membuat seluruh map menjadi terang benderang", false, function(state)
+    if state then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        fullbrightConn = RunService.RenderStepped:Connect(function()
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 14
+            Lighting.GlobalShadows = false
+        end)
+    else
+        if fullbrightConn then
+            fullbrightConn:Disconnect()
+            fullbrightConn = nil
+        end
+        Lighting.Brightness = 1
+        Lighting.ClockTime = 12
+        Lighting.GlobalShadows = true
+    end
+end, "FullbrightToggle")
+
+-- 2. Reduce Map / Performance Mode (Hapus tekstur berat & detail berlebih)
+Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur & efek berat untuk boost FPS", "rbxassetid://16932740082", function()
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                obj:Destroy()
+            elseif obj:IsA("PostEffect") then
+                obj.Enabled = false
+            end
+        end
+        Lighting.GlobalShadows = false
+        Window:Notify({Title = "Success", Description = "Performance", Content = "Reduce Map aktif! FPS meningkat.", Color = Color3.fromRGB(0, 200, 0), Delay = 3})
+    end)
+end)
+
+-- 3. FPS & Ping Counter (Floating Text UI)
+local fpsPingGui = Instance.new("ScreenGui")
+fpsPingGui.Name = "W424_FPS_Ping"
+fpsPingGui.ResetOnSpawn = false
+fpsPingGui.Parent = CoreGui
+fpsPingGui.Enabled = false -- Default mati, bisa dinyalakan lewat toggle
+
+local fpsLabel = Instance.new("TextLabel")
+fpsLabel.Size = UDim2.new(0, 150, 0, 30)
+fpsLabel.Position = UDim2.new(0, 10, 0, 120)
+fpsLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+fpsLabel.BackgroundTransparency = 0.4
+fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+fpsLabel.TextSize = 14
+fpsLabel.Font = Enum.Font.GothamBold
+fpsLabel.Text = "FPS: 0 | Ping: 0ms"
+fpsLabel.Parent = fpsPingGui
+Instance.new("UICorner", fpsLabel).CornerRadius = UDim.new(0, 6)
+
+-- Loop Hitung FPS & Ping
+local lastTick = tick()
+local frameCount = 0
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    if tick() - lastTick >= 1 then
+        local fps = math.round(frameCount / (tick() - lastTick))
+        local ping = 0
+        pcall(function()
+            ping = math.round(LocalPlayer:GetNetworkPing() * 1000)
+        end)
+        fpsLabel.Text = string.format("FPS: %d | Ping: %dms", fps, ping)
+        frameCount = 0
+        lastTick = tick()
+    end
+end)
+
+Window:AddToggle(MiscTab, "FPS & Ping Counter", "Tampilkan indikator FPS & Ping di layar", false, function(state)
+    fpsPingGui.Enabled = state
+end, "FpsPingToggle")
+
+
 Window:AddParagraph(VisualsTab, "ESP", "Deteksi lokasi visual")
 local espMobsEnabled, espItemsEnabled = false, false
 local espFolder = Instance.new("Folder")
@@ -439,9 +476,6 @@ end
 Window:AddToggle(VisualsTab, "ESP Mobs", "Tampilkan lokasi mobs", false, function(state) espMobsEnabled = state; refreshESP() end, "ESPMobs")
 Window:AddToggle(VisualsTab, "ESP Items", "Tampilkan lokasi items", false, function(state) espItemsEnabled = state; refreshESP() end, "ESPItems")
 
--- ==========================================
--- PLAYER TAB
--- ==========================================
 Window:AddParagraph(PlayerTab, "Stats", "Modifikasi Karakter")
 Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, function(value)
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
@@ -460,9 +494,6 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- ==========================================
--- BACKGROUND LOOPS
--- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -524,7 +555,7 @@ end)
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled then
-            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Health") and LocalPlayer.Character:FindFirstChild("Humanoid")
             if hum and hum.Health < (hum.MaxHealth * 0.7) then
                 local available = {}
                 for _, item in ipairs(ItemsFolder:GetChildren()) do
@@ -537,4 +568,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.6: Preset Korblox & Global Avatar Ready!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.7: Misc Tab Added (Fullbright, Reduce Map, FPS/Ping)", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
