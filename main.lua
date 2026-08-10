@@ -1,8 +1,8 @@
 -- ==========================================
--- W424 - 99 NIGHTS (OBSIDIAN UI + ANTI-FREEZE)
+-- W424 - 99 NIGHTS (KAIRO UI + ANTI-FREEZE)
 -- ==========================================
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/Library.lua"))()
+local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -22,15 +22,6 @@ local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
 
 -- ==========================================
--- ANTI-FREEZE CONFIG
--- ==========================================
-local MAX_GRIND_DISTANCE = 500
-local TELEPORT_TIMEOUT = 8
-local RETRY_ATTEMPTS = 3
-local PROCESS_COOLDOWN = 2
-local TELEPORT_DELAY = 0.15
-
--- ==========================================
 -- CORE FUNCTIONS
 -- ==========================================
 local function getRootPart()
@@ -48,9 +39,6 @@ local function findValidPart(obj)
     return nil
 end
 
--- ==========================================
--- ANTI-FREEZE: GET ITEM POSITION
--- ==========================================
 local function getItemPosition(item)
     if not item or not item:IsDescendantOf(workspace) then return nil end
     if item:IsA("Model") then
@@ -63,9 +51,6 @@ local function getItemPosition(item)
     end
 end
 
--- ==========================================
--- ANTI-FREEZE: SET POSITION WITH VELOCITY RESET
--- ==========================================
 local function setItemPosition(item, targetPos)
     if not item or not item:IsDescendantOf(workspace) then return false end
     local success = false
@@ -90,7 +75,7 @@ local function setItemPosition(item, targetPos)
 end
 
 -- ==========================================
--- ANTI-FREEZE: IMPROVED DRAG SYSTEM
+-- ANTI-FREEZE DRAG (For Auto Grind only)
 -- ==========================================
 local processingItems = {}
 local lastProcessed = {}
@@ -100,7 +85,7 @@ local function dragItemToPos(item, pos)
     local itemId = tostring(item)
     local currentTime = tick()
     
-    if lastProcessed[itemId] and (currentTime - lastProcessed[itemId]) < PROCESS_COOLDOWN then
+    if lastProcessed[itemId] and (currentTime - lastProcessed[itemId]) < 2 then
         return false
     end
     if processingItems[itemId] then return false end
@@ -115,7 +100,7 @@ local function dragItemToPos(item, pos)
     local hrp = getRootPart()
     if hrp then
         local distToPlayer = (startPos - hrp.Position).Magnitude
-        if distToPlayer > MAX_GRIND_DISTANCE then
+        if distToPlayer > 500 then
             processingItems[itemId] = nil
             return false
         end
@@ -125,14 +110,14 @@ local function dragItemToPos(item, pos)
     local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
     local success = false
     
-    for attempt = 1, RETRY_ATTEMPTS do
+    for attempt = 1, 3 do
         if not item:IsDescendantOf(workspace) then break end
         pcall(function()
             if dragStart then dragStart:FireServer(item) end
-            task.wait(TELEPORT_DELAY)
+            task.wait(0.15)
             if not item:IsDescendantOf(workspace) then return end
             setItemPosition(item, pos)
-            task.wait(TELEPORT_DELAY)
+            task.wait(0.15)
             if not item:IsDescendantOf(workspace) then return end
             local newPos = getItemPosition(item)
             if newPos then
@@ -141,7 +126,7 @@ local function dragItemToPos(item, pos)
                     success = true
                 else
                     setItemPosition(item, pos)
-                    task.wait(TELEPORT_DELAY)
+                    task.wait(0.15)
                 end
             end
             if dragStop then dragStop:FireServer(item) end
@@ -157,77 +142,98 @@ local function dragItemToPos(item, pos)
 end
 
 -- ==========================================
--- OBSIDIAN UI SETUP
+-- FAST DRAG (For Item TP - no cooldown, parallel)
 -- ==========================================
-local Window = Library:CreateWindow({
+local function fastDragItemToPos(item, pos)
+    if not item or not item:IsDescendantOf(workspace) then return false end
+    pcall(function()
+        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
+        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+        if dragStart then dragStart:FireServer(item) end
+        task.wait(0.03)
+        if not item:IsDescendantOf(workspace) then return end
+        setItemPosition(item, pos)
+        task.wait(0.03)
+        if dragStop then dragStop:FireServer(item) end
+    end)
+    return true
+end
+
+-- ==========================================
+-- KAIRO UI SETUP (Midnight = Biru Tua)
+-- ==========================================
+local Window = Kairo:CreateWindow({
     Title = "W424 Hub | 99 Nights",
-    Footer = "Anti-Freeze System",
-    Size = UDim2.fromOffset(650, 500),
+    Theme = "Midnight",
+    Size = UDim2.fromOffset(580, 520),
     Center = true,
-    AutoShow = true,
+    Draggable = true,
+    Resize = true,
+    Badges = {"OP", "v3.0"},
+    MinimizeKey = Enum.KeyCode.RightShift,
+    MinimizeButton = true,
+    MinimizeButton_Image = "rbxassetid://116850882259653",
+    Config = {
+        Enabled = true,
+        Folder = "W424_Config",
+        AutoLoad = true
+    }
 })
 
-local Tabs = {
-    Main    = Window:AddTab("Main Farm", "sword"),
-    Combat  = Window:AddTab("Aura", "zap"),
-    ItemTP  = Window:AddTab("Item TP", "package"),
-    Visuals = Window:AddTab("Visuals", "eye"),
-    Player  = Window:AddTab("Player", "user"),
-}
+local MainTab = Window:CreateTab("Main Farm", "rbxassetid://16932740082")
+local CombatTab = Window:CreateTab("Aura", "rbxassetid://16932740082")
+local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
+local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
+local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 
 -- ==========================================
 -- MAIN FARM TAB
 -- ==========================================
-local MainLeft = Tabs.Main:AddLeftGroupbox("Auto Farm")
-local MainRight = Tabs.Main:AddRightGroupbox("Info")
+Window:AddParagraph(MainTab, "Auto Farm", "Configure automatic farming features")
 
 local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 
-MainLeft:AddToggle("AutoEat", {
-    Text = "Auto Eat (HP Based)",
-    Default = false,
-    Callback = function(Value) autoEatEnabled = Value end
-})
+Window:AddToggle(MainTab, "Auto Eat (HP Based)", "Auto eat when HP below 70%", false,
+    function(state) autoEatEnabled = state end,
+    "AutoEat"
+)
 
-MainLeft:AddToggle("AutoCook", {
-    Text = "Auto Cook Raw Food",
-    Default = false,
-    Callback = function(Value) autoCookEnabled = Value end
-})
+Window:AddToggle(MainTab, "Auto Cook Raw Food", "Auto cook raw meat at campfire", false,
+    function(state) autoCookEnabled = state end,
+    "AutoCook"
+)
+
+Window:AddDivider(MainTab, "Machine & Campfire")
 
 local autoGrindItems = {}
-MainLeft:AddDropdown("AutoGrind", {
-    Text = "Auto Machine Grind",
-    Values = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
-    Multi = true,
-    Default = {},
-    Callback = function(Value)
-        autoGrindItems = Value
-    end
-})
+Window:AddMultiDropdown(MainTab, "Auto Machine Grind", "Select items to auto grind",
+    {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
+    {},
+    function(selectedValues)
+        autoGrindItems = {}
+        for _, v in ipairs(selectedValues) do autoGrindItems[v] = true end
+    end,
+    "AutoGrindMulti"
+)
 
 local autoFuelItems = {}
-MainLeft:AddDropdown("AutoFuel", {
-    Text = "Auto Feed Campfire",
-    Values = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
-    Multi = true,
-    Default = {},
-    Callback = function(Value)
-        autoFuelItems = Value
-    end
-})
-
-MainRight:AddLabel("Select items from dropdown")
-MainRight:AddLabel("Multi-select enabled")
+Window:AddMultiDropdown(MainTab, "Auto Feed Campfire", "Select fuel items",
+    {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
+    {},
+    function(selectedValues)
+        autoFuelItems = {}
+        for _, v in ipairs(selectedValues) do autoFuelItems[v] = true end
+    end,
+    "AutoFuelMulti"
+)
 
 -- ==========================================
 -- AURA TAB
 -- ==========================================
-local AuraLeft = Tabs.Combat:AddLeftGroupbox("Combat")
-local AuraRight = Tabs.Combat:AddRightGroupbox("Settings")
+Window:AddParagraph(CombatTab, "Combat Settings", "Configure aura attack settings")
 
 local killAuraEnabled = false
 local treeAuraEnabled = false
@@ -238,40 +244,49 @@ local toolIds = {
     ["Chainsaw"] = "647", ["Spear"] = "196"
 }
 
+-- FIXED: Check Inventory, Backpack, AND Character + auto-equip
 local function getAnyToolWithDamageID()
-    for toolName, prefix in pairs(toolIds) do
-        local tool = LocalPlayer.Inventory:FindFirstChild(toolName)
-        if tool then return tool, prefix .. "_" .. tostring(LocalPlayer.UserId) end
+    local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
+    for _, location in ipairs(locations) do
+        if location then
+            for toolName, prefix in pairs(toolIds) do
+                local tool = location:FindFirstChild(toolName)
+                if tool then
+                    -- Auto equip if not in character
+                    if location ~= LocalPlayer.Character and tool:IsA("Tool") then
+                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then pcall(function() hum:EquipTool(tool) end) end
+                    end
+                    return tool, prefix .. "_" .. tostring(LocalPlayer.UserId)
+                end
+            end
+        end
     end
     return nil, nil
 end
 
-AuraLeft:AddToggle("KillAura", {
-    Text = "Kill Aura (Mobs Only)",
-    Default = false,
-    Callback = function(Value) killAuraEnabled = Value end
-})
+Window:AddToggle(CombatTab, "Kill Aura (Mobs Only)", "Auto attack nearby mobs", false,
+    function(state) killAuraEnabled = state end,
+    "KillAura"
+)
 
-AuraLeft:AddToggle("TreeAura", {
-    Text = "Aura Chop (Trees Only)",
-    Default = false,
-    Callback = function(Value) treeAuraEnabled = Value end
-})
+Window:AddToggle(CombatTab, "Aura Chop (Trees Only)", "Auto chop nearby trees", false,
+    function(state) treeAuraEnabled = state end,
+    "TreeAura"
+)
 
-AuraRight:AddInput("AuraRadius", {
-    Text = "Aura Radius",
-    Default = "200",
-    Placeholder = "Type radius...",
-    Callback = function(Value)
-        local num = tonumber(Value)
+Window:AddInput(CombatTab, "Aura Radius", "Enter attack radius", "200",
+    function(value)
+        local num = tonumber(value)
         if num then auraRadius = num end
-    end
-})
+    end,
+    "AuraRadius"
+)
 
 -- ==========================================
--- ITEM TP TAB
+-- ITEM TP TAB (FAST & WIDE)
 -- ==========================================
-local ItemLeft = Tabs.ItemTP:AddLeftGroupbox("Item Teleport")
+Window:AddParagraph(ItemTPTab, "Item Teleport", "Bring items to you instantly")
 
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -283,48 +298,58 @@ local itemCategories = {
 local selectedItems = {}
 
 for catName, listItems in pairs(itemCategories) do
-    local dropdownId = "ItemTP_" .. catName
     selectedItems[catName] = listItems[1]
     
-    ItemLeft:AddDropdown(dropdownId, {
-        Text = "Select: " .. catName:gsub("_", " "),
-        Values = listItems,
-        Default = listItems[1],
-        Callback = function(Value)
-            selectedItems[catName] = Value
-        end
-    })
+    Window:AddDropdown(ItemTPTab, "Select: " .. catName:gsub("_", " "), "Choose item to bring",
+        listItems, false, listItems[1],
+        function(value)
+            selectedItems[catName] = value
+        end,
+        "ItemTP_" .. catName
+    )
     
-    ItemLeft:AddButton({
-        Text = "Bring " .. catName:gsub("_", " "),
-        Func = function()
+    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Teleport ALL matching items to you instantly",
+        "rbxassetid://16932740082",
+        function()
             local count = 0
             local hrp = getRootPart()
-            if not hrp then return end
+            if not hrp then
+                Window:Notify({
+                    Title = "Error", Description = "Teleport", Content = "Character not found!",
+                    Color = Color3.fromRGB(200, 50, 50), Delay = 3
+                })
+                return
+            end
             
             local selectedCatItem = selectedItems[catName]
-            for _, item in ipairs(ItemsFolder:GetDescendants()) do
+            local items = ItemsFolder:GetDescendants()
+            
+            for _, item in ipairs(items) do
                 if item.Name == selectedCatItem and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                     local targetPos = hrp.Position + (hrp.CFrame.LookVector * 5) + Vector3.new(0, 3 + (count * 1.5), 0)
-                    dragItemToPos(item, targetPos)
+                    -- PARALLEL FAST TELEPORT - no cooldown, no delay between items
+                    task.spawn(function()
+                        fastDragItemToPos(item, targetPos)
+                    end)
                     count = count + 1
                 end
             end
-            Library:Notify({
-                Title = "Success",
-                Description = "Brought: " .. count .. " " .. selectedCatItem,
-                Time = 3
+            
+            Window:Notify({
+                Title = "Success", Description = "Item Teleport",
+                Content = "Brought " .. count .. "x " .. selectedCatItem,
+                Color = Color3.fromRGB(10, 30, 60), Delay = 3
             })
         end
-    })
+    )
     
-    ItemLeft:AddDivider()
+    Window:AddDivider(ItemTPTab, "")
 end
 
 -- ==========================================
 -- VISUALS TAB
 -- ==========================================
-local VisualsLeft = Tabs.Visuals:AddLeftGroupbox("ESP")
+Window:AddParagraph(VisualsTab, "ESP Settings", "Configure visual overlays")
 
 local espMobsEnabled = false
 local espItemsEnabled = false
@@ -391,103 +416,36 @@ local function refreshESP()
     end
 end
 
-VisualsLeft:AddToggle("ESPMobs", {
-    Text = "ESP Mobs",
-    Default = false,
-    Callback = function(Value)
-        espMobsEnabled = Value
+Window:AddToggle(VisualsTab, "ESP Mobs", "Highlight all mobs with distance", false,
+    function(state)
+        espMobsEnabled = state
         refreshESP()
-    end
-})
+    end,
+    "ESPMobs"
+)
 
-VisualsLeft:AddToggle("ESPItems", {
-    Text = "ESP Items",
-    Default = false,
-    Callback = function(Value)
-        espItemsEnabled = Value
+Window:AddToggle(VisualsTab, "ESP Items", "Highlight all items with distance", false,
+    function(state)
+        espItemsEnabled = state
         refreshESP()
-    end
-})
+    end,
+    "ESPItems"
+)
 
 -- ==========================================
 -- PLAYER TAB
 -- ==========================================
-local PlayerLeft = Tabs.Player:AddLeftGroupbox("Character")
+Window:AddParagraph(PlayerTab, "Character", "Modify player stats")
 
-PlayerLeft:AddSlider("WalkSpeed", {
-    Text = "WalkSpeed",
-    Default = 16,
-    Min = 0,
-    Max = 200,
-    Rounding = 0,
-    Callback = function(Value)
+Window:AddSlider(PlayerTab, "WalkSpeed", "Adjust movement speed", 0, 200, 16,
+    function(value)
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+            LocalPlayer.Character.Humanoid.WalkSpeed = value
         end
-    end
-})
-
--- ==========================================
--- BUBBLE TOGGLE (MANUAL)
--- ==========================================
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "W424_ToggleBubble"
-screenGui.Parent = CoreGui
-screenGui.ResetOnSpawn = false
-
-local bubble = Instance.new("TextButton")
-bubble.Name = "BubbleButton"
-bubble.Parent = screenGui
-bubble.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-bubble.BorderColor3 = Color3.fromRGB(125, 85, 255)
-bubble.BorderSizePixel = 2
-bubble.Position = UDim2.new(0.05, 0, 0.15, 0)
-bubble.Size = UDim2.new(0, 45, 0, 45)
-bubble.Font = Enum.Font.GothamBold
-bubble.Text = "W"
-bubble.TextColor3 = Color3.fromRGB(255, 255, 255)
-bubble.TextSize = 22
-bubble.AutoButtonColor = true
-Instance.new("UICorner", bubble).CornerRadius = UDim.new(1, 0)
-
-local dragging, dragInput, dragStart, startPos
-local dragStartPos = Vector2.new(0, 0)
-local uiVisible = true
-
-bubble.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = bubble.Position
-        dragStartPos = input.Position
-        
-        local connection
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-                connection:Disconnect()
-                
-                if (input.Position - dragStartPos).Magnitude < 5 then
-                    uiVisible = not uiVisible
-                    Library:Toggle(uiVisible)
-                end
-            end
-        end)
-    end
-end)
-
-bubble.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        bubble.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
+    end,
+    "WalkSpeedSlider",
+    true
+)
 
 -- ==========================================
 -- KILL AURA LOOP
@@ -522,9 +480,9 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- AURA CHOP (TREES)
+-- AURA CHOP (TREES) - FIXED
 -- ==========================================
-local choppedTrees = setmetatable({}, {__mode = "k"})
+local choppedTrees = {}
 
 task.spawn(function()
     while ScriptRunning do
@@ -542,12 +500,15 @@ task.spawn(function()
                                 if (trunk.Position - hrp.Position).Magnitude <= auraRadius then
                                     choppedTrees[obj] = tick()
                                     task.spawn(function()
+                                        -- FIXED: Pisahkan pcall sound dan damage
+                                        pcall(function()
+                                            RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
+                                                Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), 
+                                                Volume = 0.4
+                                            })
+                                        end)
                                         pcall(function()
                                             if obj.Parent == map.Foliage and obj:FindFirstChild("Trunk") then
-                                                RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", {
-                                                    Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), 
-                                                    Volume = 0.4
-                                                })
                                                 RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
                                             end
                                         end)
@@ -565,7 +526,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- IMPROVED AUTO GRIND LOOP
+-- AUTO GRIND LOOP (Anti-Freeze)
 -- ==========================================
 task.spawn(function()
     while ScriptRunning do
@@ -574,15 +535,15 @@ task.spawn(function()
             local items = ItemsFolder:GetChildren()
             for _, item in ipairs(items) do
                 if not item or not item:IsDescendantOf(workspace) then continue end
-                local shouldGrind = autoGrindItems[item.Name]
-                local shouldFuel = autoFuelItems[item.Name]
+                local shouldGrind = autoGrindItems[item.Name] == true
+                local shouldFuel = autoFuelItems[item.Name] == true
                 local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
                     local itemPos = getItemPosition(item)
                     if itemPos then
                         local dist = (itemPos - hrp.Position).Magnitude
-                        if dist <= MAX_GRIND_DISTANCE then
+                        if dist <= 500 then
                             local ok = dragItemToPos(item, targetPos)
                             if ok then task.wait(0.3) end
                         end
@@ -646,8 +607,10 @@ end)
 -- ==========================================
 -- NOTIFICATION
 -- ==========================================
-Library:Notify({
+Window:Notify({
     Title = "W424 Hub",
-    Description = "Script Loaded: Obsidian UI + Anti-Freeze Active!",
-    Time = 3
+    Description = "Loaded",
+    Content = "Kairo UI (Midnight) + Anti-Freeze + Fast Item TP Active!",
+    Color = Color3.fromRGB(10, 30, 60),
+    Delay = 5
 })
