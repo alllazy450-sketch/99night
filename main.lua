@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v5 - FINAL)
+-- W424 - 99 NIGHTS (KAIRO UI v5.1 - OPTIMIZED)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -18,7 +18,7 @@ local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
 
--- Lost Child Path
+-- Path Deteksi Lost Child
 local LostChildPath = nil
 pcall(function()
     LostChildPath = workspace.Map.Landmarks["Jail Cellar1"].Dino
@@ -81,38 +81,29 @@ local function setItemCFrame(item, pos)
 end
 
 -- ==========================================
--- TELEPORT FUNCTIONS
+-- IMPROVED TELEPORT FUNCTIONS (ANTI-GLITCH)
 -- ==========================================
-local function fastDragItemToPos(item, pos)
-    if not item or not item:IsDescendantOf(workspace) then return end
-    pcall(function()
-        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
-        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
-        if dragStart then dragStart:FireServer(item) end
-        task.wait(0.015)
-        resetVelocity(item)
-        setItemCFrame(item, pos)
-        task.wait(0.015)
-        if dragStop then dragStop:FireServer(item) end
-    end)
-end
-
-local function stableDragItemToPos(item, pos)
+local function reliableDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
     local success = false
     pcall(function()
         local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+        
+        -- Meminta server untuk memberikan hak fisik item ke client
         if dragStart then dragStart:FireServer(item) end
-        task.wait(0.06)
+        task.wait(0.1) -- Memberikan waktu agar server merespons
+        
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
         setItemCFrame(item, pos)
-        task.wait(0.06)
+        
+        task.wait(0.1) -- Memberikan waktu agar perpindahan posisi ter-register
+        
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
         if dragStop then dragStop:FireServer(item) end
-        task.wait(0.04)
+        
         success = true
     end)
     return success
@@ -145,7 +136,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.0"},
+    Badges = {"MOBILE", "v5.1"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -159,67 +150,32 @@ local Window = Kairo:CreateWindow({
 local MainTab = Window:CreateTab("Main", "rbxassetid://16932740082")
 local CombatTab = Window:CreateTab("Aura", "rbxassetid://16932740082")
 local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
+local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") -- TAB BARU
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 
 -- ==========================================
 -- MAIN FARM TAB
 -- ==========================================
-Window:AddParagraph(MainTab, "Auto Farm", "Fast & stable farming")
+Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
 
 local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
 
-Window:AddToggle(MainTab, "Auto Eat", "Eat when HP < 70%", false,
+Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false,
     function(state) autoEatEnabled = state end, "AutoEat"
 )
 
-Window:AddToggle(MainTab, "Auto Cook", "Cook raw at campfire", false,
+Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false,
     function(state) autoCookEnabled = state end, "AutoCook"
-)
-
-Window:AddDivider(MainTab, "Teleports")
-
--- Teleport to Lost Child
-Window:AddButton(MainTab, "TP to Lost Child", "Teleport to Jail Cellar Dino",
-    "rbxassetid://16932740082",
-    function()
-        if LostChildPath then
-            local targetPart = findValidPart(LostChildPath)
-            if targetPart then
-                teleportPlayerTo(targetPart.Position)
-                Window:Notify({
-                    Title = "Teleport", Description = "Lost Child",
-                    Content = "Teleported to Lost Child!", Color = Color3.fromRGB(10, 30, 60), Delay = 3
-                })
-            end
-        else
-            Window:Notify({
-                Title = "Error", Description = "Lost Child",
-                Content = "Lost Child not found in workspace!", Color = Color3.fromRGB(200, 50, 50), Delay = 3
-            })
-        end
-    end
-)
-
--- Teleport Back to Campfire
-Window:AddButton(MainTab, "TP to Campfire", "Teleport back to campfire",
-    "rbxassetid://16932740082",
-    function()
-        teleportPlayerTo(CAMPFIRE_POS)
-        Window:Notify({
-            Title = "Teleport", Description = "Campfire",
-            Content = "Teleported to Campfire!", Color = Color3.fromRGB(10, 30, 60), Delay = 3
-        })
-    end
 )
 
 Window:AddDivider(MainTab, "Grind & Fuel")
 
 local autoGrindItems = {}
-Window:AddMultiDropdown(MainTab, "Auto Grind", "Items to machine grind",
+Window:AddMultiDropdown(MainTab, "Auto Grind", "Pilih item untuk mesin",
     {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
     {}, function(selected)
         autoGrindItems = {}
@@ -228,7 +184,7 @@ Window:AddMultiDropdown(MainTab, "Auto Grind", "Items to machine grind",
 )
 
 local autoFuelItems = {}
-Window:AddMultiDropdown(MainTab, "Auto Fuel", "Fuel for campfire",
+Window:AddMultiDropdown(MainTab, "Auto Fuel", "Pilih bahan bakar Campfire",
     {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
     {}, function(selected)
         autoFuelItems = {}
@@ -237,9 +193,46 @@ Window:AddMultiDropdown(MainTab, "Auto Fuel", "Fuel for campfire",
 )
 
 -- ==========================================
--- AURA TAB (Kill Aura only)
+-- TELEPORTS TAB 
 -- ==========================================
-Window:AddParagraph(CombatTab, "Combat", "Kill aura settings")
+Window:AddParagraph(TeleportsTab, "Locations", "Teleportasi Karakter")
+
+Window:AddButton(TeleportsTab, "TP to Campfire", "Kembali ke area perapian",
+    "rbxassetid://16932740082",
+    function()
+        teleportPlayerTo(CAMPFIRE_POS)
+        Window:Notify({
+            Title = "Teleport", Description = "Campfire",
+            Content = "Berhasil teleport ke Campfire!", Color = Color3.fromRGB(10, 30, 60), Delay = 3
+        })
+    end
+)
+
+Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cellar)",
+    "rbxassetid://16932740082",
+    function()
+        if LostChildPath then
+            local targetPart = findValidPart(LostChildPath)
+            if targetPart then
+                teleportPlayerTo(targetPart.Position)
+                Window:Notify({
+                    Title = "Teleport", Description = "Lost Child",
+                    Content = "Berhasil teleport ke Lost Child!", Color = Color3.fromRGB(10, 30, 60), Delay = 3
+                })
+            end
+        else
+            Window:Notify({
+                Title = "Error", Description = "Lost Child",
+                Content = "Lost Child tidak ditemukan di map saat ini!", Color = Color3.fromRGB(200, 50, 50), Delay = 3
+            })
+        end
+    end
+)
+
+-- ==========================================
+-- AURA TAB
+-- ==========================================
+Window:AddParagraph(CombatTab, "Combat", "Pengaturan Kill Aura")
 
 local killAuraEnabled = false
 local auraRadius = 200
@@ -268,11 +261,11 @@ local function getAnyToolWithDamageID()
     return nil, nil
 end
 
-Window:AddToggle(CombatTab, "Kill Aura", "Attack nearby mobs", false,
+Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false,
     function(state) killAuraEnabled = state end, "KillAura"
 )
 
-Window:AddInput(CombatTab, "Radius", "Attack radius", "200",
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "200",
     function(value)
         local num = tonumber(value)
         if num then auraRadius = num end
@@ -280,9 +273,9 @@ Window:AddInput(CombatTab, "Radius", "Attack radius", "200",
 )
 
 -- ==========================================
--- ITEM TP TAB (SUPER FAST)
+-- ITEM TP TAB (IMPROVED & ANTI-GLITCH)
 -- ==========================================
-Window:AddParagraph(ItemTPTab, "Item TP", "Super fast item teleport")
+Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter dengan stabil")
 
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -296,13 +289,13 @@ local selectedItems = {}
 for catName, listItems in pairs(itemCategories) do
     selectedItems[catName] = listItems[1]
     
-    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Select item",
+    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item",
         listItems, false, listItems[1],
         function(value) selectedItems[catName] = value end,
         "TP_" .. catName
     )
     
-    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Teleport ALL matching items",
+    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Tarik semua item yang cocok",
         "rbxassetid://16932740082",
         function()
             local hrp = getRootPart()
@@ -310,7 +303,6 @@ for catName, listItems in pairs(itemCategories) do
             local selected = selectedItems[catName]
             local count = 0
             
-            -- Get ALL descendants (lebih luas)
             local allItems = ItemsFolder:GetDescendants()
             local toProcess = {}
             
@@ -320,19 +312,21 @@ for catName, listItems in pairs(itemCategories) do
                 end
             end
             
-            -- Batch process: 3 item per frame untuk speed + stability
+            -- Posisi dasar tumpukan item
+            local basePos = hrp.Position + (hrp.CFrame.LookVector * 5)
+            
             for i, item in ipairs(toProcess) do
-                local pos = hrp.Position + (hrp.CFrame.LookVector * 4) + Vector3.new(0, 2 + (count * 1.2), 0)
+                local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
                 task.spawn(function()
-                    fastDragItemToPos(item, pos)
+                    reliableDragItemToPos(item, tpPos)
                 end)
                 count = count + 1
-                if i % 3 == 0 then task.wait(0.02) end -- batching delay
+                if i % 2 == 0 then task.wait(0.15) end -- Jeda antar batch untuk mencegah physics bentrok
             end
             
             Window:Notify({
                 Title = "Success", Description = "Item TP",
-                Content = "Brought " .. count .. "x " .. selected,
+                Content = "Berhasil menarik " .. count .. "x " .. selected,
                 Color = Color3.fromRGB(10, 30, 60), Delay = 3
             })
         end
@@ -344,7 +338,7 @@ end
 -- ==========================================
 -- VISUALS TAB
 -- ==========================================
-Window:AddParagraph(VisualsTab, "ESP", "Visual overlays")
+Window:AddParagraph(VisualsTab, "ESP", "Deteksi lokasi visual")
 
 local espMobsEnabled = false
 local espItemsEnabled = false
@@ -409,20 +403,20 @@ local function refreshESP()
     end
 end
 
-Window:AddToggle(VisualsTab, "ESP Mobs", "Show mob locations", false,
+Window:AddToggle(VisualsTab, "ESP Mobs", "Tampilkan lokasi mobs", false,
     function(state) espMobsEnabled = state; refreshESP() end, "ESPMobs"
 )
 
-Window:AddToggle(VisualsTab, "ESP Items", "Show item locations", false,
+Window:AddToggle(VisualsTab, "ESP Items", "Tampilkan lokasi items", false,
     function(state) espItemsEnabled = state; refreshESP() end, "ESPItems"
 )
 
 -- ==========================================
 -- PLAYER TAB
 -- ==========================================
-Window:AddParagraph(PlayerTab, "Stats", "Player modifications")
+Window:AddParagraph(PlayerTab, "Stats", "Modifikasi Karakter")
 
-Window:AddSlider(PlayerTab, "WalkSpeed", "Movement speed", 0, 200, 16,
+Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16,
     function(value)
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
         if hum then hum.WalkSpeed = value end
@@ -462,7 +456,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- FAST AUTO GRIND & FUEL (v5 - Responsive)
+-- STABILIZED AUTO GRIND & FUEL (ANTI-GLITCH)
 -- ==========================================
 local processingItems = {}
 
@@ -483,23 +477,25 @@ task.spawn(function()
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
                     
-                    -- Skip kalau sudah dekat target
+                    -- Mencegah glitch: Jangan proses jika item sudah sangat dekat dengan target
                     local itemPos = getItemPosition(item)
                     if itemPos then
-                        if (itemPos - targetPos).Magnitude < 10 then continue end
+                        if (itemPos - targetPos).Magnitude < 12 then continue end
                     end
                     
                     processingItems[itemId] = true
-                    stableDragItemToPos(item, targetPos)
-                    task.delay(0.4, function()
+                    
+                    task.spawn(function()
+                        reliableDragItemToPos(item, targetPos)
+                        task.wait(1) -- Cool-down per item agar physics engine game tidak glitch
                         processingItems[itemId] = nil
                     end)
                     
-                    task.wait(0.1) -- delay antar item (cepat tapi stabil)
+                    task.wait(0.15) -- Jeda penarikan antar item
                 end
             end
         end
-        task.wait(0.3) -- loop cepat
+        task.wait(0.5) -- Loop utama diperlambat sedikit agar lebih stabil
     end
 end)
 
@@ -542,7 +538,7 @@ end)
 Window:Notify({
     Title = "W424 Hub",
     Description = "Loaded",
-    Content = "v5: Lost Child TP + Fast Grind + Campfire TP!",
+    Content = "v5.1: Stabilized Grind/TP & New Teleports Tab!",
     Color = Color3.fromRGB(10, 30, 60),
     Delay = 5
 })
