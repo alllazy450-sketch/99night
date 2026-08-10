@@ -151,7 +151,7 @@ Window:AddParagraph(CombatTab, "Combat", "Aura attack settings")
 
 local killAuraEnabled = false
 local treeAuraEnabled = false
-local auraRadius = 200
+local auraRadius = 100
 
 local toolIds = {
     ["Old Axe"] = "1", ["Good Axe"] = "112", ["Strong Axe"] = "116",
