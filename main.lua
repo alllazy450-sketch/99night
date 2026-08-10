@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v4 - STABLE)
+-- W424 - 99 NIGHTS (KAIRO UI v5 - FINAL)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -17,6 +17,12 @@ local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
 local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
 local MACHINE_POS = Vector3.new(21, 16, -5)
+
+-- Lost Child Path
+local LostChildPath = nil
+pcall(function()
+    LostChildPath = workspace.Map.Landmarks["Jail Cellar1"].Dino
+end)
 
 -- ==========================================
 -- CORE FUNCTIONS
@@ -48,9 +54,6 @@ local function getItemPosition(item)
     end
 end
 
--- ==========================================
--- TELEPORT FUNCTIONS
--- ==========================================
 local function resetVelocity(item)
     pcall(function()
         if item:IsA("BasePart") or item:IsA("MeshPart") then
@@ -77,49 +80,55 @@ local function setItemCFrame(item, pos)
     end)
 end
 
--- Fast drag untuk Item TP (instant, parallel)
+-- ==========================================
+-- TELEPORT FUNCTIONS
+-- ==========================================
 local function fastDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return end
     pcall(function()
         local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
         if dragStart then dragStart:FireServer(item) end
-        task.wait(0.02)
+        task.wait(0.015)
         resetVelocity(item)
         setItemCFrame(item, pos)
-        task.wait(0.02)
+        task.wait(0.015)
         if dragStop then dragStop:FireServer(item) end
     end)
 end
 
--- Stable drag untuk Auto Grind/Fuel (sequential, anti-glitch)
 local function stableDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
     local success = false
     pcall(function()
         local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
-        
         if dragStart then dragStart:FireServer(item) end
-        task.wait(0.08)
-        
+        task.wait(0.06)
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
         setItemCFrame(item, pos)
-        task.wait(0.08)
-        
+        task.wait(0.06)
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
-        
         if dragStop then dragStop:FireServer(item) end
-        task.wait(0.05)
+        task.wait(0.04)
         success = true
     end)
     return success
 end
 
+local function teleportPlayerTo(pos)
+    local hrp = getRootPart()
+    if hrp then
+        pcall(function()
+            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+        end)
+    end
+end
+
 -- ==========================================
--- MOBILE UI SIZE (Auto-fit)
+-- MOBILE UI SIZE
 -- ==========================================
 local cam = workspace.CurrentCamera
 local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
@@ -136,7 +145,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v4.0"},
+    Badges = {"MOBILE", "v5.0"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -156,7 +165,7 @@ local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 -- ==========================================
 -- MAIN FARM TAB
 -- ==========================================
-Window:AddParagraph(MainTab, "Auto Farm", "Stable auto farm settings")
+Window:AddParagraph(MainTab, "Auto Farm", "Fast & stable farming")
 
 local autoEatEnabled = false
 local autoCookEnabled = false
@@ -169,6 +178,42 @@ Window:AddToggle(MainTab, "Auto Eat", "Eat when HP < 70%", false,
 
 Window:AddToggle(MainTab, "Auto Cook", "Cook raw at campfire", false,
     function(state) autoCookEnabled = state end, "AutoCook"
+)
+
+Window:AddDivider(MainTab, "Teleports")
+
+-- Teleport to Lost Child
+Window:AddButton(MainTab, "TP to Lost Child", "Teleport to Jail Cellar Dino",
+    "rbxassetid://16932740082",
+    function()
+        if LostChildPath then
+            local targetPart = findValidPart(LostChildPath)
+            if targetPart then
+                teleportPlayerTo(targetPart.Position)
+                Window:Notify({
+                    Title = "Teleport", Description = "Lost Child",
+                    Content = "Teleported to Lost Child!", Color = Color3.fromRGB(10, 30, 60), Delay = 3
+                })
+            end
+        else
+            Window:Notify({
+                Title = "Error", Description = "Lost Child",
+                Content = "Lost Child not found in workspace!", Color = Color3.fromRGB(200, 50, 50), Delay = 3
+            })
+        end
+    end
+)
+
+-- Teleport Back to Campfire
+Window:AddButton(MainTab, "TP to Campfire", "Teleport back to campfire",
+    "rbxassetid://16932740082",
+    function()
+        teleportPlayerTo(CAMPFIRE_POS)
+        Window:Notify({
+            Title = "Teleport", Description = "Campfire",
+            Content = "Teleported to Campfire!", Color = Color3.fromRGB(10, 30, 60), Delay = 3
+        })
+    end
 )
 
 Window:AddDivider(MainTab, "Grind & Fuel")
@@ -192,7 +237,7 @@ Window:AddMultiDropdown(MainTab, "Auto Fuel", "Fuel for campfire",
 )
 
 -- ==========================================
--- AURA TAB (Kill Aura only - Chop removed)
+-- AURA TAB (Kill Aura only)
 -- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill aura settings")
 
@@ -235,9 +280,9 @@ Window:AddInput(CombatTab, "Radius", "Attack radius", "200",
 )
 
 -- ==========================================
--- ITEM TP TAB (FAST & WIDE)
+-- ITEM TP TAB (SUPER FAST)
 -- ==========================================
-Window:AddParagraph(ItemTPTab, "Item TP", "Fast teleport items")
+Window:AddParagraph(ItemTPTab, "Item TP", "Super fast item teleport")
 
 local itemCategories = {
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
@@ -257,7 +302,7 @@ for catName, listItems in pairs(itemCategories) do
         "TP_" .. catName
     )
     
-    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Teleport all items",
+    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Teleport ALL matching items",
         "rbxassetid://16932740082",
         function()
             local hrp = getRootPart()
@@ -265,19 +310,28 @@ for catName, listItems in pairs(itemCategories) do
             local selected = selectedItems[catName]
             local count = 0
             
-            for _, item in ipairs(ItemsFolder:GetDescendants()) do
+            -- Get ALL descendants (lebih luas)
+            local allItems = ItemsFolder:GetDescendants()
+            local toProcess = {}
+            
+            for _, item in ipairs(allItems) do
                 if item.Name == selected and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                    local pos = hrp.Position + (hrp.CFrame.LookVector * 4) + Vector3.new(0, 2 + (count * 1.2), 0)
-                    task.spawn(function()
-                        fastDragItemToPos(item, pos)
-                    end)
-                    count = count + 1
-                    task.wait(0.03) -- small delay antar item biar tidak lag
+                    table.insert(toProcess, item)
                 end
             end
             
+            -- Batch process: 3 item per frame untuk speed + stability
+            for i, item in ipairs(toProcess) do
+                local pos = hrp.Position + (hrp.CFrame.LookVector * 4) + Vector3.new(0, 2 + (count * 1.2), 0)
+                task.spawn(function()
+                    fastDragItemToPos(item, pos)
+                end)
+                count = count + 1
+                if i % 3 == 0 then task.wait(0.02) end -- batching delay
+            end
+            
             Window:Notify({
-                Title = "Success", Description = "Teleport",
+                Title = "Success", Description = "Item TP",
                 Content = "Brought " .. count .. "x " .. selected,
                 Color = Color3.fromRGB(10, 30, 60), Delay = 3
             })
@@ -408,7 +462,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- STABLE AUTO GRIND & FUEL (Anti-Glitch)
+-- FAST AUTO GRIND & FUEL (v5 - Responsive)
 -- ==========================================
 local processingItems = {}
 
@@ -420,7 +474,7 @@ task.spawn(function()
                 if not item or not item:IsDescendantOf(workspace) then continue end
                 
                 local itemId = tostring(item)
-                if processingItems[itemId] then continue end -- skip kalau masih diproses
+                if processingItems[itemId] then continue end
                 
                 local shouldGrind = autoGrindItems[item.Name] == true
                 local shouldFuel = autoFuelItems[item.Name] == true
@@ -429,30 +483,23 @@ task.spawn(function()
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
                     
-                    -- Cek apakah item sudah dekat target (skip biar tidak glitch)
+                    -- Skip kalau sudah dekat target
                     local itemPos = getItemPosition(item)
                     if itemPos then
-                        local distToTarget = (itemPos - targetPos).Magnitude
-                        if distToTarget < 12 then continue end -- sudah sampai, skip
+                        if (itemPos - targetPos).Magnitude < 10 then continue end
                     end
                     
-                    -- Mark as processing
                     processingItems[itemId] = true
-                    
-                    -- Sequential drag (tidak parallel) untuk stabilitas
                     stableDragItemToPos(item, targetPos)
-                    
-                    -- Unmark setelah selesai
-                    task.delay(0.5, function()
+                    task.delay(0.4, function()
                         processingItems[itemId] = nil
                     end)
                     
-                    -- Delay antar item biar tidak race condition
-                    task.wait(0.15)
+                    task.wait(0.1) -- delay antar item (cepat tapi stabil)
                 end
             end
         end
-        task.wait(0.6) -- Loop stabil, tidak terlalu cepat
+        task.wait(0.3) -- loop cepat
     end
 end)
 
@@ -495,7 +542,7 @@ end)
 Window:Notify({
     Title = "W424 Hub",
     Description = "Loaded",
-    Content = "Stable Grind + Fast TP + Mobile UI v4!",
+    Content = "v5: Lost Child TP + Fast Grind + Campfire TP!",
     Color = Color3.fromRGB(10, 30, 60),
     Delay = 5
 })
