@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.23 Beta
+-- W424 HUB | v5.30 (REVAMPED UI & FIXED FREEZE)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -11,6 +11,7 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
@@ -25,20 +26,6 @@ local LostChildPath = nil
 pcall(function()
     LostChildPath = workspace.Map.Landmarks["Jail Cellar1"].Dino
 end)
-
--- Warna Biru Khas untuk Notifikasi & UI
-local BLUE_COLOR = Color3.fromRGB(0, 120, 255)
-
--- Daftar senjata yang aman dari Auto Grind / Bring Item
-local weaponBlacklist = {
-    ["Rifle"] = true,
-    ["Pistol"] = true,
-    ["Revolver"] = true,
-    ["Air Rifle"] = true,
-    ["Chainsaw"] = true,
-    ["Spear"] = true,
-    ["Old Flashlight"] = true
-}
 
 -- ==========================================
 -- CORE FUNCTIONS
@@ -96,26 +83,45 @@ local function setItemCFrame(item, pos)
     end)
 end
 
+-- ==========================================
+-- FIXED DRAG FUNCTION (ANTI-FREEZE)
+-- ==========================================
 local function reliableDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
     local success = false
     pcall(function()
         local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
-        
-        if dragStart then dragStart:FireServer(item) end
-        task.wait(0.03) -- Dipercepat agar lebih responsif
-        
+
+        -- Start drag
+        if dragStart then 
+            dragStart:FireServer(item) 
+        end
+        task.wait(0.15)
+
         if not item:IsDescendantOf(workspace) then return end
+
+        -- Reset velocity sebelum pindah
         resetVelocity(item)
+        task.wait(0.05)
+
+        -- Pindahkan item
         setItemCFrame(item, pos)
-        
-        task.wait(0.03)
-        
-        if not item:IsDescendantOf(workspace) then return end
+        task.wait(0.1)
+
+        -- Reset velocity lagi setelah pindah
         resetVelocity(item)
-        if dragStop then dragStop:FireServer(item) end
-        
+        task.wait(0.1)
+
+        -- Stop drag - PENTING untuk mencegah freeze
+        if dragStop then 
+            dragStop:FireServer(item) 
+        end
+
+        -- Pastikan item tidak freeze dengan memberikan sedikit velocity
+        task.wait(0.05)
+        resetVelocity(item)
+
         success = true
     end)
     return success
@@ -135,17 +141,17 @@ end
 -- ==========================================
 local cam = workspace.CurrentCamera
 local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
-local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
-local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
+local uiWidth = math.min(360, math.max(300, screenSize.X * 0.9))
+local uiHeight = math.min(480, math.max(340, screenSize.Y * 0.8))
 
 local Window = Kairo:CreateWindow({
     Title = "W424 Hub",
-    Theme = "Midnight",
+    Theme = "Neon",
     Size = UDim2.fromOffset(uiWidth, uiHeight),
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.23"},
+    Badges = {"MOBILE", "v5.30"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -154,7 +160,7 @@ local Window = Kairo:CreateWindow({
 
 local MainTab = Window:CreateTab("Main", "rbxassetid://16932740082")
 local CombatTab = Window:CreateTab("Aura", "rbxassetid://16932740082")
-local BringItemTab = Window:CreateTab("Bring Item", "rbxassetid://16932740082") -- Diubah dari Item TP
+local BringItemTab = Window:CreateTab("Bring Item", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
@@ -163,46 +169,54 @@ local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 -- ==========================================
 -- MAIN TAB
 -- ==========================================
-Window:AddParagraph(MainTab, "Auto Farm & Automation", "Otomatisasi Makanan, Grind & Foliage")
+Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
 
 local autoEatEnabled = false
 local autoCookEnabled = false
-local autoGrindEnabled = false -- Toggle On/Off Auto Grind
-local autoFuelEnabled = false -- Toggle On/Off Auto Fuel
-local autoFoliageChop = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
-local maxGrindRadius = 10000 -- Diatur maksimal 10000 sesuai fandom 99 nights
+local maxGrindRadius = 10000 
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
-Window:AddToggle(MainTab, "Auto Grind", "Nyalakan/matikan otomatisasi kirim item ke mesin", false, function(state) autoGrindEnabled = state end, "AutoGrindToggle")
-Window:AddToggle(MainTab, "Auto Feed Campfire", "Nyalakan/matikan otomatisasi bahan bakar", false, function(state) autoFuelEnabled = state end, "AutoFuelToggle")
-Window:AddToggle(MainTab, "Auto Chop Foliage", "Tebang pohon/objek di workspace.Map.Foliage otomatis", false, function(state) autoFoliageChop = state end, "AutoFoliage")
 
-Window:AddDivider(MainTab, "Radius Pengambilan")
-Window:AddInput(MainTab, "Max Radius (10000)", "Batas jarak jangkauan", "10000", function(value)
+Window:AddDivider(MainTab, "Grind & Fuel")
+Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item", "1000", function(value)
     local num = tonumber(value)
     if num then maxGrindRadius = num end
 end, "MaxGrabRadius")
 
+-- ==========================================
+-- REVAMPED AUTO GRIND - TOGGLE PER ITEM (ANTI FREEZE)
+-- ==========================================
 local autoGrindItems = {}
-Window:AddMultiDropdown(MainTab, "Select Grind Items", "Pilih item untuk mesin",
-    {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
-    {}, function(selected)
-        autoGrindItems = {}
-        for _, v in ipairs(selected) do autoGrindItems[v] = true end
-    end, "AutoGrind"
-)
+local grindItemList = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"}
 
+Window:AddParagraph(MainTab, "Auto Grind Items", "Pilih item yang akan di-grind (klik untuk on/off)")
+
+for _, itemName in ipairs(grindItemList) do
+    autoGrindItems[itemName] = false
+    Window:AddToggle(MainTab, "Grind: " .. itemName, "Auto grind " .. itemName .. " ke mesin", false, function(state)
+        autoGrindItems[itemName] = state
+    end, "Grind_" .. itemName)
+end
+
+-- ==========================================
+-- REVAMPED AUTO FUEL - TOGGLE PER ITEM (RATE LIMITED)
+-- ==========================================
 local autoFuelItems = {}
-Window:AddMultiDropdown(MainTab, "Select Fuel Items", "Pilih bahan bakar Campfire",
-    {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
-    {}, function(selected)
-        autoFuelItems = {}
-        for _, v in ipairs(selected) do autoFuelItems[v] = true end
-    end, "AutoFuel"
-)
+local fuelItemList = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"}
+local lastFuelTime = 0
+local fuelCooldown = 2.5 -- Delay antar fuel untuk mencegah server lag
+
+Window:AddParagraph(MainTab, "Auto Fuel Items", "Pilih bahan bakar Campfire")
+
+for _, itemName in ipairs(fuelItemList) do
+    autoFuelItems[itemName] = false
+    Window:AddToggle(MainTab, "Fuel: " .. itemName, "Auto fuel " .. itemName .. " ke campfire", false, function(state)
+        autoFuelItems[itemName] = state
+    end, "Fuel_" .. itemName)
+end
 
 -- ==========================================
 -- TELEPORTS TAB
@@ -217,11 +231,12 @@ Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cella
 end)
 
 -- ==========================================
--- AURA TAB
+-- AURA TAB - IMPROVED BRUTAL AURA
 -- ==========================================
-Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Improved & Fast)")
+Window:AddParagraph(CombatTab, "Combat", "Kill Aura v2 (Brutal Mode)")
 local killAuraEnabled = false
-local auraRadius = 350 
+local auraRadius = 1000 -- Ditingkatkan dari 600
+local auraMultiHit = 3 -- Jumlah hit per target
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
 local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
 
@@ -238,16 +253,19 @@ local function getBestSpoofTool()
     return nil, nil
 end
 
-Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar dengan cepat", false, function(state) killAuraEnabled = state end, "KillAura")
-Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "350", function(value)
+Window:AddToggle(CombatTab, "Kill Aura", "Serang brutal semua mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan (default: 1000)", "1000", function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end, "AuraRadius")
+Window:AddSlider(CombatTab, "Multi Hit", "Jumlah hit per target", 1, 10, 3, function(value)
+    auraMultiHit = value
+end, "AuraMultiHit", true)
 
 -- ==========================================
--- BRING ITEM TAB (IMPROVED UP TO 10000 RADIUS)
+-- BRING ITEM TAB (RENAMED FROM ITEM TP)
 -- ==========================================
-Window:AddParagraph(BringItemTab, "Bring Items", "Tarik item ke karakter dengan cepat, presisi, dan luas (Max 10000)")
+Window:AddParagraph(BringItemTab, "Bring Item", "Tarik item ke karakter dengan stabil")
 
 local itemCategories = {
     Food_Consumables = {"Berry", "Carrot", "Cake", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs"},
@@ -271,27 +289,24 @@ for catName, listItems in pairs(itemCategories) do
         local allItems = ItemsFolder:GetDescendants()
         local toProcess = {}
         for _, item in ipairs(allItems) do
-            if item.Name == selected and not weaponBlacklist[item.Name] and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+            if item.Name == selected and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                 table.insert(toProcess, item)
             end
         end
         local basePos = hrp.Position + (hrp.CFrame.LookVector * 5)
         for i, item in ipairs(toProcess) do
-            local itemPos = getItemPosition(item)
-            if itemPos and (itemPos - hrp.Position).Magnitude <= maxGrindRadius then
-                local tpPos = basePos + Vector3.new(0, 1 + (count * 1.2), 0)
-                task.spawn(function() reliableDragItemToPos(item, tpPos) end)
-                count = count + 1
-            end
-            if i % 5 == 0 then task.wait(0.02) end 
+            local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
+            task.spawn(function() reliableDragItemToPos(item, tpPos) end)
+            count = count + 1
+            if i % 2 == 0 then task.wait(0.15) end -- Ditingkatkan delay agar tidak freeze
         end
-        Window:Notify({Title = "Success", Description = "Bring Item", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = BLUE_COLOR, Delay = 3})
+        Window:Notify({Title = "Success", Description = "Bring Item", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 2})
     end)
     Window:AddDivider(BringItemTab, "")
 end
 
 -- ==========================================
--- MISC TAB (POTATO MODE & UTILS)
+-- MISC TAB 
 -- ==========================================
 Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
 
@@ -335,17 +350,17 @@ Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur, part kecil
                 obj.Enabled = false
             end
         end
-        
+
         for _, effect in ipairs(Lighting:GetChildren()) do
             if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
                 effect:Destroy()
             end
         end
-        
+
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 999999
-        
-        Window:Notify({Title = "Success", Description = "Potato Mode", Content = "Map di-optimize! FPS meningkat drastis.", Color = BLUE_COLOR, Delay = 3})
+
+        Window:Notify({Title = "Success", Description = "Potato Mode", Content = "Map di-optimize! FPS meningkat drastis.", Color = Color3.fromRGB(0, 200, 0), Delay = 3})
     end)
 end)
 
@@ -358,9 +373,9 @@ fpsPingGui.Enabled = false
 local fpsLabel = Instance.new("TextLabel")
 fpsLabel.Size = UDim2.new(0, 150, 0, 30)
 fpsLabel.Position = UDim2.new(0, 10, 0, 120)
-fpsLabel.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+fpsLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 fpsLabel.BackgroundTransparency = 0.4
-fpsLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
+fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
 fpsLabel.TextSize = 14
 fpsLabel.Font = Enum.Font.GothamBold
 fpsLabel.Text = "FPS: 0 | Ping: 0ms"
@@ -386,6 +401,55 @@ end)
 Window:AddToggle(MiscTab, "FPS & Ping Counter", "Tampilkan indikator FPS & Ping di layar", false, function(state)
     fpsPingGui.Enabled = state
 end, "FpsPingToggle")
+
+-- ==========================================
+-- DAY/NIGHT NOTIFICATION SYSTEM
+-- ==========================================
+local lastTimePhase = nil -- "day", "night", or nil
+local dayNightConn = nil
+
+Window:AddToggle(MiscTab, "Day/Night Notify", "Notifikasi saat pagi atau malam", false, function(state)
+    if state then
+        dayNightConn = RunService.Heartbeat:Connect(function()
+            local clockTime = Lighting.ClockTime
+            local currentPhase = nil
+
+            -- Pagi: 6:00 - 18:00, Malam: 18:00 - 6:00
+            if clockTime >= 6 and clockTime < 18 then
+                currentPhase = "day"
+            else
+                currentPhase = "night"
+            end
+
+            if lastTimePhase and lastTimePhase ~= currentPhase then
+                if currentPhase == "day" then
+                    Window:Notify({
+                        Title = "\u2600\ufe0f Pagi Hari",
+                        Description = "Time Update",
+                        Content = "Matahari telah terbit! Waktunya beraktivitas.",
+                        Color = Color3.fromRGB(255, 200, 50),
+                        Delay = 5
+                    })
+                else
+                    Window:Notify({
+                        Title = "\ud83c\udf19 Malam Hari",
+                        Description = "Time Update", 
+                        Content = "Matahari telah terbenam! Hati-hati dengan bahaya di kegelapan.",
+                        Color = Color3.fromRGB(30, 30, 80),
+                        Delay = 5
+                    })
+                end
+            end
+            lastTimePhase = currentPhase
+        end)
+    else
+        if dayNightConn then
+            dayNightConn:Disconnect()
+            dayNightConn = nil
+        end
+        lastTimePhase = nil
+    end
+end, "DayNightNotify")
 
 -- ==========================================
 -- VISUALS TAB
@@ -420,10 +484,10 @@ local function refreshESP()
     espFolder:ClearAllChildren()
     if espMobsEnabled then
         local chars = Workspace:FindFirstChild("Characters")
-        if chars then for _, mob in ipairs(chars:GetChildren()) do createESP(mob, mob.Name, Color3.fromRGB(0, 150, 255)) end end
+        if chars then for _, mob in ipairs(chars:GetChildren()) do createESP(mob, mob.Name, Color3.fromRGB(255,50,50)) end end
     end
     if espItemsEnabled then
-        for _, item in ipairs(ItemsFolder:GetChildren()) do createESP(item, item.Name, Color3.fromRGB(0, 255, 120)) end
+        for _, item in ipairs(ItemsFolder:GetChildren()) do createESP(item, item.Name, Color3.fromRGB(50,255,50)) end
     end
 end
 
@@ -452,45 +516,10 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ==========================================
--- BACKGROUND LOOPS & AUTOMATIONS
+-- BACKGROUND LOOPS
 -- ==========================================
 
--- 1. Day / Night Automatic Notification System
-task.spawn(function()
-    local lastState = nil
-    while ScriptRunning do
-        pcall(function()
-            local timeOfDay = Lighting.ClockTime
-            -- Jam 6 pagi sampai 6 sore dianggap Pagi/Siang (Day), selebihnya Malam (Night)
-            local isDay = (timeOfDay >= 6 and timeOfDay < 18)
-            local currentState = isDay and "Morning" or "Night"
-            
-            if lastState ~= nil and lastState ~= currentState then
-                if currentState == "Morning" then
-                    Window:Notify({
-                        Title = "W424 Time Alert",
-                        Description = "Pagi Telah Tiba",
-                        Content = "☀️ Matahari terbit! Waktu siang hari dimulai.",
-                        Color = BLUE_COLOR,
-                        Delay = 5
-                    })
-                else
-                    Window:Notify({
-                        Title = "W424 Time Alert",
-                        Description = "Malam Telah Tiba",
-                        Content = "🌙 Hari mulai gelap! Waspada terhadap mob malam.",
-                        Color = Color3.fromRGB(20, 50, 150),
-                        Delay = 5
-                    })
-                end
-            end
-            lastState = currentState
-        end)
-        task.wait(10)
-    end
-end)
-
--- 2. Improved Kill Aura Loop
+-- BRUTAL KILL AURA LOOP
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
@@ -498,7 +527,7 @@ task.spawn(function()
             local tool, damageID = getBestSpoofTool()
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                
+
                 local searchFolders = {Workspace:FindFirstChild("Characters"), Workspace}
                 for _, folder in ipairs(searchFolders) do
                     if folder then
@@ -508,11 +537,15 @@ task.spawn(function()
                                 local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
                                 if mobHrp then
                                     if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
-                                        task.spawn(function() 
-                                            pcall(function() 
-                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) 
-                                            end) 
-                                        end)
+                                        -- Multi-hit brutal mode
+                                        for i = 1, auraMultiHit do
+                                            task.spawn(function() 
+                                                pcall(function() 
+                                                    RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) 
+                                                end) 
+                                            end)
+                                            task.wait(0.03) -- Small delay antar hit
+                                        end
                                     end
                                 end
                             end
@@ -521,78 +554,55 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.01) -- Dibuat sangat cepat
+        task.wait(0.01) 
     end
 end)
 
--- 3. Foliage Auto Chop Loop
-task.spawn(function()
-    while ScriptRunning do
-        if autoFoliageChop then
-            local hrp = getRootPart()
-            local tool, damageID = getBestSpoofTool()
-            local foliageFolder = workspace.Map:FindFirstChild("Foliage")
-            if hrp and tool and damageID and foliageFolder then
-                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                for _, foliageObj in ipairs(foliageFolder:GetChildren()) do
-                    if not autoFoliageChop then break end
-                    local part = findValidPart(foliageObj)
-                    if part and (part.Position - hrp.Position).Magnitude <= 50 then
-                        pcall(function()
-                            RemoteEvents.ToolDamageObject:InvokeServer(foliageObj, tool, damageID, part.CFrame)
-                        end)
-                        task.wait(0.05)
-                    end
-                end
-            end
-        end
-        task.wait(0.3)
-    end
-end)
-
--- 4. Auto Grind & Auto Fuel Loop (Controlled by Toggle On/Off)
+-- FIXED AUTO GRIND & FUEL LOOP (ANTI-FREEZE & RATE LIMITED)
 local processingItems = {}
 task.spawn(function()
     while ScriptRunning do
         local hrp = getRootPart()
-        -- Jalankan hanya jika salah satu fitur (Auto Grind atau Auto Fuel) aktif melalui toggle
-        if hrp and (autoGrindEnabled or autoFuelEnabled) then
+        if hrp then
             for _, item in ipairs(ItemsFolder:GetDescendants()) do
                 if not item or not item:IsDescendantOf(workspace) then continue end
                 if not (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then continue end
-                
-                if weaponBlacklist[item.Name] then continue end
-                
                 local itemId = tostring(item)
                 if processingItems[itemId] then continue end
-                
-                local shouldGrind = autoGrindEnabled and (autoGrindItems[item.Name] == true)
-                local shouldFuel = autoFuelEnabled and (autoFuelItems[item.Name] == true)
+
+                local shouldGrind = autoGrindItems[item.Name] == true
+                local shouldFuel = autoFuelItems[item.Name] == true
                 local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
-                
+
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
                     local itemPos = getItemPosition(item)
                     if itemPos then
                         if (itemPos - hrp.Position).Magnitude > maxGrindRadius then continue end
                         if (itemPos - targetPos).Magnitude < 12 then continue end
-                        
+
+                        -- Rate limit untuk fuel
+                        if shouldFuel then
+                            if tick() - lastFuelTime < fuelCooldown then continue end
+                            lastFuelTime = tick()
+                        end
+
                         processingItems[itemId] = true
                         task.spawn(function()
                             reliableDragItemToPos(item, targetPos)
-                            task.wait(0.5) 
+                            task.wait(1.5) -- Ditingkatkan untuk mencegah freeze
                             processingItems[itemId] = nil
                         end)
-                        task.wait(0.05) 
+                        task.wait(0.2) -- Ditingkatkan delay antar item
                     end
                 end
             end
         end
-        task.wait(0.3) 
+        task.wait(0.3) -- Ditingkatkan dari 0.2
     end
 end)
 
--- 5. Auto Eat Loop
+-- AUTO EAT LOOP
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled then
@@ -605,8 +615,8 @@ task.spawn(function()
                 if #available > 0 then pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end) end
             end
         end
-        task.wait(2)
+        task.wait(1)
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded Successfully", Content = "v5.23: Bring Item 10K & Blue Theme Active!", Color = BLUE_COLOR, Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.30: Revamped UI & Fixed Freeze!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
