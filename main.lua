@@ -1,5 +1,6 @@
+
 -- ==========================================
--- W424 HUB | v5.12 (LOCAL FAKE AVATAR MORPH ADDED)
+-- W424 HUB | v5.13 (FIXED AVATAR TAB VISIBILITY)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -127,14 +128,12 @@ local function applyLocalAvatarMorph(username)
         local char = LocalPlayer.Character
         if not char then return end
         
-        -- Hapus pakaian/aksesori lama di karakter lokal
         for _, v in ipairs(char:GetChildren()) do
             if v:IsA("Accessory") or v:IsA("Clothing") or v:IsA("ShirtGraphic") then
                 v:Destroy()
             end
         end
         
-        -- Ambil appearance dari player target secara lokal
         local appearanceModel = Players:GetCharacterAppearanceAsync(userId)
         if appearanceModel then
             for _, v in ipairs(appearanceModel:GetChildren()) do
@@ -163,7 +162,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.12"},
+    Badges = {"MOBILE", "v5.13"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -176,7 +175,7 @@ local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
-local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082")
+local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082") -- TAB AVATAR YANG SEBELUMNYA KETINGGALAN
 local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 
 -- ==========================================
@@ -557,4 +556,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.12: Local Avatar Morph Added!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.13: Avatar Tab Fixed & Visible!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
