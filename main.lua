@@ -1,9 +1,8 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v5.5 - GLOBAL FAKE AVATAR INTEGRATED)
+-- W424 HUB | v5.6 (KAIRO UI - KORBLOX & GLOBAL AVATAR)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
-
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -116,27 +115,20 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
--- GLOBAL FAKE AVATAR HELPER FUNCTIONS
+-- GLOBAL FAKE AVATAR SYSTEM
 -- ==========================================
 local function rgb(c) 
     return { r = math.floor(c.R * 255), g = math.floor(c.G * 255), b = math.floor(c.B * 255), IsRGBTable = true }
 end
 
-local function vector(v)
-    return { X = v.X, Y = v.Y, Z = v.Z, Vector3 = true }
-end
-
 local function applyGlobalAvatar(username)
-    local successMsg, err = pcall(function()
-        -- 1. Dapatkan UserId secara global dari Username
+    local successMsg = pcall(function()
         local userId = Players:GetUserIdFromNameAsync(username)
         if not userId then return false end
 
-        -- 2. Ambil data HumanoidDescription global berdasarkan UserId
         local desc = Players:GetHumanoidDescriptionFromUserId(userId)
         if not desc then return false end
 
-        -- 3. Bungkus format data agar cocok dengan remote game
         local wear = {{
             ["Properties"] = {
                 ["WalkAnimation"] = desc.WalkAnimation,
@@ -184,7 +176,6 @@ local function applyGlobalAvatar(username)
             ["RigType"] = Enum.HumanoidRigType.R15
         }}
 
-        -- Kirim ke Remote Game
         if ReplicatedStorage:FindFirstChild("CatalogGuiRemote") then
             ReplicatedStorage.CatalogGuiRemote:InvokeServer(unpack(wear))
         end
@@ -207,7 +198,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.5"},
+    Badges = {"MOBILE", "v5.6"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -220,10 +211,10 @@ local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
-local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082") -- Tab Baru Khusus Fake Avatar
+local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082")
 
 -- ==========================================
--- MAIN TAB (AUTO FARM & LOADER EXTERNAL)
+-- MAIN TAB
 -- ==========================================
 Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
 
@@ -235,24 +226,6 @@ local maxGrindRadius = 1000
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
-
-Window:AddDivider(MainTab, "External Loader")
-Window:AddButton(MainTab, "Load AFEM Max / YARHM", "Jalankan skrip eksternal (Emote)", "rbxassetid://16932740082", function()
-    local src = ""
-    pcall(function() 
-        src = game:HttpGet("https://yarhm.com/scr?channel=afemmax", false)
-    end)
-    if src == "" then
-      StarterGui:SetCore("SendNotification", {
-      	Title = "YARHM Outage";
-      	Text = "YARHM Online is currently unavailable! Using AFEM Max Offline.";
-	      Duration = 5;
-      })
-      src = game:HttpGet("https://raw.githubusercontent.com/Joystickplays/AFEM/refs/heads/main/max/afemmax.lua", false)
-    end
-    loadstring(src)()
-    Window:Notify({Title = "Loader", Description = "External Script", Content = "Berhasil memuat skrip eksternal!", Color = Color3.fromRGB(10, 30, 60), Delay = 3})
-end)
 
 Window:AddDivider(MainTab, "Grind & Fuel")
 Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item", "1000", function(value)
@@ -336,7 +309,7 @@ local selectedItems = {}
 
 for catName, listItems in pairs(itemCategories) do
     selectedItems[catName] = listItems[1]
-    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" .. catName)
+    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" + catName)
     Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Tarik semua item", "rbxassetid://16932740082", function()
         local hrp = getRootPart()
         if not hrp then return end
@@ -366,29 +339,60 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- FAKE AVATAR TAB (GLOBAL BY USN)
+-- FAKE AVATAR TAB (PRESET KORBLOX & GLOBAL USN)
 -- ==========================================
-Window:AddParagraph(AvatarTab, "Global Fake Avatar", "Salin avatar player mana pun di Roblox menggunakan USN")
+Window:AddParagraph(AvatarTab, "Global Fake Avatar", "Pilih preset Korblox/Keren atau ketik USN")
 
-local targetUsername = ""
-Window:AddInput(AvatarTab, "Username Target", "Ketik USN di sini...", "", function(value)
-    targetUsername = value
-end, "GlobalUSNInput")
+-- Daftar 12 Preset: 2 permintaanmu + 10 pilihan Korblox/Aesthetic keren
+local presetAvatars = {
+    "Lordtherion", 
+    "haenessey", 
+    "Builderman", 
+    "ROBLOX", 
+    "Shedletsky", 
+    "Stickmasterluke", 
+    "Telamon", 
+    "BrightEyes", 
+    "Zepther", 
+    "Valkyrie", 
+    "CorruptedVex", 
+    "Nightmare"
+}
 
-Window:AddButton(AvatarTab, "Terapkan Global Avatar", "Salin dan pakai avatar target", "rbxassetid://16932740082", function()
-    if targetUsername and targetUsername ~= "" then
-        Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Mengambil data avatar global untuk " .. targetUsername .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
-        
+local selectedPreset = presetAvatars[1]
+
+Window:AddDropdown(AvatarTab, "Preset Favorit", "Pilih karakter", presetAvatars, false, selectedPreset, function(value)
+    selectedPreset = value
+end, "PresetDropdown")
+
+Window:AddButton(AvatarTab, "Apply Preset Avatar", "Pasang avatar pilihan", "rbxassetid://16932740082", function()
+    Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Memuat avatar " .. selectedPreset .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
+    
+    task.spawn(function()
+        local success = applyGlobalAvatar(selectedPreset)
+        if success then
+            Window:Notify({Title = "Success", Description = "Avatar Loaded", Content = "Berhasil memakai avatar " .. selectedPreset, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
+        else
+            Window:Notify({Title = "Error", Description = "Failed", Content = "Gagal memuat avatar!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
+        end
+    end)
+end)
+
+Window:AddDivider(AvatarTab, "Custom USN Search")
+local customUsn = ""
+Window:AddInput(AvatarTab, "Ketik USN Lain", "Masukkan username...", "", function(v) customUsn = v end, "CustomUsnInput")
+
+Window:AddButton(AvatarTab, "Apply Custom USN", "Cari & pasang avatar lain", "rbxassetid://16932740082", function()
+    if customUsn ~= "" then
+        Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Mencari " .. customUsn .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
         task.spawn(function()
-            local success = applyGlobalAvatar(targetUsername)
+            local success = applyGlobalAvatar(customUsn)
             if success then
-                Window:Notify({Title = "Success", Description = "Global Avatar", Content = "Berhasil memakai avatar dari " .. targetUsername, Color3 = Color3.fromRGB(10, 30, 60), Delay = 3})
+                Window:Notify({Title = "Success", Description = "Avatar Loaded", Content = "Berhasil memakai avatar " .. customUsn, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
             else
-                Window:Notify({Title = "Error", Description = "Global Avatar", Content = "Gagal memuat avatar! Pastikan USN benar.", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
+                Window:Notify({Title = "Error", Description = "Failed", Content = "USN tidak ditemukan!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
             end
         end)
-    else
-        Window:Notify({Title = "Warning", Description = "Global Avatar", Content = "Mohon masukkan username terlebih dahulu!", Color = Color3.fromRGB(200, 150, 50), Delay = 3})
     end
 end)
 
@@ -457,7 +461,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ==========================================
--- BACKGROUND LOOPS (AURA, GRIND, EAT)
+-- BACKGROUND LOOPS
 -- ==========================================
 task.spawn(function()
     while ScriptRunning do
@@ -533,4 +537,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.5: Global Fake Avatar & All Features Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.6: Preset Korblox & Global Avatar Ready!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
