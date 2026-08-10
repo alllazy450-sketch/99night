@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v5.5 - FULL INTEGRATED)
+-- W424 - 99 NIGHTS (KAIRO UI v5.5 - GLOBAL FAKE AVATAR INTEGRATED)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -116,6 +116,83 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
+-- GLOBAL FAKE AVATAR HELPER FUNCTIONS
+-- ==========================================
+local function rgb(c) 
+    return { r = math.floor(c.R * 255), g = math.floor(c.G * 255), b = math.floor(c.B * 255), IsRGBTable = true }
+end
+
+local function vector(v)
+    return { X = v.X, Y = v.Y, Z = v.Z, Vector3 = true }
+end
+
+local function applyGlobalAvatar(username)
+    local successMsg, err = pcall(function()
+        -- 1. Dapatkan UserId secara global dari Username
+        local userId = Players:GetUserIdFromNameAsync(username)
+        if not userId then return false end
+
+        -- 2. Ambil data HumanoidDescription global berdasarkan UserId
+        local desc = Players:GetHumanoidDescriptionFromUserId(userId)
+        if not desc then return false end
+
+        -- 3. Bungkus format data agar cocok dengan remote game
+        local wear = {{
+            ["Properties"] = {
+                ["WalkAnimation"] = desc.WalkAnimation,
+                ["MoodAnimation"] = desc.MoodAnimation,
+                ["Face"] = desc.Face,
+                ["ProportionScale"] = desc.ProportionScale,
+                ["ClimbAnimation"] = desc.ClimbAnimation,
+                ["Shirt"] = desc.Shirt,
+                ["FaceAccessory"] = desc.FaceAccessory,
+                ["RightArmColor"] = rgb(desc.RightArmColor),
+                ["TorsoColor"] = rgb(desc.TorsoColor),
+                ["RightLegColor"] = rgb(desc.RightLegColor),
+                ["LeftLegColor"] = rgb(desc.LeftLegColor),
+                ["LeftArmColor"] = rgb(desc.LeftArmColor),
+                ["HeadColor"] = rgb(desc.HeadColor),
+                ["HairAccessory"] = desc.HairAccessory,
+                ["RightArm"] = desc.RightArm,
+                ["Head"] = desc.Head,
+                ["FallAnimation"] = desc.FallAnimation,
+                ["DepthScale"] = desc.DepthScale,
+                ["LeftArm"] = desc.LeftArm,
+                ["HeightScale"] = desc.HeightScale,
+                ["LeftLeg"] = desc.LeftLeg,
+                ["WidthScale"] = desc.WidthScale,
+                ["BodyTypeScale"] = desc.BodyTypeScale,
+                ["RunAnimation"] = desc.RunAnimation,
+                ["Pants"] = desc.Pants,
+                ["WaistAccessory"] = desc.WaistAccessory,
+                ["LayeredAccessories"] = {},
+                ["AccessoryRefinements"] = {},
+                ["ShouldersAccessory"] = desc.ShouldersAccessory,
+                ["NeckAccessory"] = desc.NeckAccessory,
+                ["HatAccessory"] = desc.HatAccessory,
+                ["FrontAccessory"] = desc.FrontAccessory,
+                ["BackAccessory"] = desc.BackAccessory,
+                ["SwimAnimation"] = desc.SwimAnimation,
+                ["IdleAnimation"] = desc.IdleAnimation,
+                ["Torso"] = desc.Torso,
+                ["HeadScale"] = desc.HeadScale,
+                ["JumpAnimation"] = desc.JumpAnimation,
+                ["GraphicTShirt"] = desc.GraphicTShirt,
+                ["RightLeg"] = desc.RightLeg
+            },
+            ["Action"] = "CreateAndWearHumanoidDescription",
+            ["RigType"] = Enum.HumanoidRigType.R15
+        }}
+
+        -- Kirim ke Remote Game
+        if ReplicatedStorage:FindFirstChild("CatalogGuiRemote") then
+            ReplicatedStorage.CatalogGuiRemote:InvokeServer(unpack(wear))
+        end
+    end)
+    return successMsg
+end
+
+-- ==========================================
 -- MOBILE UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
@@ -143,6 +220,7 @@ local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
+local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082") -- Tab Baru Khusus Fake Avatar
 
 -- ==========================================
 -- MAIN TAB (AUTO FARM & LOADER EXTERNAL)
@@ -158,9 +236,8 @@ local maxGrindRadius = 1000
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
 
--- Tombol Tambahan untuk Load External Script yang kamu berikan
 Window:AddDivider(MainTab, "External Loader")
-Window:AddButton(MainTab, "Load AFEM Max / YARHM", "Jalankan skrip eksternal", "rbxassetid://16932740082", function()
+Window:AddButton(MainTab, "Load AFEM Max / YARHM", "Jalankan skrip eksternal (Emote)", "rbxassetid://16932740082", function()
     local src = ""
     pcall(function() 
         src = game:HttpGet("https://yarhm.com/scr?channel=afemmax", false)
@@ -169,7 +246,7 @@ Window:AddButton(MainTab, "Load AFEM Max / YARHM", "Jalankan skrip eksternal", "
       StarterGui:SetCore("SendNotification", {
       	Title = "YARHM Outage";
       	Text = "YARHM Online is currently unavailable! Using AFEM Max Offline.";
-    	  Duration = 5;
+	      Duration = 5;
       })
       src = game:HttpGet("https://raw.githubusercontent.com/Joystickplays/AFEM/refs/heads/main/max/afemmax.lua", false)
     end
@@ -287,6 +364,33 @@ for catName, listItems in pairs(itemCategories) do
     end)
     Window:AddDivider(ItemTPTab, "")
 end
+
+-- ==========================================
+-- FAKE AVATAR TAB (GLOBAL BY USN)
+-- ==========================================
+Window:AddParagraph(AvatarTab, "Global Fake Avatar", "Salin avatar player mana pun di Roblox menggunakan USN")
+
+local targetUsername = ""
+Window:AddInput(AvatarTab, "Username Target", "Ketik USN di sini...", "", function(value)
+    targetUsername = value
+end, "GlobalUSNInput")
+
+Window:AddButton(AvatarTab, "Terapkan Global Avatar", "Salin dan pakai avatar target", "rbxassetid://16932740082", function()
+    if targetUsername and targetUsername ~= "" then
+        Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Mengambil data avatar global untuk " .. targetUsername .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
+        
+        task.spawn(function()
+            local success = applyGlobalAvatar(targetUsername)
+            if success then
+                Window:Notify({Title = "Success", Description = "Global Avatar", Content = "Berhasil memakai avatar dari " .. targetUsername, Color3 = Color3.fromRGB(10, 30, 60), Delay = 3})
+            else
+                Window:Notify({Title = "Error", Description = "Global Avatar", Content = "Gagal memuat avatar! Pastikan USN benar.", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
+            end
+        end)
+    else
+        Window:Notify({Title = "Warning", Description = "Global Avatar", Content = "Mohon masukkan username terlebih dahulu!", Color = Color3.fromRGB(200, 150, 50), Delay = 3})
+    end
+end)
 
 -- ==========================================
 -- VISUALS TAB
@@ -429,4 +533,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.5: Full Integrated with External Loader!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.5: Global Fake Avatar & All Features Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
