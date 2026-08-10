@@ -155,7 +155,7 @@ local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
-local maxGrindRadius = 1000 
+local maxGrindRadius = 10000 
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
@@ -260,9 +260,9 @@ for catName, listItems in pairs(itemCategories) do
             local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
             task.spawn(function() reliableDragItemToPos(item, tpPos) end)
             count = count + 1
-            if i % 2 == 0 then task.wait(0.15) end 
+            if i % 2 == 0 then task.wait(0.10) end 
         end
-        Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
+        Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 2})
     end)
     Window:AddDivider(ItemTPTab, "")
 end
@@ -515,7 +515,7 @@ task.spawn(function()
                 if #available > 0 then pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end) end
             end
         end
-        task.wait(2)
+        task.wait(1)
     end
 end)
 
