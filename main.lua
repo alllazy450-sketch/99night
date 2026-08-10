@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v5.4 - ULTIMATE IMPROVEMENT)
+-- W424 - 99 NIGHTS (KAIRO UI v5.5 - JACKPOT ITEMS TP)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -81,7 +81,7 @@ local function setItemCFrame(item, pos)
 end
 
 -- ==========================================
--- IMPROVED TELEPORT FUNCTIONS (SAFE DRAG)
+-- IMPROVED TELEPORT FUNCTIONS
 -- ==========================================
 local function reliableDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
@@ -132,7 +132,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.4"},
+    Badges = {"MOBILE", "v5.5"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -147,7 +147,7 @@ local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 
 -- ==========================================
--- MAIN FARM TAB (IMPROVED RANGE)
+-- MAIN FARM TAB
 -- ==========================================
 Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
 
@@ -155,13 +155,11 @@ local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
-local maxGrindRadius = 1000 -- Jangkauan default 1000 studs (sangat jauh)
+local maxGrindRadius = 1000 
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
-
 Window:AddDivider(MainTab, "Grind & Fuel")
-
 Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item (default 1000)", "1000", function(value)
     local num = tonumber(value)
     if num then maxGrindRadius = num end
@@ -186,41 +184,16 @@ Window:AddMultiDropdown(MainTab, "Auto Fuel", "Pilih bahan bakar Campfire",
 )
 
 -- ==========================================
--- TELEPORTS TAB
+-- TELEPORTS & AURA TAB
 -- ==========================================
 Window:AddParagraph(TeleportsTab, "Locations", "Teleportasi Karakter")
-Window:AddButton(TeleportsTab, "TP to Campfire", "Kembali ke area perapian", "rbxassetid://16932740082", function()
-    teleportPlayerTo(CAMPFIRE_POS)
-    Window:Notify({Title = "Teleport", Description = "Campfire", Content = "Berhasil teleport ke Campfire!", Color = Color3.fromRGB(10, 30, 60), Delay = 3})
-end)
-Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cellar)", "rbxassetid://16932740082", function()
-    if LostChildPath then
-        local targetPart = findValidPart(LostChildPath)
-        if targetPart then
-            teleportPlayerTo(targetPart.Position)
-            Window:Notify({Title = "Teleport", Description = "Lost Child", Content = "Berhasil teleport ke Lost Child!", Color = Color3.fromRGB(10, 30, 60), Delay = 3})
-        end
-    else
-        Window:Notify({Title = "Error", Description = "Lost Child", Content = "Lost Child tidak ditemukan di map!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
-    end
-end)
+Window:AddButton(TeleportsTab, "TP to Campfire", "Kembali ke area perapian", "rbxassetid://16932740082", function() teleportPlayerTo(CAMPFIRE_POS) end)
 
--- ==========================================
--- AURA TAB (IMPROVED RANGE)
--- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
-
 local killAuraEnabled = false
-local auraRadius = 300 -- Default radius ditingkatkan
-
+local auraRadius = 300 
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
-local toolIds = {
-    ["Chainsaw"] = "647",
-    ["Strong Axe"] = "116",
-    ["Good Axe"] = "112",
-    ["Spear"] = "196",
-    ["Old Axe"] = "1"
-}
+local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
 
 local function getBestSpoofTool()
     local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
@@ -228,9 +201,7 @@ local function getBestSpoofTool()
         for _, loc in ipairs(locations) do
             if loc then
                 local tool = loc:FindFirstChild(toolName)
-                if tool then
-                    return tool, toolIds[toolName] .. "_" .. tostring(LocalPlayer.UserId)
-                end
+                if tool then return tool, toolIds[toolName] .. "_" .. tostring(LocalPlayer.UserId) end
             end
         end
     end
@@ -244,14 +215,14 @@ Window:AddInput(CombatTab, "Radius", "Jangkauan serangan (Max 1000)", "300", fun
 end, "AuraRadius")
 
 -- ==========================================
--- ITEM TP TAB (IMPROVED CATEGORIES & SPREAD PHYSICS)
+-- ITEM TP TAB (JACKPOT UPDATE!)
 -- ==========================================
 Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter melingkar")
 
--- Kategori sudah dipisah dan diperbaiki
+-- Air Rifle dan armor ditambahkan sesuai path yang ditemukan
 local itemCategories = {
     Food_Consumables = {"Berry", "Carrot", "Cake", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs"},
-    Equipment_Weapons = {"Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "Rifle Ammo", "Revolver Ammo", "Spear"},
+    Equipment_Weapons = {"Air Rifle", "Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "Rifle Ammo", "Revolver Ammo", "Spear"},
     Medic_Items = {"MedKit", "Bandage"},
     Armor_Clothing = {"Iron Body", "Leather Body"},
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair", "Metal Chair"},
@@ -271,21 +242,21 @@ for catName, listItems in pairs(itemCategories) do
         local allItems = ItemsFolder:GetDescendants()
         local toProcess = {}
         for _, item in ipairs(allItems) do
-            if item.Name == selected and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+            -- Kita pakai .match untuk nama Air Rifle dsb supaya akurat dengan nama instance
+            if item.Name:match(selected) and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                 table.insert(toProcess, item)
             end
         end
         
         local basePos = hrp.Position
         for i, item in ipairs(toProcess) do
-            -- Algoritma Circular Spread (Menyebar melingkar agar item tidak bertumpukan lalu meledak/terbang)
-            local angle = count * (math.pi * 2 / 8) -- 8 item per lingkaran
-            local radius = 3 + math.floor(count / 8) * 1.5 -- Radius makin besar jika item banyak
+            local angle = count * (math.pi * 2 / 8) 
+            local radius = 3 + math.floor(count / 8) * 1.5 
             local tpPos = basePos + Vector3.new(math.cos(angle) * radius, 1, math.sin(angle) * radius)
             
             task.spawn(function() reliableDragItemToPos(item, tpPos) end)
             count = count + 1
-            if i % 3 == 0 then task.wait(0.1) end -- Batch proses lebih cepat tapi aman
+            if i % 3 == 0 then task.wait(0.1) end 
         end
         Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
     end)
@@ -345,24 +316,19 @@ Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, funct
 end, "WalkSpeed", true)
 
 local infiniteJumpEnabled = false
-Window:AddToggle(PlayerTab, "Infinite Jump", "Lompat tanpa batas di udara", false, function(state) 
-    infiniteJumpEnabled = state 
-end, "InfJump")
-
+Window:AddToggle(PlayerTab, "Infinite Jump", "Lompat tanpa batas di udara", false, function(state) infiniteJumpEnabled = state end, "InfJump")
 UserInputService.JumpRequest:Connect(function()
     if infiniteJumpEnabled then
         local char = LocalPlayer.Character
         if char then
             local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
-            end
+            if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
         end
     end
 end)
 
 -- ==========================================
--- AURA LOOPS (IMPROVED SPEED)
+-- AURA LOOPS
 -- ==========================================
 task.spawn(function()
     while ScriptRunning do
@@ -376,7 +342,6 @@ task.spawn(function()
                     for _, mob in ipairs(chars:GetChildren()) do
                         local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
                         local hum = mob:FindFirstChildOfClass("Humanoid")
-                        -- Hitung jarak dan serang
                         if mobHrp and hum and hum.Health > 0 and (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
                             task.spawn(function() pcall(function() RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) end) end)
                         end
@@ -384,28 +349,23 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.03) -- Sedikit dipercepat agar damage lebih terasa saat mob masuk area
+        task.wait(0.03) 
     end
 end)
 
 -- ==========================================
--- STABILIZED AUTO GRIND & FUEL (IMPROVED RANGE DETECTION)
+-- STABILIZED AUTO GRIND & FUEL
 -- ==========================================
 local processingItems = {}
 task.spawn(function()
     while ScriptRunning do
         local hrp = getRootPart()
         if hrp then
-            -- Gunakan GetDescendants agar item di dalam folder kecil tetap terdeteksi
             for _, item in ipairs(ItemsFolder:GetDescendants()) do
                 if not item or not item:IsDescendantOf(workspace) then continue end
-                
-                -- Pastikan itu adalah physical item
                 if not (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then continue end
-                
                 local itemId = tostring(item)
                 if processingItems[itemId] then continue end
-                
                 local shouldGrind = autoGrindItems[item.Name] == true
                 local shouldFuel = autoFuelItems[item.Name] == true
                 local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
@@ -413,20 +373,16 @@ task.spawn(function()
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
                     local itemPos = getItemPosition(item)
-                    
                     if itemPos then
-                        -- Cek apakah item berada di dalam batas jangkauan grab (MaxGrabRadius)
                         if (itemPos - hrp.Position).Magnitude > maxGrindRadius then continue end
-                        -- Cek apakah item sudah berada di dekat mesin/campfire
                         if (itemPos - targetPos).Magnitude < 12 then continue end
-                        
                         processingItems[itemId] = true
                         task.spawn(function()
                             reliableDragItemToPos(item, targetPos)
                             task.wait(1) 
                             processingItems[itemId] = nil
                         end)
-                        task.wait(0.1) -- Delay diringankan agar grinding sedikit lebih cepat
+                        task.wait(0.1) 
                     end
                 end
             end
@@ -454,14 +410,4 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- ESP REFRESH
--- ==========================================
-task.spawn(function()
-    while ScriptRunning do
-        if espMobsEnabled or espItemsEnabled then refreshESP() end
-        task.wait(5)
-    end
-end)
-
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.4: Kategori Baru, Jangkauan Aura & Grind Diperkuat!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.5: Air Rifle & Armors Added to TP!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
