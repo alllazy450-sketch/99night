@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.10 (STRING ARITHMETIC FIX & FULL FEATURES)
+-- W424 HUB | v5.11 (FINAL CLEAN & STABLE RELEASE)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -15,7 +15,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
-local RemoteConsume = ReplicatedStorage:FindFirstChild("RequestConsumeItem")
+local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
@@ -117,75 +117,6 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
--- GLOBAL FAKE AVATAR SYSTEM
--- ==========================================
-local function rgb(c) 
-    return { r = math.floor(c.R * 255), g = math.floor(c.G * 255), b = math.floor(c.B * 255), IsRGBTable = true }
-end
-
-local function applyGlobalAvatar(username)
-    local successMsg = pcall(function()
-        local userId = Players:GetUserIdFromNameAsync(username)
-        if not userId then return false end
-
-        local desc = Players:GetHumanoidDescriptionFromUserId(userId)
-        if not desc then return false end
-
-        local wear = {{
-            ["Properties"] = {
-                ["WalkAnimation"] = desc.WalkAnimation,
-                ["MoodAnimation"] = desc.MoodAnimation,
-                ["Face"] = desc.Face,
-                ["ProportionScale"] = desc.ProportionScale,
-                ["ClimbAnimation"] = desc.ClimbAnimation,
-                ["Shirt"] = desc.Shirt,
-                ["FaceAccessory"] = desc.FaceAccessory,
-                ["RightArmColor"] = rgb(desc.RightArmColor),
-                ["TorsoColor"] = rgb(desc.TorsoColor),
-                ["RightLegColor"] = rgb(desc.RightLegColor),
-                ["LeftLegColor"] = rgb(desc.LeftLegColor),
-                ["LeftArmColor"] = rgb(desc.LeftArmColor),
-                ["HeadColor"] = rgb(desc.HeadColor),
-                ["HairAccessory"] = desc.HairAccessory,
-                ["RightArm"] = desc.RightArm,
-                ["Head"] = desc.Head,
-                ["FallAnimation"] = desc.FallAnimation,
-                ["DepthScale"] = desc.DepthScale,
-                ["LeftArm"] = desc.LeftArm,
-                ["HeightScale"] = desc.HeightScale,
-                ["LeftLeg"] = desc.LeftLeg,
-                ["WidthScale"] = desc.WidthScale,
-                ["BodyTypeScale"] = desc.BodyTypeScale,
-                ["RunAnimation"] = desc.RunAnimation,
-                ["Pants"] = desc.Pants,
-                ["WaistAccessory"] = desc.WaistAccessory,
-                ["LayeredAccessories"] = {},
-                ["AccessoryRefinements"] = {},
-                ["ShouldersAccessory"] = desc.ShouldersAccessory,
-                ["NeckAccessory"] = desc.NeckAccessory,
-                ["HatAccessory"] = desc.HatAccessory,
-                ["FrontAccessory"] = desc.FrontAccessory,
-                ["BackAccessory"] = desc.BackAccessory,
-                ["SwimAnimation"] = desc.SwimAnimation,
-                ["IdleAnimation"] = desc.IdleAnimation,
-                ["Torso"] = desc.Torso,
-                ["HeadScale"] = desc.HeadScale,
-                ["JumpAnimation"] = desc.JumpAnimation,
-                ["GraphicTShirt"] = desc.GraphicTShirt,
-                ["RightLeg"] = desc.RightLeg
-            },
-            ["Action"] = "CreateAndWearHumanoidDescription",
-            ["RigType"] = Enum.HumanoidRigType.R15
-        }}
-
-        if ReplicatedStorage:FindFirstChild("CatalogGuiRemote") then
-            ReplicatedStorage.CatalogGuiRemote:InvokeServer(unpack(wear))
-        end
-    end)
-    return successMsg
-end
-
--- ==========================================
 -- MOBILE UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
@@ -200,7 +131,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.10"},
+    Badges = {"MOBILE", "v5.11"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -213,7 +144,6 @@ local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
-local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082")
 local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 
 -- ==========================================
@@ -295,7 +225,7 @@ Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "350", function(value
 end, "AuraRadius")
 
 -- ==========================================
--- ITEM TP TAB (FIXED STRING CONCATENATION)
+-- ITEM TP TAB
 -- ==========================================
 Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter dengan stabil")
 
@@ -312,7 +242,6 @@ local selectedItems = {}
 
 for catName, listItems in pairs(itemCategories) do
     selectedItems[catName] = listItems[1]
-    -- Diperbaiki menggunakan titik dua (..) agar tidak error arithmetic string
     Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" .. catName)
     Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Tarik semua item", "rbxassetid://16932740082", function()
         local hrp = getRootPart()
@@ -337,47 +266,6 @@ for catName, listItems in pairs(itemCategories) do
     end)
     Window:AddDivider(ItemTPTab, "")
 end
-
--- ==========================================
--- FAKE AVATAR TAB
--- ==========================================
-Window:AddParagraph(AvatarTab, "Global Fake Avatar", "Pilih preset Korblox/Keren atau ketik USN")
-local presetAvatars = {"Lordtherion", "haenessey", "Builderman", "ROBLOX", "Shedletsky", "Stickmasterluke", "Telamon", "BrightEyes", "Zepther", "Valkyrie", "CorruptedVex", "Nightmare"}
-local selectedPreset = presetAvatars[1]
-
-Window:AddDropdown(AvatarTab, "Preset Favorit", "Pilih karakter", presetAvatars, false, selectedPreset, function(value)
-    selectedPreset = value
-end, "PresetDropdown")
-
-Window:AddButton(AvatarTab, "Apply Preset Avatar", "Pasang avatar pilihan", "rbxassetid://16932740082", function()
-    Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Memuat avatar " .. selectedPreset .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
-    task.spawn(function()
-        local success = applyGlobalAvatar(selectedPreset)
-        if success then
-            Window:Notify({Title = "Success", Description = "Avatar Loaded", Content = "Berhasil memakai avatar " .. selectedPreset, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
-        else
-            Window:Notify({Title = "Error", Description = "Failed", Content = "Gagal memuat avatar!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
-        end
-    end)
-end)
-
-Window:AddDivider(AvatarTab, "Custom USN Search")
-local customUsn = ""
-Window:AddInput(AvatarTab, "Ketik USN Lain", "Masukkan username...", "", function(v) customUsn = v end, "CustomUsnInput")
-
-Window:AddButton(AvatarTab, "Apply Custom USN", "Cari & pasang avatar lain", "rbxassetid://16932740082", function()
-    if customUsn ~= "" then
-        Window:Notify({Title = "Loading", Description = "Global Avatar", Content = "Mencari " .. customUsn .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
-        task.spawn(function()
-            local success = applyGlobalAvatar(customUsn)
-            if success then
-                Window:Notify({Title = "Success", Description = "Avatar Loaded", Content = "Berhasil memakai avatar " .. customUsn, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
-            else
-                Window:Notify({Title = "Error", Description = "Failed", Content = "USN tidak ditemukan!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
-            end
-        end)
-    end
-end)
 
 -- ==========================================
 -- MISC TAB
@@ -614,4 +502,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.10: String Error Fixed & Fully Functional!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.11: Clean Stable Release Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
