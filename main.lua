@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.8 (RESTORED ORIGINAL DROP_DOWN & FULL FEATURES)
+-- W424 HUB | v5.10 (STRING ARITHMETIC FIX & FULL FEATURES)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -15,7 +15,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
-local RemoteConsume = RemoteEvents:FindFirstChild("RequestConsumeItem")
+local RemoteConsume = ReplicatedStorage:FindFirstChild("RequestConsumeItem")
 
 local ScriptRunning = true
 local CAMPFIRE_POS = Vector3.new(0, 19, 0)
@@ -200,7 +200,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.8"},
+    Badges = {"MOBILE", "v5.10"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -271,7 +271,7 @@ end)
 -- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
 local killAuraEnabled = false
-local auraRadius = 300 
+local auraRadius = 350 
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
 local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
 
@@ -289,13 +289,13 @@ local function getBestSpoofTool()
 end
 
 Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
-Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "300", function(value)
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "350", function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end, "AuraRadius")
 
 -- ==========================================
--- ITEM TP TAB (METODE ASLI KEMBALI)
+-- ITEM TP TAB (FIXED STRING CONCATENATION)
 -- ==========================================
 Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter dengan stabil")
 
@@ -312,9 +312,9 @@ local selectedItems = {}
 
 for catName, listItems in pairs(itemCategories) do
     selectedItems[catName] = listItems[1]
-    -- Menggunakan struktur asli kamu menggunakan tanda plus (+) pada konfigurasi dropdown
-    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" + catName)
-    Window:AddButton(ItemTPTab, "Bring " + catName:gsub("_", " "), "Tarik semua item", "rbxassetid://16932740082", function()
+    -- Diperbaiki menggunakan titik dua (..) agar tidak error arithmetic string
+    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" .. catName)
+    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Tarik semua item", "rbxassetid://16932740082", function()
         local hrp = getRootPart()
         if not hrp then return end
         local selected = selectedItems[catName]
@@ -339,7 +339,7 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- FAKE AVATAR TAB (GLOBAL & PRESET)
+-- FAKE AVATAR TAB
 -- ==========================================
 Window:AddParagraph(AvatarTab, "Global Fake Avatar", "Pilih preset Korblox/Keren atau ketik USN")
 local presetAvatars = {"Lordtherion", "haenessey", "Builderman", "ROBLOX", "Shedletsky", "Stickmasterluke", "Telamon", "BrightEyes", "Zepther", "Valkyrie", "CorruptedVex", "Nightmare"}
@@ -380,7 +380,7 @@ Window:AddButton(AvatarTab, "Apply Custom USN", "Cari & pasang avatar lain", "rb
 end)
 
 -- ==========================================
--- MISC TAB (FULLBRIGHT, REDUCE MAP, FPS & PING)
+-- MISC TAB
 -- ==========================================
 Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
 
@@ -536,19 +536,30 @@ task.spawn(function()
             local tool, damageID = getBestSpoofTool()
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                local chars = Workspace:FindFirstChild("Characters")
-                if chars then
-                    for _, mob in ipairs(chars:GetChildren()) do
-                        local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
-                        local hum = mob:FindFirstChildOfClass("Humanoid")
-                        if mobHrp and hum and hum.Health > 0 and (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
-                            task.spawn(function() pcall(function() RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) end) end)
+                
+                local searchFolders = {Workspace:FindFirstChild("Characters"), Workspace}
+                for _, folder in ipairs(searchFolders) do
+                    if folder then
+                        for _, mob in ipairs(folder:GetChildren()) do
+                            local hum = mob:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 and mob ~= LocalPlayer.Character then
+                                local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
+                                if mobHrp then
+                                    if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
+                                        task.spawn(function() 
+                                            pcall(function() 
+                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) 
+                                            end) 
+                                        end)
+                                    end
+                                end
+                            end
                         end
                     end
                 end
             end
         end
-        task.wait(0.03) 
+        task.wait(0.02) 
     end
 end)
 
@@ -603,4 +614,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.8: Original Dropdown Restored + Misc Tab Added!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.10: String Error Fixed & Fully Functional!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
