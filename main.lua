@@ -231,7 +231,7 @@ Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter dengan stabil"
 
 local itemCategories = {
     Food_Consumables = {"Berry", "Carrot", "Cake", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs"},
-    Equipment_Weapons = {"Air Rifle", "Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "Rifle Ammo", "Revolver Ammo", "Spear"},
+    Equipment_Weapons = {"Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "Rifle Ammo", "Revolver Ammo", "Spear"},
     Medic_Items = {"MedKit", "Bandage"},
     Armor_Clothing = {"Iron Body", "Leather Body"},
     Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair", "Metal Chair"},
