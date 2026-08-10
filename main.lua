@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v5.2 - DAMAGE SPOOFING MASTER)
+-- W424 - 99 NIGHTS (KAIRO UI v5.3 - NEW ITEMS & INF JUMP)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
@@ -131,7 +132,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.2"},
+    Badges = {"MOBILE", "v5.3"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -199,15 +200,13 @@ Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cella
 end)
 
 -- ==========================================
--- AURA TAB (IDE DAMAGE SPOOFING)
+-- AURA TAB 
 -- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
 
 local killAuraEnabled = false
-local treeAuraEnabled = false
-local auraRadius = 200
+local auraRadius = 500
 
--- SISTEM PRIORITAS: Senjata terkuat di urutan pertama!
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
 local toolIds = {
     ["Chainsaw"] = "647",
@@ -217,16 +216,13 @@ local toolIds = {
     ["Old Axe"] = "1"
 }
 
--- MENGAMBIL SENJATA TERKUAT DARI INVENTORY
 local function getBestSpoofTool()
     local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
-    -- Cek dari senjata terkuat hingga terlemah
     for _, toolName in ipairs(toolPriority) do
         for _, loc in ipairs(locations) do
             if loc then
                 local tool = loc:FindFirstChild(toolName)
                 if tool then
-                    -- Kembalikan tool dan ID Damage aslinya ke server
                     return tool, toolIds[toolName] .. "_" .. tostring(LocalPlayer.UserId)
                 end
             end
@@ -236,21 +232,21 @@ local function getBestSpoofTool()
 end
 
 Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
-Window:AddToggle(CombatTab, "Aura Chop", "Tebang pohon di sekitar", false, function(state) treeAuraEnabled = state end, "AuraChop")
 Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "200", function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end, "AuraRadius")
 
 -- ==========================================
--- ITEM TP TAB
+-- ITEM TP TAB (UPDATED WITH NEW ITEMS)
 -- ==========================================
 Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter dengan stabil")
 
 local itemCategories = {
-    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair"},
-    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave"},
+    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair", "Metal Chair"},
+    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave", "Mossy Coin"},
     Equipment_Weapons = {"Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "MedKit", "Bandage", "Rifle Ammo", "Revolver Ammo"},
+    Armor_Clothing = {"Iron Body", "Leather Body"},
     Food_Consumables = {"Berry", "Carrot", "Cake", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs"}
 }
 
@@ -327,7 +323,7 @@ Window:AddToggle(VisualsTab, "ESP Mobs", "Tampilkan lokasi mobs", false, functio
 Window:AddToggle(VisualsTab, "ESP Items", "Tampilkan lokasi items", false, function(state) espItemsEnabled = state; refreshESP() end, "ESPItems")
 
 -- ==========================================
--- PLAYER TAB
+-- PLAYER TAB (ADDED INF JUMP)
 -- ==========================================
 Window:AddParagraph(PlayerTab, "Stats", "Modifikasi Karakter")
 Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, function(value)
@@ -335,16 +331,32 @@ Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, funct
     if hum then hum.WalkSpeed = value end
 end, "WalkSpeed", true)
 
+local infiniteJumpEnabled = false
+Window:AddToggle(PlayerTab, "Infinite Jump", "Lompat tanpa batas di udara", false, function(state) 
+    infiniteJumpEnabled = state 
+end, "InfJump")
+
+UserInputService.JumpRequest:Connect(function()
+    if infiniteJumpEnabled then
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end
+end)
+
 -- ==========================================
--- AURA LOOPS (MENGGUNAKAN SPOOFING IDE KAMU)
+-- AURA LOOPS
 -- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if killAuraEnabled then
             local hrp = getRootPart()
-            local tool, damageID = getBestSpoofTool() -- MEMANGGIL SENJATA TERKUAT
+            local tool, damageID = getBestSpoofTool()
             if hrp and tool and damageID then
-                -- MENIPU SERVER (Spoofing) bahwa kita menggunakan senjata terkuat
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
                 local chars = Workspace:FindFirstChild("Characters")
                 if chars then
@@ -362,40 +374,8 @@ task.spawn(function()
     end
 end)
 
-local choppedTrees = setmetatable({}, {__mode = "k"})
-task.spawn(function()
-    while ScriptRunning do
-        if treeAuraEnabled then
-            local hrp = getRootPart()
-            local tool, damageID = getBestSpoofTool() -- MEMANGGIL SENJATA TERKUAT
-            if hrp and tool and damageID then
-                -- MENIPU SERVER
-                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                local map = Workspace:FindFirstChild("Map")
-                if map and map:FindFirstChild("Foliage") then
-                    for _, obj in ipairs(map.Foliage:GetChildren()) do
-                        if obj:IsA("Model") and obj.Parent == map.Foliage then
-                            local trunk = obj:FindFirstChild("Trunk")
-                            if trunk and trunk:IsA("BasePart") and (trunk.Position - hrp.Position).Magnitude <= auraRadius then
-                                if not choppedTrees[obj] or (tick() - choppedTrees[obj] > 1.2) then
-                                    choppedTrees[obj] = tick()
-                                    task.spawn(function() pcall(function()
-                                        RemoteEvents.RequestReplicateSound:FireServer("FireAllClients", "WoodChop", { Instance = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head"), Volume = 0.4 })
-                                        RemoteEvents.ToolDamageObject:InvokeServer(obj, tool, damageID, trunk.CFrame, true)
-                                    end) end)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.2)
-    end
-end)
-
 -- ==========================================
--- STABILIZED AUTO GRIND & FUEL (ANTI-GLITCH)
+-- STABILIZED AUTO GRIND & FUEL
 -- ==========================================
 local processingItems = {}
 task.spawn(function()
@@ -456,4 +436,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.2: Damage Spoofing Tier List Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.3: New Items & Inf Jump added!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
