@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.23 (BRING ITEM 10K, BLUE THEME, DAY/NIGHT ALERT)
+-- W424 HUB | v5.23 Beta
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
