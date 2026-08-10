@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 - 99 NIGHTS (KAIRO UI v5.5 - JACKPOT ITEMS TP)
+-- W424 - 99 NIGHTS (KAIRO UI v5.5 - FULL INTEGRATED)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -9,6 +9,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
 
 local LocalPlayer = Players.LocalPlayer
 local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
@@ -80,9 +81,6 @@ local function setItemCFrame(item, pos)
     end)
 end
 
--- ==========================================
--- IMPROVED TELEPORT FUNCTIONS
--- ==========================================
 local function reliableDragItemToPos(item, pos)
     if not item or not item:IsDescendantOf(workspace) then return false end
     local success = false
@@ -118,7 +116,7 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
--- MOBILE UI
+-- MOBILE UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
 local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
@@ -147,7 +145,7 @@ local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 
 -- ==========================================
--- MAIN FARM TAB
+-- MAIN TAB (AUTO FARM & LOADER EXTERNAL)
 -- ==========================================
 Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
 
@@ -159,8 +157,28 @@ local maxGrindRadius = 1000
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
+
+-- Tombol Tambahan untuk Load External Script yang kamu berikan
+Window:AddDivider(MainTab, "External Loader")
+Window:AddButton(MainTab, "Load AFEM Max / YARHM", "Jalankan skrip eksternal", "rbxassetid://16932740082", function()
+    local src = ""
+    pcall(function() 
+        src = game:HttpGet("https://yarhm.com/scr?channel=afemmax", false)
+    end)
+    if src == "" then
+      StarterGui:SetCore("SendNotification", {
+      	Title = "YARHM Outage";
+      	Text = "YARHM Online is currently unavailable! Using AFEM Max Offline.";
+    	  Duration = 5;
+      })
+      src = game:HttpGet("https://raw.githubusercontent.com/Joystickplays/AFEM/refs/heads/main/max/afemmax.lua", false)
+    end
+    loadstring(src)()
+    Window:Notify({Title = "Loader", Description = "External Script", Content = "Berhasil memuat skrip eksternal!", Color = Color3.fromRGB(10, 30, 60), Delay = 3})
+end)
+
 Window:AddDivider(MainTab, "Grind & Fuel")
-Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item (default 1000)", "1000", function(value)
+Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item", "1000", function(value)
     local num = tonumber(value)
     if num then maxGrindRadius = num end
 end, "MaxGrabRadius")
@@ -184,11 +202,20 @@ Window:AddMultiDropdown(MainTab, "Auto Fuel", "Pilih bahan bakar Campfire",
 )
 
 -- ==========================================
--- TELEPORTS & AURA TAB
+-- TELEPORTS TAB
 -- ==========================================
 Window:AddParagraph(TeleportsTab, "Locations", "Teleportasi Karakter")
 Window:AddButton(TeleportsTab, "TP to Campfire", "Kembali ke area perapian", "rbxassetid://16932740082", function() teleportPlayerTo(CAMPFIRE_POS) end)
+Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cellar)", "rbxassetid://16932740082", function()
+    if LostChildPath then
+        local targetPart = findValidPart(LostChildPath)
+        if targetPart then teleportPlayerTo(targetPart.Position) end
+    end
+end)
 
+-- ==========================================
+-- AURA TAB
+-- ==========================================
 Window:AddParagraph(CombatTab, "Combat", "Kill Aura (Damage Spoofing)")
 local killAuraEnabled = false
 local auraRadius = 300 
@@ -209,17 +236,16 @@ local function getBestSpoofTool()
 end
 
 Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
-Window:AddInput(CombatTab, "Radius", "Jangkauan serangan (Max 1000)", "300", function(value)
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "300", function(value)
     local num = tonumber(value)
     if num then auraRadius = num end
 end, "AuraRadius")
 
 -- ==========================================
--- ITEM TP TAB (JACKPOT UPDATE!)
+-- ITEM TP TAB
 -- ==========================================
 Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter melingkar")
 
--- Air Rifle dan armor ditambahkan sesuai path yang ditemukan
 local itemCategories = {
     Food_Consumables = {"Berry", "Carrot", "Cake", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs"},
     Equipment_Weapons = {"Air Rifle", "Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "Rifle Ammo", "Revolver Ammo", "Spear"},
@@ -242,7 +268,6 @@ for catName, listItems in pairs(itemCategories) do
         local allItems = ItemsFolder:GetDescendants()
         local toProcess = {}
         for _, item in ipairs(allItems) do
-            -- Kita pakai .match untuk nama Air Rifle dsb supaya akurat dengan nama instance
             if item.Name:match(selected) and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
                 table.insert(toProcess, item)
             end
@@ -307,7 +332,7 @@ Window:AddToggle(VisualsTab, "ESP Mobs", "Tampilkan lokasi mobs", false, functio
 Window:AddToggle(VisualsTab, "ESP Items", "Tampilkan lokasi items", false, function(state) espItemsEnabled = state; refreshESP() end, "ESPItems")
 
 -- ==========================================
--- PLAYER TAB (INF JUMP)
+-- PLAYER TAB
 -- ==========================================
 Window:AddParagraph(PlayerTab, "Stats", "Modifikasi Karakter")
 Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, function(value)
@@ -328,7 +353,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ==========================================
--- AURA LOOPS
+-- BACKGROUND LOOPS (AURA, GRIND, EAT)
 -- ==========================================
 task.spawn(function()
     while ScriptRunning do
@@ -353,9 +378,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- STABILIZED AUTO GRIND & FUEL
--- ==========================================
 local processingItems = {}
 task.spawn(function()
     while ScriptRunning do
@@ -391,9 +413,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AUTO EAT LOOP
--- ==========================================
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled then
@@ -410,4 +429,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.5: Air Rifle & Armors Added to TP!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.5: Full Integrated with External Loader!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
