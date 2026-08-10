@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.20 (IMPROVED POTATO MODE & AUTO NIGHT/DAY NOTIF)
+-- W424 HUB | v5.20 Beta
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
