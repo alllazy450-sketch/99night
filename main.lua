@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.18 (FIXED ASSET CLONE & DELAY LOAD)
+-- W424 HUB | v5.20 (IMPROVED POTATO MODE & OPTIMIZED)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -117,65 +117,6 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
--- ROBUST ASSET CLONE AVATAR MORPH SYSTEM
--- ==========================================
-local function applyFullAssetCloneMorph(username)
-    local success = false
-    pcall(function()
-        local userId = Players:GetUserIdFromNameAsync(username)
-        if not userId then return end
-        
-        local char = LocalPlayer.Character
-        if not char then return end
-        
-        -- Hapus aksesoris, pakaian, dan muka lama
-        for _, v in ipairs(char:GetChildren()) do
-            if v:IsA("Accessory") or v:IsA("Clothing") or v:IsA("ShirtGraphic") then
-                v:Destroy()
-            elseif v.Name == "Head" then
-                local face = v:FindFirstChildOfClass("Decal")
-                if face then face:Destroy() end
-            end
-        end
-        
-        -- Mengambil appearance dengan sistem pcall pengaman
-        local appearanceModel = Players:GetCharacterAppearanceAsync(userId)
-        if appearanceModel then
-            task.wait(0.5) -- Berikan waktu jeda render aset agar masuk sempurna
-            for _, v in ipairs(appearanceModel:GetDescendants()) do
-                if v:IsA("Accessory") or v:IsA("Clothing") or v:IsA("ShirtGraphic") then
-                    pcall(function() v:Clone().Parent = char end)
-                elseif v:IsA("SpecialMesh") and v.Parent.Name == "Head" then
-                    local localHead = char:FindFirstChild("Head")
-                    if localHead then
-                        local existingMesh = localHead:FindFirstChildOfClass("SpecialMesh")
-                        if existingMesh then existingMesh:Destroy() end
-                        pcall(function() v:Clone().Parent = localHead end)
-                    end
-                elseif v:IsA("Decal") and v.Parent.Name == "Head" then
-                    local localHead = char:FindFirstChild("Head")
-                    if localHead then
-                        pcall(function() v:Clone().Parent = localHead end)
-                    end
-                elseif v:IsA("MeshPart") then
-                    local targetPartName = v.Name
-                    local localPart = char:FindFirstChild(targetPartName)
-                    if localPart and localPart:IsA("MeshPart") then
-                        pcall(function()
-                            localPart.MeshId = v.MeshId
-                            localPart.TextureID = v.TextureID
-                        end)
-                    end
-                end
-            end
-            appearanceModel:Destroy()
-            success = true
-        end
-    end)
-    return success
-end
-
--- ==========================================
 -- MOBILE UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
@@ -190,7 +131,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"MOBILE", "v5.18"},
+    Badges = {"MOBILE", "v5.20"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -203,7 +144,6 @@ local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
 local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
-local AvatarTab = Window:CreateTab("Avatar", "rbxassetid://16932740082")
 local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 
 -- ==========================================
@@ -328,29 +268,7 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- FAKE AVATAR TAB (ROBUST ASSET CLONE)
--- ==========================================
-Window:AddParagraph(AvatarTab, "Full Asset Morph", "Kloning rambut, wajah, aksesori, & Korblox secara lokal")
-
-local customUsn = ""
-Window:AddInput(AvatarTab, "Ketik Username (USN)", "Masukkan username...", "", function(v) customUsn = v end, "CustomUsnInput")
-
-Window:AddButton(AvatarTab, "Apply Full Morph", "Terapkan seluruh aset target secara utuh", "rbxassetid://16932740082", function()
-    if customUsn ~= "" then
-        Window:Notify({Title = "Loading", Description = "Asset Morph", Content = "Mengkloning aset dari " .. customUsn .. "...", Color = Color3.fromRGB(200, 150, 50), Delay = 2})
-        task.spawn(function()
-            local success = applyFullAssetCloneMorph(customUsn)
-            if success then
-                Window:Notify({Title = "Success", Description = "Morph Complete", Content = "Berhasil menerapkan semua aset " .. customUsn, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
-            else
-                Window:Notify({Title = "Error", Description = "Failed", Content = "USN tidak ditemukan atau gagal dimuat!", Color = Color3.fromRGB(200, 50, 50), Delay = 3})
-            end
-        end)
-    end
-end)
-
--- ==========================================
--- MISC TAB
+-- MISC TAB (IMPROVED POTATO MODE)
 -- ==========================================
 Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
 
@@ -377,20 +295,37 @@ Window:AddToggle(MiscTab, "Fullbright", "Membuat seluruh map menjadi terang bend
     end
 end, "FullbrightToggle")
 
-Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur & efek berat untuk boost FPS", "rbxassetid://16932740082", function()
+Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur, part kecil & efek berat untuk boost FPS", "rbxassetid://16932740082", function()
     pcall(function()
+        -- 1. Optimasi Material & Hapus Tekstur/Decal
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
                 obj.Material = Enum.Material.SmoothPlastic
                 obj.Reflectance = 0
+                -- Hapus part dekorasi kecil di bawah ukuran tertentu untuk meringankan beban GPU
+                if obj.Size.Magnitude < 1.5 and not obj.Anchored and not obj:IsDescendantOf(LocalPlayer.Character) then
+                    obj:Destroy()
+                end
             elseif obj:IsA("Texture") or obj:IsA("Decal") then
                 obj:Destroy()
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj:Destroy() -- Hapus efek partikel berat
             elseif obj:IsA("PostEffect") then
                 obj.Enabled = false
             end
         end
+        
+        -- 2. Bersihkan Efek Pencahayaan Berat di Lighting
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
+                effect:Destroy()
+            end
+        end
+        
         Lighting.GlobalShadows = false
-        Window:Notify({Title = "Success", Description = "Performance", Content = "Reduce Map aktif! FPS meningkat.", Color = Color3.fromRGB(0, 200, 0), Delay = 3})
+        Lighting.FogEnd = 999999
+        
+        Window:Notify({Title = "Success", Description = "Potato Mode", Content = "Map di-optimize! FPS meningkat drastis.", Color = Color3.fromRGB(0, 200, 0), Delay = 3})
     end)
 end)
 
@@ -584,4 +519,4 @@ task.spawn(function()
     end
 end)
 
-Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.18: Robust Asset Clone Morph Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
+Window:Notify({ Title = "W424 Hub", Description = "Loaded", Content = "v5.20: Improved Potato Mode Active!", Color = Color3.fromRGB(10, 30, 60), Delay = 5 })
