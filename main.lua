@@ -1,10 +1,10 @@
--- ========== W424HUB - v4.2 ==========
+-- ========== W424HUB - v4.1 ==========
 -- Validasi Place ID: Hanya untuk Arsenal
 local placeId = game.PlaceId
 local targetGameId = 286090429
 
 if placeId ~= targetGameId then
-    game.Players.LocalPlayer:Kick("❌ W424HUB only for Arsenal!\nPlace ID: " .. placeId .. " (not " .. targetGameId .. ")")
+    game.Players.LocalPlayer:Kick("❌ W424HUB hanya untuk game Arsenal!\nPlace ID: " .. placeId .. " (bukan " .. targetGameId .. ")")
     return
 end
 
@@ -22,36 +22,36 @@ local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- ========== WINDOW ==========
+-- ========== JENDELA UTAMA ==========
 local Window = Kairo:CreateWindow({
     Title = "W424HUB",
     Theme = "Crimson",
-    Size = UDim2.fromOffset(330, 580),
+    Size = UDim2.fromOffset(350, 590),
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"v4.2", "Arsenal"},
+    Badges = {"v4.1", "Arsenal"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     Config = { Enabled = true, Folder = "W424HUB_Config", AutoLoad = true }
 })
 
 Window:Notify({
-    Title = "W424HUB v4.2",
-    Description = "FOV Slider added, Potato Mode fixed!",
-    Content = "Check Visual tab for FOV settings",
+    Title = "W424HUB v4.1",
+    Description = "Silent Aim Hitbox Improved!",
+    Content = "Target Part, Glow, Presisi Slider",
     Color = Color3.fromRGB(0, 200, 50),
     Delay = 3
 })
 
--- ========== TABS ==========
+-- ========== TAB ==========
 local TabAim = Window:CreateTab("Aim", "rbxassetid://16932740082")
 local TabVisual = Window:CreateTab("Vis", "rbxassetid://16932740082")
 local TabPlayer = Window:CreateTab("Player", "rbxassetid://16932740082")
 local TabArsenal = Window:CreateTab("Arsenal", "rbxassetid://16932740082")
 
 -- =====================================================
--- TAB AIM - AIMBOT
+-- TAB AIM - AIMBOT (SAMA SEPERTI SEBELUMNYA)
 -- =====================================================
 Window:AddParagraph(TabAim, "Aimbot", "Camera & Silent")
 
@@ -98,22 +98,18 @@ local function updateFOVSize()
     fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
 end
 
--- UI Controls (English)
-Window:AddToggle(TabAim, "Aimbot", "Enable/Disable", false, function(s) aimbotAktif = s end, "AimbotToggle")
-Window:AddDropdown(TabAim, "Mode", "Camera / Silent", {"Camera","Silent"}, false, "Camera", function(v) aimModeType = v end, "AimModeType")
-Window:AddDropdown(TabAim, "Trigger", "When to activate", {"On Shoot","Always"}, false, "On Shoot", function(v)
-    -- Convert to internal variable
-    if v == "On Shoot" then aimModeTrigger = "Saat Nembak" else aimModeTrigger = "Selalu Nempel" end
-end, "AimModeDrop")
-Window:AddToggle(TabAim, "FOV Circle", "Show FOV circle", false, function(s) fovFrame.Visible = s end, "FOVSidesToggle")
+Window:AddToggle(TabAim, "Aimbot", "Aktifkan", false, function(s) aimbotAktif = s end, "AimbotToggle")
+Window:AddDropdown(TabAim, "Mode", "Camera/Silent", {"Camera","Silent"}, false, "Camera", function(v) aimModeType = v end, "AimModeType")
+Window:AddDropdown(TabAim, "Trigger", "Kapan aktif", {"Saat Nembak","Selalu Nempel"}, false, "Saat Nembak", function(v) aimModeTrigger = v end, "AimModeDrop")
+Window:AddToggle(TabAim, "FOV Circle", "Tampilkan", false, function(s) fovFrame.Visible = s end, "FOVSidesToggle")
 Window:AddSlider(TabAim, "FOV Radius", "30-400", 30, 400, 100, function(v) fovRadius = v; updateFOVSize() end, "FOVRadius", true)
-Window:AddSlider(TabAim, "Max Distance", "50-500 studs", 50, 500, 300, function(v) maxAimDistance = v end, "MaxDistance", true)
-Window:AddToggle(TabAim, "Anti Team", "Avoid team mates", true, function(s) useTeamCheck = s end, "AimTeamCheck")
-Window:AddToggle(TabAim, "Vis Check", "Check visibility", true, function(s) useVisibilityCheck = s end, "VisCheck")
-Window:AddToggle(TabAim, "Prediction", "Aim ahead", false, function(s) usePrediction = s end, "PredictToggle")
+Window:AddSlider(TabAim, "Jarak Maks", "50-500", 50, 500, 300, function(v) maxAimDistance = v end, "MaxDistance", true)
+Window:AddToggle(TabAim, "Anti Team", "Hindari teman", true, function(s) useTeamCheck = s end, "AimTeamCheck")
+Window:AddToggle(TabAim, "Vis Check", "Cek tembok", true, function(s) useVisibilityCheck = s end, "VisCheck")
+Window:AddToggle(TabAim, "Prediction", "Aim ke depan", false, function(s) usePrediction = s end, "PredictToggle")
 Window:AddSlider(TabAim, "Pred Factor", "0-100", 0, 100, 20, function(v) predictionFactor = v/100 end, "PredictFactor", true)
-Window:AddToggle(TabAim, "Headshot Only", "Force aim to head", false, function(s) headshotOnly = s; if s then targetPartName = "Head" end end, "HeadshotToggle")
-Window:AddDropdown(TabAim, "Target Part", "Body part", {"Head","HumanoidRootPart","Torso","UpperTorso"}, false, "Head", function(v) if not headshotOnly then targetPartName = v end end, "TargetPartDrop")
+Window:AddToggle(TabAim, "Headshot Only", "Paksa ke kepala", false, function(s) headshotOnly = s; if s then targetPartName = "Head" end end, "HeadshotToggle")
+Window:AddDropdown(TabAim, "Target Part", "Bagian tubuh", {"Head","HumanoidRootPart","Torso","UpperTorso"}, false, "Head", function(v) if not headshotOnly then targetPartName = v end end, "TargetPartDrop")
 Window:AddSlider(TabAim, "Smooth", "1-10", 1, 10, 10, function(v) aimSmoothness = v/10 end, "AimSmooth", true)
 
 UserInputService.InputBegan:Connect(function(input)
@@ -259,9 +255,9 @@ pcall(function()
 end)
 
 -- =====================================================
--- TAB VISUAL - ESP + FOV SLIDER + OPTIMIZATION
+-- TAB VISUAL - ESP CHAMS + OPTIMASI
 -- =====================================================
-Window:AddParagraph(TabVisual, "ESP Chams", "Highlight enemies")
+Window:AddParagraph(TabVisual, "ESP Chams", "Warnai tubuh musuh")
 
 local espEnabled = false
 local espColor = Color3.fromRGB(255, 0, 0)
@@ -274,10 +270,10 @@ local function clearESP()
     highlightObjects = {}
 end
 
-Window:AddToggle(TabVisual, "ESP", "Enable Highlight", false, function(s) espEnabled = s; if not s then clearESP() end end, "ESPChamsToggle")
-Window:AddColorPicker(TabVisual, "ESP Color", "", Color3.fromRGB(255, 0, 0), function(c) espColor = c; for _, h in pairs(highlightObjects) do if h then h.FillColor = c end end end, "ESPColorPicker")
-Window:AddSlider(TabVisual, "Transparency", "0-10", 0, 10, 3, function(v) fillTrans = v/10; for _, h in pairs(highlightObjects) do if h then h.FillTransparency = fillTrans end end end, "ESPTrans", true)
-Window:AddToggle(TabVisual, "Team Check", "Hide team mates", true, function(s) espTeam = s; if espEnabled then clearESP(); for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then local char = p.Character; if char then local h = Instance.new("Highlight"); h.Parent = char; h.FillColor = espColor; h.OutlineColor = espColor; h.FillTransparency = fillTrans; h.OutlineTransparency = 0.5; h.Enabled = true; highlightObjects[p] = h end end end end end, "ESPTeamCheck")
+Window:AddToggle(TabVisual, "Aktifkan ESP", "Warnai tubuh", false, function(s) espEnabled = s; if not s then clearESP() end end, "ESPChamsToggle")
+Window:AddColorPicker(TabVisual, "Warna ESP", "", Color3.fromRGB(255, 0, 0), function(c) espColor = c; for _, h in pairs(highlightObjects) do if h then h.FillColor = c end end end, "ESPColorPicker")
+Window:AddSlider(TabVisual, "Transparansi", "0-10", 0, 10, 3, function(v) fillTrans = v/10; for _, h in pairs(highlightObjects) do if h then h.FillTransparency = fillTrans end end end, "ESPTrans", true)
+Window:AddToggle(TabVisual, "Team Check", "Sembunyi teman", true, function(s) espTeam = s; if espEnabled then clearESP(); for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then local char = p.Character; if char then local h = Instance.new("Highlight"); h.Parent = char; h.FillColor = espColor; h.OutlineColor = espColor; h.FillTransparency = fillTrans; h.OutlineTransparency = 0.5; h.Enabled = true; highlightObjects[p] = h end end end end end, "ESPTeamCheck")
 
 local function updateESP()
     if not espEnabled then clearESP(); return end
@@ -299,120 +295,44 @@ Players.PlayerAdded:Connect(updateESP)
 Players.PlayerRemoving:Connect(function(p) if highlightObjects[p] then highlightObjects[p]:Destroy(); highlightObjects[p] = nil end end)
 RunService.RenderStepped:Connect(updateESP)
 
--- ===== FOV SLIDER (Valorant/CS:GO style) =====
-Window:AddDivider(TabVisual, "Field of View (FOV)")
-
-local fovValue = 70
-Window:AddSlider(TabVisual, "FOV Slider", "70-120 (Valorant: 90-105)", 70, 120, 70, function(v)
-    fovValue = v
-    pcall(function()
-        if camera then
-            camera.FieldOfView = v
-        end
-    end)
-end, "FOVSlider", true)
-
--- ===== OPTIMIZATION (Potato Mode fixed) =====
-Window:AddDivider(TabVisual, "Optimization")
-
+-- ===== ULTRA LOW MODE & REDUCE MAP =====
+Window:AddDivider(TabVisual, "Optimasi")
 local ultraLow = false
 local function disableParticles(instance)
     if not ultraLow then return end
     for _, child in ipairs(instance:GetDescendants()) do
-        if child:IsA("ParticleEmitter") or child:IsA("Trail") or child:IsA("Smoke") or child:IsA("Fire") or child:IsA("Sparkles") then
-            pcall(function() child.Enabled = false end)
-        end
-        if child:IsA("Decal") then
-            pcall(function() child.Transparency = 1 end)
-        end
-        if child:IsA("Texture") then
-            pcall(function() child.Transparency = 1 end)
-        end
+        if child:IsA("ParticleEmitter") or child:IsA("Trail") or child:IsA("Smoke") or child:IsA("Fire") or child:IsA("Sparkles") then child.Enabled = false end
+        if child:IsA("Decal") then child.Transparency = 1 end
+        if child:IsA("Texture") then child.Transparency = 1 end
     end
 end
 
-Window:AddToggle(TabVisual, "Ultra Low Mode", "Reduce graphics (safe)", false, function(s)
+Window:AddToggle(TabVisual, "Mode Ultra Low", "Potato mode", false, function(s)
     ultraLow = s
     if s then
-        task.spawn(function()
-            -- Step 1: Disable minimap
-            pcall(function() StarterGui:SetCore("MinimapEnabled", false) end)
-            for _, gui in ipairs(CoreGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end
-            for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end
-            task.wait(0.1)
-
-            -- Step 2: Lighting (reduce shadows, but not too dark)
-            pcall(function()
-                Lighting.GlobalShadows = false
-                Lighting.Brightness = 0.7
-                Lighting.Ambient = Color3.new(0.7, 0.7, 0.7)
-                Lighting.OutdoorAmbient = Color3.new(0.7, 0.7, 0.7)
-                for _, child in ipairs(Lighting:GetChildren()) do
-                    if child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") or child:IsA("BlurEffect") or child:IsA("DepthOfFieldEffect") then
-                        pcall(function() child.Enabled = false end)
-                    end
-                    if child:IsA("Atmosphere") then
-                        pcall(function() child.Enabled = false end)
-                    end
-                end
-            end)
-            task.wait(0.1)
-
-            -- Step 3: Graphics quality
-            pcall(function()
-                local settings = UserSettings()
-                if settings and settings.GameSettings then
-                    settings.GameSettings.GraphicsQualityLevel = 1
-                end
-            end)
-            task.wait(0.1)
-
-            -- Step 4: Disable particles in Workspace
-            pcall(function() disableParticles(Workspace) end)
-            task.wait(0.1)
-
-            -- Step 5: Terrain
-            pcall(function()
-                if Workspace.Terrain then
-                    Workspace.Terrain.WaterWaveSize = 0
-                    Workspace.Terrain.WaterWaveSpeed = 0
-                    Workspace.Terrain.WaterReflectance = 0
-                    Workspace.Terrain.WaterTransparency = 1
-                end
-            end)
-            Window:Notify({Title="Ultra Low Mode", Description="Graphics reduced for performance", Color=Color3.fromRGB(255,200,0), Delay=2})
-        end)
+        pcall(function() StarterGui:SetCore("MinimapEnabled", false) end)
+        for _, gui in ipairs(CoreGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end
+        for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end
+        pcall(function() Lighting.GlobalShadows = false; Lighting.Brightness = 0.5; Lighting.Ambient = Color3.new(0.5,0.5,0.5); Lighting.OutdoorAmbient = Color3.new(0.5,0.5,0.5); for _, child in ipairs(Lighting:GetChildren()) do if child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") or child:IsA("BlurEffect") or child:IsA("DepthOfFieldEffect") then child.Enabled = false end; if child:IsA("Atmosphere") then child.Enabled = false end end end)
+        pcall(function() local settings = UserSettings(); if settings and settings.GameSettings then settings.GameSettings.GraphicsQualityLevel = 1 end end)
+        pcall(function() disableParticles(Workspace) end)
+        pcall(function() if Workspace.Terrain then Workspace.Terrain.WaterWaveSize = 0; Workspace.Terrain.WaterWaveSpeed = 0; Workspace.Terrain.WaterReflectance = 0; Workspace.Terrain.WaterTransparency = 1 end end)
     else
-        -- Restore
-        task.spawn(function()
-            pcall(function()
-                Lighting.GlobalShadows = true
-                Lighting.Brightness = 1
-                Lighting.Ambient = Color3.new(1,1,1)
-                Lighting.OutdoorAmbient = Color3.new(1,1,1)
-            end)
-            pcall(function()
-                local settings = UserSettings()
-                if settings and settings.GameSettings then
-                    settings.GameSettings.GraphicsQualityLevel = 10
-                end
-            end)
-            Window:Notify({Title="Ultra Low Mode Off", Description="Graphics restored (particles may stay off)", Color=Color3.fromRGB(100,200,255), Delay=2})
-        end)
+        pcall(function() Lighting.GlobalShadows = true; Lighting.Brightness = 1; Lighting.Ambient = Color3.new(1,1,1); Lighting.OutdoorAmbient = Color3.new(1,1,1) end)
+        pcall(function() local settings = UserSettings(); if settings and settings.GameSettings then settings.GameSettings.GraphicsQualityLevel = 10 end end)
     end
 end, "UltraLowToggle")
 
-Window:AddToggle(TabVisual, "Reduce Map", "Disable minimap", false, function(s) if s then pcall(function() StarterGui:SetCore("MinimapEnabled", false) end); for _, gui in ipairs(CoreGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end; for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end end end, "ReduceMapToggle")
+Window:AddToggle(TabVisual, "Reduce Map", "Matikan minimap", false, function(s) if s then pcall(function() StarterGui:SetCore("MinimapEnabled", false) end); for _, gui in ipairs(CoreGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end; for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end end end, "ReduceMapToggle")
 
 -- =====================================================
 -- TAB PLAYER - NO RECOIL, NO SPREAD, ANTI RAGDOLL
 -- =====================================================
-Window:AddParagraph(TabPlayer, "Player Mods", "Character modifications")
-
+Window:AddParagraph(TabPlayer, "Player Mods", "Fitur karakter")
 local noRecoil = false; local noSpread = false; local antiRagdoll = false
-Window:AddToggle(TabPlayer, "No Recoil", "Remove weapon shake", false, function(s) noRecoil = s end, "NoRecoilToggle")
-Window:AddToggle(TabPlayer, "No Spread", "Bullets always straight", false, function(s) noSpread = s end, "NoSpreadToggle")
-Window:AddToggle(TabPlayer, "Anti Ragdoll", "Prevent falling", false, function(s) antiRagdoll = s end, "AntiRagdollToggle")
+Window:AddToggle(TabPlayer, "No Recoil", "Hilangkan getaran", false, function(s) noRecoil = s end, "NoRecoilToggle")
+Window:AddToggle(TabPlayer, "No Spread", "Peluru lurus", false, function(s) noSpread = s end, "NoSpreadToggle")
+Window:AddToggle(TabPlayer, "Anti Ragdoll", "Cegah jatuh", false, function(s) antiRagdoll = s end, "AntiRagdollToggle")
 
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character; if not char then return end
@@ -443,16 +363,18 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- =====================================================
--- TAB ARSENAL - SILENT HITBOX (NO GLOW) + OTHER FEATURES
+-- TAB ARSENAL - SILENT AIM HITBOX IMPROVED
 -- =====================================================
-Window:AddParagraph(TabArsenal, "Silent Aim Hitbox", "Expand hitbox & transparency")
+Window:AddParagraph(TabArsenal, "Silent Aim Hitbox", "Perbesar hitbox & transparansi musuh")
 
 local silentHitbox = false
 local hitboxExpansion = 13
 local hitboxAlpha = 0.3
-local targetPartsChoice = "All"
+local targetPartsChoice = "All" -- pilihan: All, Head, Torso, Legs
+local glowEnabled = false
 local silentLoopConnections = {}
 
+-- Fungsi untuk mendapatkan daftar part berdasarkan pilihan
 local function getTargetParts(char)
     local parts = {}
     if targetPartsChoice == "All" or targetPartsChoice == "Head" then
@@ -476,7 +398,7 @@ local function getTargetParts(char)
     return parts
 end
 
-local function startSilentHitbox()
+local function startSilentAim()
     if silentLoopConnections.transparencyLoop then silentLoopConnections.transparencyLoop:Disconnect() end
     if silentLoopConnections.hitboxLoop then silentLoopConnections.hitboxLoop:Disconnect() end
 
@@ -488,11 +410,17 @@ local function startSilentHitbox()
                 for _, part in ipairs(parts) do
                     if part then
                         part.Transparency = hitboxAlpha
+                        if glowEnabled then
+                            pcall(function()
+                                if part:IsA("BasePart") then
+                                    part.Material = Enum.Material.Neon
+                                end
+                            end)
+                        end
                     end
                 end
             end
         end
-        task.wait(0.2)
     end)
 
     silentLoopConnections.hitboxLoop = RunService.Heartbeat:Connect(function()
@@ -508,11 +436,10 @@ local function startSilentHitbox()
                 end
             end
         end
-        task.wait(0.2)
     end)
 end
 
-local function stopSilentHitbox()
+local function stopSilentAim()
     if silentLoopConnections.transparencyLoop then silentLoopConnections.transparencyLoop:Disconnect(); silentLoopConnections.transparencyLoop = nil end
     if silentLoopConnections.hitboxLoop then silentLoopConnections.hitboxLoop:Disconnect(); silentLoopConnections.hitboxLoop = nil end
 
@@ -528,6 +455,7 @@ local function stopSilentHitbox()
                             part.Material = Enum.Material.Plastic
                         end
                     end)
+                    -- Reset size ke default
                     local name = part.Name
                     if name == "HumanoidRootPart" then
                         part.Size = Vector3.new(2, 2, 1)
@@ -546,26 +474,29 @@ local function stopSilentHitbox()
     end
 end
 
-Window:AddToggle(TabArsenal, "Silent Hitbox", "Expand hitbox & transparency", false, function(s)
+-- Toggle Silent Aim
+Window:AddToggle(TabArsenal, "Aktifkan Silent Aim", "Perbesar hitbox & transparansi", false, function(s)
     silentHitbox = s
     if s then
-        startSilentHitbox()
-        Window:Notify({Title="Silent Hitbox ON", Description="Hitbox expanded & transparent", Color=Color3.fromRGB(0,200,0), Delay=2})
+        startSilentAim()
+        Window:Notify({Title="Silent Aim Aktif", Description="Hitbox membesar & transparan", Color=Color3.fromRGB(0,200,0), Delay=2})
     else
-        stopSilentHitbox()
-        Window:Notify({Title="Silent Hitbox OFF", Description="Hitbox restored", Color=Color3.fromRGB(255,100,0), Delay=2})
+        stopSilentAim()
+        Window:Notify({Title="Silent Aim Nonaktif", Description="Hitbox kembali normal", Color=Color3.fromRGB(255,100,0), Delay=2})
     end
 end, "SilentHitboxToggle")
 
-Window:AddDropdown(TabArsenal, "Target Parts", "Select body parts", {"All", "Head", "Torso", "Legs"}, false, "All", function(v)
+-- Dropdown Target Part
+Window:AddDropdown(TabArsenal, "Target Part", "Pilih bagian tubuh", {"All", "Head", "Torso", "Legs"}, false, "All", function(v)
     targetPartsChoice = v
     if silentHitbox then
-        stopSilentHitbox()
-        startSilentHitbox()
+        stopSilentAim()
+        startSilentAim()
     end
 end, "TargetPartDrop")
 
-Window:AddSlider(TabArsenal, "Hitbox Expansion", "Size (1-30)", 1, 30, 13, function(v)
+-- Slider Expansion (step 0.5)
+Window:AddSlider(TabArsenal, "Hitbox Expansion", "Ukuran (1-30)", 1, 30, 13, function(v)
     hitboxExpansion = v
     if silentHitbox then
         for _, player in ipairs(Players:GetPlayers()) do
@@ -581,7 +512,8 @@ Window:AddSlider(TabArsenal, "Hitbox Expansion", "Size (1-30)", 1, 30, 13, funct
     end
 end, "HitboxExpansionSlider", true)
 
-Window:AddSlider(TabArsenal, "Hitbox Alpha", "Transparency (0-1)", 0, 10, 3, function(v)
+-- Slider Alpha (step 0.05, nilai 0-1)
+Window:AddSlider(TabArsenal, "Hitbox Alpha", "Transparansi (0-1)", 0, 10, 3, function(v)
     hitboxAlpha = v / 10
     if silentHitbox then
         for _, player in ipairs(Players:GetPlayers()) do
@@ -597,16 +529,38 @@ Window:AddSlider(TabArsenal, "Hitbox Alpha", "Transparency (0-1)", 0, 10, 3, fun
     end
 end, "HitboxAlphaSlider", true)
 
--- GLOW EFFECT REMOVED
+-- Toggle Glow Effect
+Window:AddToggle(TabArsenal, "Glow Effect", "Buat part menyala (Neon)", false, function(s)
+    glowEnabled = s
+    if silentHitbox then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local parts = getTargetParts(player.Character)
+                for _, part in ipairs(parts) do
+                    if part then
+                        pcall(function()
+                            if part:IsA("BasePart") then
+                                part.Material = s and Enum.Material.Neon or Enum.Material.Plastic
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+    end
+end, "GlowToggle")
 
-Window:AddButton(TabArsenal, "Reset Hitbox", "Restore default sizes", function()
-    stopSilentHitbox()
-    if silentHitbox then startSilentHitbox() end
-    Window:Notify({Title="Hitbox Reset", Description="Back to normal", Color=Color3.fromRGB(255,200,0), Delay=2})
+-- Tombol Reset
+Window:AddButton(TabArsenal, "Reset Hitbox", "Kembalikan ke default", function()
+    stopSilentAim()
+    if silentHitbox then startSilentAim() end
+    Window:Notify({Title="Hitbox Reset", Description="Kembali ke ukuran normal", Color=Color3.fromRGB(255,200,0), Delay=2})
 end, "ResetHitboxButton")
 
--- ===== ARSENAL OTHER FEATURES (English) =====
-Window:AddDivider(TabArsenal, "Arsenal Extras")
+-- =====================================================
+-- FITUR ARSENAL LAINNYA (Fast Fire, Fast Reload, Unlock, Skin Changer)
+-- =====================================================
+Window:AddDivider(TabArsenal, "Arsenal Lainnya")
 
 local fastFire = false
 local fastReload = false
@@ -639,7 +593,7 @@ local function AddEveryItem()
             end
         end
     end
-    Window:Notify({Title="Unlock All Items", Description="All items unlocked!", Color=Color3.fromRGB(0,200,50), Delay=2})
+    Window:Notify({Title="Unlock All Items", Description="Semua item berhasil dibuka!", Color=Color3.fromRGB(0,200,50), Delay=2})
 end
 
 local function ChangeArsenalSkin(skinType, skinName)
@@ -679,7 +633,7 @@ local function GetSkinList(category)
     return list
 end
 
-Window:AddToggle(TabArsenal, "Infinite Ammo", "Never run out of ammo", false, function(s)
+Window:AddToggle(TabArsenal, "Infinite Ammo", "Amunisi tidak pernah habis", false, function(s)
     infiniteAmmo = s
     if s then
         pcall(function()
@@ -690,7 +644,7 @@ Window:AddToggle(TabArsenal, "Infinite Ammo", "Never run out of ammo", false, fu
     end
 end, "InfiniteAmmoToggle")
 
-Window:AddToggle(TabArsenal, "Fast Fire Rate", "Super fast shooting", false, function(s)
+Window:AddToggle(TabArsenal, "Fast Fire Rate", "Kecepatan tembak super cepat", false, function(s)
     fastFire = s
     if Weapons then
         for _, v in ipairs(Weapons:GetChildren()) do
@@ -700,7 +654,7 @@ Window:AddToggle(TabArsenal, "Fast Fire Rate", "Super fast shooting", false, fun
     end
 end, "FastFireToggle")
 
-Window:AddToggle(TabArsenal, "Fast Reload", "Almost instant reload", false, function(s)
+Window:AddToggle(TabArsenal, "Fast Reload", "Reload hampir instan", false, function(s)
     fastReload = s
     if Weapons then
         for _, v in ipairs(Weapons:GetChildren()) do
@@ -709,7 +663,7 @@ Window:AddToggle(TabArsenal, "Fast Reload", "Almost instant reload", false, func
     end
 end, "FastReloadToggle")
 
-Window:AddToggle(TabArsenal, "No Recoil (Arsenal)", "Set RecoilControl to 0", false, function(s)
+Window:AddToggle(TabArsenal, "No Recoil (Arsenal)", "Set RecoilControl ke 0", false, function(s)
     arsenalNoRecoil = s
     if Weapons then
         for _, v in ipairs(Weapons:GetChildren()) do
@@ -729,25 +683,25 @@ Window:AddToggle(TabArsenal, "No Spread (Arsenal)", "Set MaxSpread & SpreadRecov
 end, "ArsenalNoSpreadToggle")
 
 Window:AddDivider(TabArsenal, "Unlock & Skin Changer")
-Window:AddButton(TabArsenal, "Unlock All Items", "Unlock all skins & items", function() AddEveryItem() end, "UnlockButton")
+Window:AddButton(TabArsenal, "Unlock All Items", "Buka semua skin & item", function() AddEveryItem() end, "UnlockButton")
 
 local charSkins = GetSkinList("Character")
-Window:AddDropdown(TabArsenal, "Character Skin", "Select character skin", charSkins, false, charSkins[1] or "Default", function(v) ChangeArsenalSkin("Character", v) end, "CharSkinDrop")
+Window:AddDropdown(TabArsenal, "Character Skin", "Pilih skin karakter", charSkins, false, charSkins[1] or "Default", function(v) ChangeArsenalSkin("Character", v) end, "CharSkinDrop")
 
 local meleeSkins = GetSkinList("Melee")
-Window:AddDropdown(TabArsenal, "Melee Skin", "Select melee skin", meleeSkins, false, meleeSkins[1] or "Default", function(v) ChangeArsenalSkin("Melee", v) end, "MeleeSkinDrop")
+Window:AddDropdown(TabArsenal, "Melee Skin", "Pilih skin melee", meleeSkins, false, meleeSkins[1] or "Default", function(v) ChangeArsenalSkin("Melee", v) end, "MeleeSkinDrop")
 
 local gunSkins = GetSkinList("Gun")
-Window:AddDropdown(TabArsenal, "Gun Skin", "Select gun skin", gunSkins, false, gunSkins[1] or "Default", function(v) ChangeArsenalSkin("GunSkin", v) end, "GunSkinDrop")
+Window:AddDropdown(TabArsenal, "Gun Skin", "Pilih skin senjata", gunSkins, false, gunSkins[1] or "Default", function(v) ChangeArsenalSkin("GunSkin", v) end, "GunSkinDrop")
 
 local killSkins = GetSkinList("KillEffect")
-Window:AddDropdown(TabArsenal, "Kill Effect", "Select kill effect", killSkins, false, killSkins[1] or "Default", function(v) ChangeArsenalSkin("KillEffect", v) end, "KillEffectDrop")
+Window:AddDropdown(TabArsenal, "Kill Effect", "Pilih efek kematian", killSkins, false, killSkins[1] or "Default", function(v) ChangeArsenalSkin("KillEffect", v) end, "KillEffectDrop")
 
 local announcerSkins = GetSkinList("Announcer")
-Window:AddDropdown(TabArsenal, "Announcer", "Select announcer voice", announcerSkins, false, announcerSkins[1] or "Default", function(v) ChangeArsenalSkin("Announcer", v) end, "AnnouncerDrop")
+Window:AddDropdown(TabArsenal, "Announcer", "Pilih suara announcer", announcerSkins, false, announcerSkins[1] or "Default", function(v) ChangeArsenalSkin("Announcer", v) end, "AnnouncerDrop")
 
 -- =====================================================
--- FPS & PING DRAGGABLE (same as before)
+-- FPS & PING DRAGGABLE
 -- =====================================================
 if CoreGui:FindFirstChild("W424_STATS_GUI") then CoreGui.W424_STATS_GUI:Destroy() end
 local statsGui = Instance.new("ScreenGui")
@@ -805,7 +759,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 local statsOn = false
-Window:AddToggle(TabVisual, "FPS & Ping", "Show FPS and Ping", false, function(s)
+Window:AddToggle(TabVisual, "FPS & Ping", "Tampilkan", false, function(s)
     statsOn = s
     statsFrame.Visible = s
 end, "StatsToggle")
@@ -826,4 +780,4 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("✅ W424HUB v4.2 loaded")
+print("✅ W424HUB v4.1 loaded")
