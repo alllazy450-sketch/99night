@@ -1,5 +1,14 @@
--- ========== W424HUB - v3.8 (ARSENAL EDITION) ==========
+-- ========== W424HUB v3.8 - FULL EDITION (Dengan Silent Hitbox & Reduce Map) ==========
+print("=== W424HUB LOADING ===")
+
+-- Cek Kairo
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
+if not Kairo then
+    warn("❌ Kairo gagal di-load!")
+    return
+else
+    print("✅ Kairo loaded")
+end
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -12,36 +21,69 @@ local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+print("✅ Services loaded")
+
 -- ========== JENDELA UTAMA ==========
-local Window = Kairo:CreateWindow({
-    Title = "W424HUB",
-    Theme = "Crimson",
-    Size = UDim2.fromOffset(450, 480),
-    Center = true,
-    Draggable = true,
-    Resize = false,
-    Badges = {"v3.8"},
-    MinimizeKey = Enum.KeyCode.RightShift,
-    MinimizeButton = true,
-    Config = { Enabled = true, Folder = "W424HUB_Config", AutoLoad = true }
-})
+local success, Window = pcall(function()
+    return Kairo:CreateWindow({
+        Title = "W424HUB",
+        Theme = "Crimson",
+        Size = UDim2.fromOffset(300, 580),
+        Center = true,
+        Draggable = true,
+        Resize = false,
+        Badges = {"v3.8"},
+        MinimizeKey = Enum.KeyCode.RightShift,
+        MinimizeButton = true,
+        Config = { Enabled = true, Folder = "W424HUB_Config", AutoLoad = true }
+    })
+end)
 
-Window:Notify({
-    Title = "W424HUB v3.8",
-    Description = "Arsenal Edition!",
-    Content = "Fast Fire, Fast Reload, Skin Changer, Unlock All, Silent Hitbox, Reduce Map",
-    Color = Color3.fromRGB(0, 200, 50),
-    Delay = 3
-})
+if not success or not Window then
+    warn("❌ Gagal membuat Window! Error:", success and "Window nil" or Window)
+    return
+else
+    print("✅ Window created")
+end
 
--- ========== TAB ==========
-local TabAim = Window:CreateTab("Aim", "rbxassetid://16932740082")
-local TabVisual = Window:CreateTab("Vis", "rbxassetid://16932740082")
-local TabPlayer = Window:CreateTab("Player", "rbxassetid://16932740082")
-local TabArsenal = Window:CreateTab("Arsenal", "rbxassetid://16932740082")
+-- Notifikasi awal (test)
+pcall(function()
+    Window:Notify({
+        Title = "W424HUB v3.8",
+        Description = "Loaded successfully!",
+        Content = "Silent Hitbox & Reduce Map included",
+        Color = Color3.fromRGB(0, 200, 50),
+        Delay = 3
+    })
+end)
+
+-- ========== BUAT TAB ==========
+local TabAim, TabVisual, TabPlayer, TabArsenal
+
+pcall(function()
+    TabAim = Window:CreateTab("Aim", "rbxassetid://16932740082")
+    print("✅ Tab Aim")
+end)
+pcall(function()
+    TabVisual = Window:CreateTab("Vis", "rbxassetid://16932740082")
+    print("✅ Tab Visual")
+end)
+pcall(function()
+    TabPlayer = Window:CreateTab("Player", "rbxassetid://16932740082")
+    print("✅ Tab Player")
+end)
+pcall(function()
+    TabArsenal = Window:CreateTab("Arsenal", "rbxassetid://16932740082")
+    print("✅ Tab Arsenal")
+end)
+
+if not TabAim or not TabVisual or not TabPlayer or not TabArsenal then
+    warn("❌ Gagal membuat salah satu tab!")
+    return
+end
 
 -- =====================================================
--- TAB AIM - AIMBOT (SAMA SEPERTI SEBELUMNYA)
+-- TAB AIM - AIMBOT
 -- =====================================================
 Window:AddParagraph(TabAim, "Aimbot", "Camera & Silent")
 
@@ -245,7 +287,7 @@ pcall(function()
 end)
 
 -- =====================================================
--- TAB VISUAL - ESP CHAMS + OPTIMASI
+-- TAB VISUAL - ESP + OPTIMASI + REDUCE MAP
 -- =====================================================
 Window:AddParagraph(TabVisual, "ESP Chams", "Warnai tubuh musuh")
 
@@ -313,7 +355,7 @@ Window:AddToggle(TabVisual, "Mode Ultra Low", "Potato mode", false, function(s)
     end
 end, "UltraLowToggle")
 
--- ========== REDUCE MAP UI ==========
+-- ========== REDUCE MAP ==========
 local reduceMap = false
 Window:AddToggle(TabVisual, "Reduce Map", "Matikan minimap", false, function(s)
     reduceMap = s
@@ -374,7 +416,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- =====================================================
--- TAB ARSENAL - FITUR SPESIFIK ARSENAL
+-- TAB ARSENAL - FITUR SPESIFIK ARSENAL + SILENT HITBOX
 -- =====================================================
 Window:AddParagraph(TabArsenal, "Arsenal Mods", "Fast Fire, Fast Reload, Unlock, Skin Changer")
 
@@ -421,7 +463,7 @@ local function AddEveryItem()
     Window:Notify({Title="Unlock All Items", Description="Semua item berhasil dibuka!", Color=Color3.fromRGB(0,200,50), Delay=2})
 end
 
--- Fungsi Change Skin (karakter, melee, gun, kill effect, announcer)
+-- Fungsi Change Skin
 local function ChangeArsenalSkin(skinType, skinName)
     if skinType == "Character" then
         if LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Skin") then
@@ -451,7 +493,6 @@ local function ChangeArsenalSkin(skinType, skinName)
     end
 end
 
--- Fungsi untuk mendapatkan daftar skin dari Items
 local function GetSkinList(category)
     local list = {"Default"}
     if not Items then return list end
@@ -465,9 +506,7 @@ local function GetSkinList(category)
     return list
 end
 
--- --- UI KONTROL ARSENAL ---
-
--- Infinite Ammo
+-- UI Arsenal
 Window:AddToggle(TabArsenal, "Infinite Ammo", "Amunisi tidak pernah habis", false, function(s)
     infiniteAmmo = s
     if s then
@@ -479,7 +518,6 @@ Window:AddToggle(TabArsenal, "Infinite Ammo", "Amunisi tidak pernah habis", fals
     end
 end, "InfiniteAmmoToggle")
 
--- Fast Fire Rate
 Window:AddToggle(TabArsenal, "Fast Fire Rate", "Kecepatan tembak super cepat", false, function(s)
     fastFire = s
     if Weapons then
@@ -494,7 +532,6 @@ Window:AddToggle(TabArsenal, "Fast Fire Rate", "Kecepatan tembak super cepat", f
     end
 end, "FastFireToggle")
 
--- Fast Reload
 Window:AddToggle(TabArsenal, "Fast Reload", "Reload hampir instan", false, function(s)
     fastReload = s
     if Weapons then
@@ -506,7 +543,6 @@ Window:AddToggle(TabArsenal, "Fast Reload", "Reload hampir instan", false, funct
     end
 end, "FastReloadToggle")
 
--- No Recoil (Arsenal version)
 Window:AddToggle(TabArsenal, "No Recoil (Arsenal)", "Set RecoilControl ke 0", false, function(s)
     arsenalNoRecoil = s
     if Weapons then
@@ -518,7 +554,6 @@ Window:AddToggle(TabArsenal, "No Recoil (Arsenal)", "Set RecoilControl ke 0", fa
     end
 end, "ArsenalNoRecoilToggle")
 
--- No Spread (Arsenal version)
 Window:AddToggle(TabArsenal, "No Spread (Arsenal)", "Set MaxSpread & SpreadRecovery", false, function(s)
     arsenalNoSpread = s
     if Weapons then
@@ -533,48 +568,23 @@ Window:AddToggle(TabArsenal, "No Spread (Arsenal)", "Set MaxSpread & SpreadRecov
     end
 end, "ArsenalNoSpreadToggle")
 
--- Divider
 Window:AddDivider(TabArsenal, "Unlock & Skin Changer")
+Window:AddButton(TabArsenal, "Unlock All Items", "Buka semua skin & item", function() AddEveryItem() end, "UnlockButton")
 
--- Tombol Unlock All Items
-Window:AddButton(TabArsenal, "Unlock All Items", "Buka semua skin & item", function()
-    AddEveryItem()
-end, "UnlockButton")
-
--- Karakter Skin
 local charSkins = GetSkinList("Character")
-Window:AddDropdown(TabArsenal, "Character Skin", "Pilih skin karakter", charSkins, false, charSkins[1] or "Default", function(v)
-    ChangeArsenalSkin("Character", v)
-end, "CharSkinDrop")
-
--- Melee Skin
+Window:AddDropdown(TabArsenal, "Character Skin", "Pilih skin karakter", charSkins, false, charSkins[1] or "Default", function(v) ChangeArsenalSkin("Character", v) end, "CharSkinDrop")
 local meleeSkins = GetSkinList("Melee")
-Window:AddDropdown(TabArsenal, "Melee Skin", "Pilih skin melee", meleeSkins, false, meleeSkins[1] or "Default", function(v)
-    ChangeArsenalSkin("Melee", v)
-end, "MeleeSkinDrop")
-
--- Gun Skin
+Window:AddDropdown(TabArsenal, "Melee Skin", "Pilih skin melee", meleeSkins, false, meleeSkins[1] or "Default", function(v) ChangeArsenalSkin("Melee", v) end, "MeleeSkinDrop")
 local gunSkins = GetSkinList("Gun")
-Window:AddDropdown(TabArsenal, "Gun Skin", "Pilih skin senjata", gunSkins, false, gunSkins[1] or "Default", function(v)
-    ChangeArsenalSkin("GunSkin", v)
-end, "GunSkinDrop")
-
--- Kill Effect
+Window:AddDropdown(TabArsenal, "Gun Skin", "Pilih skin senjata", gunSkins, false, gunSkins[1] or "Default", function(v) ChangeArsenalSkin("GunSkin", v) end, "GunSkinDrop")
 local killSkins = GetSkinList("KillEffect")
-Window:AddDropdown(TabArsenal, "Kill Effect", "Pilih efek kematian", killSkins, false, killSkins[1] or "Default", function(v)
-    ChangeArsenalSkin("KillEffect", v)
-end, "KillEffectDrop")
-
--- Announcer
+Window:AddDropdown(TabArsenal, "Kill Effect", "Pilih efek kematian", killSkins, false, killSkins[1] or "Default", function(v) ChangeArsenalSkin("KillEffect", v) end, "KillEffectDrop")
 local announcerSkins = GetSkinList("Announcer")
-Window:AddDropdown(TabArsenal, "Announcer", "Pilih suara announcer", announcerSkins, false, announcerSkins[1] or "Default", function(v)
-    ChangeArsenalSkin("Announcer", v)
-end, "AnnouncerDrop")
+Window:AddDropdown(TabArsenal, "Announcer", "Pilih suara announcer", announcerSkins, false, announcerSkins[1] or "Default", function(v) ChangeArsenalSkin("Announcer", v) end, "AnnouncerDrop")
 
--- ========== SILENT HITBOX UI (TAMBAHAN) ==========
+-- ========== SILENT HITBOX ==========
 Window:AddDivider(TabArsenal, "Silent Hitbox")
 
--- Variabel & fungsi untuk Silent Hitbox
 local silentHitbox = false
 local hitboxExpansion = 13
 local hitboxAlpha = 0.3
@@ -623,7 +633,6 @@ local function silentHitboxLoop()
                 end
             end
         else
-            -- Reset semua part ke default
             for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character then
                     local parts = getTargetParts(player.Character)
@@ -657,7 +666,6 @@ local function stopSilentHitbox()
     silentLoopStop = true
     task.wait(0.4)
     silentLoopRunning = false
-    -- Reset semua part ke default
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local parts = getTargetParts(player.Character)
@@ -677,31 +685,18 @@ local function stopSilentHitbox()
     end
 end
 
--- UI Elements untuk Silent Hitbox
 Window:AddToggle(TabArsenal, "Silent Hitbox", "Perbesar hitbox musuh", false, function(v)
     silentHitbox = v
-    if v then
-        startSilentHitbox()
-    else
-        stopSilentHitbox()
-    end
+    if v then startSilentHitbox() else stopSilentHitbox() end
 end, "SilentHitboxToggle")
 
 Window:AddDropdown(TabArsenal, "Target Parts", "Pilih bagian tubuh", {"All","Head","Torso","Legs"}, false, "All", function(v)
     targetPartsChoice = v
-    if silentHitbox then
-        stopSilentHitbox()
-        startSilentHitbox()
-    end
+    if silentHitbox then stopSilentHitbox(); startSilentHitbox() end
 end, "HitboxTargetDrop")
 
-Window:AddSlider(TabArsenal, "Hitbox Expansion", "Ukuran (1-30)", 1, 30, 13, function(v)
-    hitboxExpansion = v
-end, "HitboxExpand", true)
-
-Window:AddSlider(TabArsenal, "Hitbox Alpha", "Transparansi (0-10)", 0, 10, 3, function(v)
-    hitboxAlpha = v / 10
-end, "HitboxAlpha", true)
+Window:AddSlider(TabArsenal, "Hitbox Expansion", "Ukuran (1-30)", 1, 30, 13, function(v) hitboxExpansion = v end, "HitboxExpand", true)
+Window:AddSlider(TabArsenal, "Hitbox Alpha", "Transparansi (0-10)", 0, 10, 3, function(v) hitboxAlpha = v / 10 end, "HitboxAlpha", true)
 
 Window:AddButton(TabArsenal, "Reset Hitbox", "Kembalikan ukuran asli", function()
     stopSilentHitbox()
@@ -789,4 +784,4 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("W424HUB v3.8 loaded - Arsenal Edition with Silent Hitbox & Reduce Map!")
+print("✅ W424HUB v3.8 FULL EDITION loaded - Silent Hitbox & Reduce Map aktif!")
