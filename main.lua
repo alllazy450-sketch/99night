@@ -1,10 +1,10 @@
--- ========== W424HUB v4.3 - Rayfield UI (No Icons, No Errors) ==========
+-- ========== W424HUB v4.4 - Rayfield UI (Zero ID, Zero Errors) ==========
 -- Validasi Place ID: Hanya untuk Arsenal
 local placeId = game.PlaceId
 local targetGameId = 286090429
 
 if placeId ~= targetGameId then
-    game.Players.LocalPlayer:Kick("❌ W424HUB only for Arsenal!\nPlace ID: " .. placeId .. " (not " .. targetGameId .. ")")
+    game.Players.LocalPlayer:Kick("❌ W424HUB only for Arsenal!")
     return
 end
 
@@ -15,7 +15,7 @@ if not Rayfield then
     return
 end
 
--- ========== CREATE WINDOW (Tanpa Icon) ==========
+-- ========== CREATE WINDOW (NO ICON) ==========
 local Window = Rayfield:CreateWindow({
     Name = "W424HUB",
     LoadingTitle = "Loading W424HUB...",
@@ -30,7 +30,7 @@ local Window = Rayfield:CreateWindow({
     RayfieldVersion = "1.0"
 })
 
--- ========== TABS (Tanpa Icon) ==========
+-- ========== TABS (NO ICON) ==========
 local AimTab = Window:CreateTab("Aim")
 local VisualTab = Window:CreateTab("Visual")
 local PlayerTab = Window:CreateTab("Player")
@@ -40,15 +40,11 @@ local MiscTab = Window:CreateTab("Misc")
 -- ========== SECTIONS ==========
 local AimLeft = AimTab:CreateSection("Aimbot")
 local AimRight = AimTab:CreateSection("Settings")
-
 local VisualLeft = VisualTab:CreateSection("ESP")
 local VisualRight = VisualTab:CreateSection("FOV")
-
 local PlayerLeft = PlayerTab:CreateSection("Mods")
-
 local ArsenalLeft = ArsenalTab:CreateSection("Silent Hitbox")
 local ArsenalRight = ArsenalTab:CreateSection("Arsenal Extras")
-
 local MiscLeft = MiscTab:CreateSection("Utilities")
 
 -- =====================================================
@@ -110,7 +106,7 @@ pcall(function()
 end)
 
 -- =====================================================
--- FOV CIRCLE (Drawing)
+-- FOV CIRCLE (Drawing) - NO ID
 -- =====================================================
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
@@ -125,13 +121,12 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- =====================================================
--- SAFE GET PART (Menghindari error "not a valid member")
+-- SAFE GET PART (Menghindari error invalid member)
 -- =====================================================
 local function safeGetPart(char, partName)
     if not char then return nil end
     local part = char:FindFirstChild(partName)
     if part then return part end
-    -- Fallback ke part yang pasti ada
     part = char:FindFirstChild("Head")
     if part then return part end
     part = char:FindFirstChild("HumanoidRootPart")
@@ -140,7 +135,6 @@ local function safeGetPart(char, partName)
     if part then return part end
     part = char:FindFirstChild("UpperTorso")
     if part then return part end
-    -- Cari BasePart apa saja sebagai last resort
     for _, child in ipairs(char:GetChildren()) do
         if child:IsA("BasePart") then
             return child
@@ -309,7 +303,7 @@ pcall(function()
 end)
 
 -- =====================================================
--- ESP (Highlight Chams)
+-- ESP (Highlight Chams) - Update setiap 1 detik
 -- =====================================================
 local highlightObjects = {}
 local lastPlayerList = {}
@@ -440,7 +434,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- =====================================================
--- SILENT HITBOX (Arsenal) - No Glow
+-- SILENT HITBOX (Arsenal)
 -- =====================================================
 local silentLoopConnections = {}
 
@@ -596,7 +590,7 @@ local function GetSkinList(category)
 end
 
 -- =====================================================
--- UI ELEMENTS (Rayfield, No Icons)
+-- UI ELEMENTS (Rayfield, NO ID)
 -- =====================================================
 
 -- AIM TAB (Left)
@@ -1041,8 +1035,8 @@ end)
 -- =====================================================
 Rayfield:Notify({
     Title = "W424HUB Loaded!",
-    Content = "No icons, no errors!",
+    Content = "Zero ID - Clean script!",
     Duration = 3,
 })
 
-print("✅ W424HUB v4.3 - Rayfield UI (No Icons, No Errors) loaded!")
+print("✅ W424HUB v4.4 - Zero ID, Zero Errors loaded!")
