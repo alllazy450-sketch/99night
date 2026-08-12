@@ -1,4 +1,4 @@
--- ========== W424HUB v4.4 - Rayfield UI (Zero ID, Zero Errors) ==========
+-- ========== W424HUB v5.0 - ULTRA OPTIMIZED (Zero Errors) ==========
 -- Validasi Place ID: Hanya untuk Arsenal
 local placeId = game.PlaceId
 local targetGameId = 286090429
@@ -15,7 +15,7 @@ if not Rayfield then
     return
 end
 
--- ========== CREATE WINDOW (NO ICON) ==========
+-- ========== CREATE WINDOW ==========
 local Window = Rayfield:CreateWindow({
     Name = "W424HUB",
     LoadingTitle = "Loading W424HUB...",
@@ -30,7 +30,7 @@ local Window = Rayfield:CreateWindow({
     RayfieldVersion = "1.0"
 })
 
--- ========== TABS (NO ICON) ==========
+-- ========== TABS ==========
 local AimTab = Window:CreateTab("Aim")
 local VisualTab = Window:CreateTab("Visual")
 local PlayerTab = Window:CreateTab("Player")
@@ -106,7 +106,7 @@ pcall(function()
 end)
 
 -- =====================================================
--- FOV CIRCLE (Drawing) - NO ID
+-- FOV CIRCLE
 -- =====================================================
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
@@ -116,12 +116,13 @@ fovCircle.Thickness = 2
 fovCircle.Filled = false
 fovCircle.Position = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 
+-- Update posisi FOV (ringan, setiap frame)
 RunService.RenderStepped:Connect(function()
     fovCircle.Position = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 end)
 
 -- =====================================================
--- SAFE GET PART (Menghindari error invalid member)
+-- SAFE GET PART (Anti-error)
 -- =====================================================
 local function safeGetPart(char, partName)
     if not char then return nil end
@@ -144,7 +145,7 @@ local function safeGetPart(char, partName)
 end
 
 -- =====================================================
--- CORE FUNCTIONS
+-- CORE FUNCTIONS (dengan pcall untuk keamanan)
 -- =====================================================
 local function isVisible(part)
     if not useVisCheck or not part then return true end
@@ -220,12 +221,12 @@ local function getBestTarget()
 end
 
 -- =====================================================
--- AIMBOT (Camera Mode)
+-- AIMBOT (Camera Mode) - Update setiap 3 frame (lebih ringan)
 -- =====================================================
-local frameSkip = 0
+local aimFrameSkip = 0
 RunService.RenderStepped:Connect(function()
-    frameSkip = frameSkip + 1
-    if frameSkip % 2 ~= 0 then return end
+    aimFrameSkip = aimFrameSkip + 1
+    if aimFrameSkip % 3 ~= 0 then return end
 
     if not aimbotEnabled or aimMode ~= "Camera" then return end
     local canAim = (aimTrigger == "On Shoot" and isShooting) or (aimTrigger == "Always")
@@ -239,6 +240,7 @@ RunService.RenderStepped:Connect(function()
     else target = nil end
 end)
 
+-- Deteksi tembak
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         isShooting = true
@@ -251,7 +253,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- =====================================================
--- SILENT AIM
+-- SILENT AIM (dengan pcall)
 -- =====================================================
 pcall(function()
     local gc = getgc()
@@ -303,7 +305,7 @@ pcall(function()
 end)
 
 -- =====================================================
--- ESP (Highlight Chams) - Update setiap 1 detik
+-- ESP (Highlight Chams) - Update setiap 2 detik
 -- =====================================================
 local highlightObjects = {}
 local lastPlayerList = {}
@@ -383,7 +385,7 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(2)
         pcall(updateESP)
     end
 end)
@@ -434,9 +436,10 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- =====================================================
--- SILENT HITBOX (Arsenal)
+-- SILENT HITBOX (Arsenal) - Loop dengan task.spawn (anti InfiniteYield)
 -- =====================================================
-local silentLoopConnections = {}
+local silentLoopRunning = false
+local silentLoopStop = false
 
 local function getTargetParts(char)
     local parts = {}
@@ -463,50 +466,62 @@ local function getTargetParts(char)
     return parts
 end
 
+local function silentHitboxLoop()
+    while silentLoopRunning and not silentLoopStop do
+        if silentHitbox then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local parts = getTargetParts(player.Character)
+                    for _, part in ipairs(parts) do
+                        pcall(function()
+                            if part then
+                                part.Transparency = hitboxAlpha
+                                part.CanCollide = false
+                                part.Size = Vector3.new(hitboxExpansion, hitboxExpansion, hitboxExpansion)
+                            end
+                        end)
+                    end
+                end
+            end
+        else
+            -- Reset semua part
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local parts = getTargetParts(player.Character)
+                    for _, part in ipairs(parts) do
+                        pcall(function()
+                            if part then
+                                part.Transparency = 0
+                                part.CanCollide = true
+                                local name = part.Name
+                                if name == "HumanoidRootPart" then part.Size = Vector3.new(2,2,1)
+                                elseif name:find("Leg") then part.Size = Vector3.new(1,2,1)
+                                elseif name == "Head" or name == "HeadHB" then part.Size = Vector3.new(2,1,1)
+                                elseif name == "Torso" or name == "UpperTorso" then part.Size = Vector3.new(2,1.5,1)
+                                else part.Size = Vector3.new(1,1,1) end
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+        task.wait(0.3)
+    end
+end
+
+-- Start/Stop Silent Hitbox
 local function startSilentHitbox()
-    if silentLoopConnections.transparencyLoop then silentLoopConnections.transparencyLoop:Disconnect() end
-    if silentLoopConnections.hitboxLoop then silentLoopConnections.hitboxLoop:Disconnect() end
-
-    silentLoopConnections.transparencyLoop = RunService.Heartbeat:Connect(function()
-        if not silentHitbox then return end
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local parts = getTargetParts(player.Character)
-                for _, part in ipairs(parts) do
-                    pcall(function()
-                        if part then
-                            part.Transparency = hitboxAlpha
-                        end
-                    end)
-                end
-            end
-        end
-        task.wait(0.2)
-    end)
-
-    silentLoopConnections.hitboxLoop = RunService.Heartbeat:Connect(function()
-        if not silentHitbox then return end
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local parts = getTargetParts(player.Character)
-                for _, part in ipairs(parts) do
-                    pcall(function()
-                        if part then
-                            part.CanCollide = false
-                            part.Size = Vector3.new(hitboxExpansion, hitboxExpansion, hitboxExpansion)
-                        end
-                    end)
-                end
-            end
-        end
-        task.wait(0.2)
-    end)
+    if silentLoopRunning then return end
+    silentLoopRunning = true
+    silentLoopStop = false
+    task.spawn(silentHitboxLoop)
 end
 
 local function stopSilentHitbox()
-    if silentLoopConnections.transparencyLoop then silentLoopConnections.transparencyLoop:Disconnect(); silentLoopConnections.transparencyLoop = nil end
-    if silentLoopConnections.hitboxLoop then silentLoopConnections.hitboxLoop:Disconnect(); silentLoopConnections.hitboxLoop = nil end
-
+    silentLoopStop = true
+    task.wait(0.4)
+    silentLoopRunning = false
+    -- Reset semua part ke default
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local parts = getTargetParts(player.Character)
@@ -777,7 +792,11 @@ ArsenalLeft:AddToggle({
     Flag = "silent_hitbox",
     Callback = function(v)
         silentHitbox = v
-        if v then startSilentHitbox() else stopSilentHitbox() end
+        if v then
+            startSilentHitbox()
+        else
+            stopSilentHitbox()
+        end
     end
 })
 
@@ -804,16 +823,6 @@ ArsenalLeft:AddSlider({
     Flag = "hitbox_expansion",
     Callback = function(v)
         hitboxExpansion = v
-        if silentHitbox then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local parts = getTargetParts(p.Character)
-                    for _, part in ipairs(parts) do
-                        if part then part.Size = Vector3.new(v, v, v) end
-                    end
-                end
-            end
-        end
     end
 })
 
@@ -826,16 +835,6 @@ ArsenalLeft:AddSlider({
     Flag = "hitbox_alpha",
     Callback = function(v)
         hitboxAlpha = v / 10
-        if silentHitbox then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local parts = getTargetParts(p.Character)
-                    for _, part in ipairs(parts) do
-                        if part then part.Transparency = hitboxAlpha end
-                    end
-                end
-            end
-        end
     end
 })
 
@@ -1031,12 +1030,12 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 -- =====================================================
--- STARTUP NOTIFICATION
+-- STARTUP
 -- =====================================================
 Rayfield:Notify({
-    Title = "W424HUB Loaded!",
-    Content = "Zero ID - Clean script!",
+    Title = "W424HUB v5.0",
+    Content = "Ultra optimized! No errors!",
     Duration = 3,
 })
 
-print("✅ W424HUB v4.4 - Zero ID, Zero Errors loaded!")
+print("✅ W424HUB v5.0 - Ultra Optimized loaded!")
