@@ -1,5 +1,5 @@
 -- ==========================================
--- W424 HUB | v5.23 
+-- W424 HUB | v5.24 (Fixed Tree Aura + Drop)
 -- ==========================================
 
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -141,7 +141,7 @@ end
 -- MOBILE UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
-local screenSize = cam and cam.ViewportSize or Vector2.new(530, 430)
+local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
 local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
 local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
 
@@ -152,7 +152,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"v5.23", "GODMODE"},
+    Badges = {"v5.24", "FIXED"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -247,7 +247,7 @@ Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "350", function(value
 end, "AuraRadius")
 
 -- ==========================================
--- TREE AURA TAB
+-- TREE AURA TAB (FIXED)
 -- ==========================================
 Window:AddParagraph(TreeTab, "Tree Aura", "Nebang pohon otomatis di sekitar")
 Window:AddToggle(TreeTab, "Tree Aura", "Tebang pohon di radius tertentu", false, function(state) 
@@ -303,7 +303,7 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- VISUALS TAB
+-- VISUALS TAB (FIXED TREE ESP)
 -- ==========================================
 Window:AddParagraph(VisualsTab, "ESP", "Deteksi lokasi visual")
 
@@ -347,24 +347,38 @@ end
 Window:AddToggle(VisualsTab, "ESP Mobs", "Tampilkan lokasi mobs", false, function(state) espMobsEnabled = state; refreshESP() end, "ESPMobs")
 Window:AddToggle(VisualsTab, "ESP Items", "Tampilkan lokasi items", false, function(state) espItemsEnabled = state; refreshESP() end, "ESPItems")
 
--- Tree ESP
+-- Tree ESP (FIXED)
 local treeESPEnabled = false
 local treeESPList = {}
 local espFolderTree = Instance.new("Folder")
 espFolderTree.Name = "W424_TreeESP"
 espFolderTree.Parent = CoreGui
 
+local function getTreePart(tree)
+    -- Cari bagian pohon yang valid (Trunk atau PrimaryPart)
+    local trunk = tree:FindFirstChild("Trunk")
+    if trunk and trunk:IsA("BasePart") then return trunk end
+    if tree.PrimaryPart then return tree.PrimaryPart end
+    -- Cari part pertama yang bukan anak dari model lain
+    for _, child in ipairs(tree:GetDescendants()) do
+        if child:IsA("BasePart") or child:IsA("MeshPart") then
+            return child
+        end
+    end
+    return nil
+end
+
 local function createTreeESP(tree)
     if treeESPList[tree] then return end
-    local trunk = tree:FindFirstChild("Trunk") or tree.PrimaryPart
-    if not trunk then return end
+    local part = getTreePart(tree)
+    if not part then return end
     local bb = Instance.new("BillboardGui")
     bb.Name = "TreeESP"
     bb.Size = UDim2.fromScale(4, 1)
     bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.AlwaysOnTop = true
     bb.Parent = espFolderTree
-    bb.Adornee = trunk
+    bb.Adornee = part
 
     local text = Instance.new("TextLabel")
     text.Size = UDim2.fromScale(1, 1)
@@ -378,7 +392,7 @@ local function createTreeESP(tree)
     treeESPList[tree] = {
         gui = bb,
         label = text,
-        trunk = trunk
+        part = part
     }
 end
 
@@ -429,7 +443,7 @@ Window:AddToggle(VisualsTab, "ESP Trees", "Tampilkan HP pohon", false, function(
 end, "ESPTrees")
 
 -- ==========================================
--- PLAYER TAB (WalkSpeed, Infinite Jump, GODMODE)
+-- PLAYER TAB
 -- ==========================================
 Window:AddParagraph(PlayerTab, "Stats", "Modifikasi Karakter")
 Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, function(value)
@@ -449,9 +463,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- ==========================================
--- GODMODE TOGGLE (NEW)
--- ==========================================
+-- Godmode
 Window:AddToggle(PlayerTab, "Godmode", "Mengirim damage negatif ke server (tidak mati)", false, function(state)
     godmodeEnabled = state
     if state and not godmodeRemote then
@@ -641,12 +653,13 @@ task.spawn(function()
     end
 end)
 
--- 2. TREE AURA
+-- 2. TREE AURA (FIXED)
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled and TreesFolder then
             local hrp = getRootPart()
             if hrp then
+                -- Cari Old Axe
                 local tool = nil
                 local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
                 for _, loc in ipairs(locations) do
@@ -659,16 +672,20 @@ task.spawn(function()
                     task.wait(1)
                 else
                     for _, tree in ipairs(TreesFolder:GetChildren()) do
-                        if tree.Name == "Small Tree" and tree:FindFirstChild("Trunk") then
-                            local trunk = tree.Trunk
-                            local dist = (trunk.Position - hrp.Position).Magnitude
+                        if tree.Name == "Small Tree" and tree:IsDescendantOf(workspace) then
+                            -- Cari bagian pohon yang valid
+                            local treePart = getTreePart(tree)
+                            if not treePart then continue end
+                            local dist = (treePart.Position - hrp.Position).Magnitude
                             if dist <= treeAuraRadius then
-                                local hp = tree:GetAttribute("Health") or 10
+                                local hp = tree:GetAttribute("Health")
+                                if hp == nil then hp = 10 end -- default jika tidak ada atribut
                                 if hp > 0 then
                                     pcall(function()
-                                        RemoteEvents.ToolDamageObject:InvokeServer(tree, tool, valueAxe, trunk.CFrame)
+                                        RemoteEvents.ToolDamageObject:InvokeServer(tree, tool, valueAxe, treePart.CFrame)
                                     end)
-                                    task.wait(0.05)
+                                    -- Beri jeda agar proses drop terjadi
+                                    task.wait(0.15)
                                 end
                             end
                         end
@@ -733,7 +750,7 @@ task.spawn(function()
     end
 end)
 
--- 5. TREE ESP REFRESH
+-- 5. TREE ESP REFRESH (FIXED)
 task.spawn(function()
     while ScriptRunning do
         if treeESPEnabled and TreesFolder then
@@ -748,7 +765,7 @@ task.spawn(function()
     end
 end)
 
--- 6. GODMODE LOOP (NEW)
+-- 6. GODMODE LOOP
 task.spawn(function()
     while ScriptRunning do
         if godmodeEnabled and godmodeRemote then
@@ -756,7 +773,7 @@ task.spawn(function()
                 godmodeRemote:FireServer(-math.huge)
             end)
         end
-        task.wait(0.5) -- kirim setiap 0.5 detik
+        task.wait(0.5)
     end
 end)
 
@@ -766,7 +783,7 @@ end)
 Window:Notify({ 
     Title = "W424 Hub", 
     Description = "Loaded", 
-    Content = "v5.23: KONTOL", 
+    Content = "v5.24: Fixed Tree Aura + Drop", 
     Color = Color3.fromRGB(10, 30, 60), 
     Delay = 5 
 })
