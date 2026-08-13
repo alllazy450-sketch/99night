@@ -1,787 +1,772 @@
--- ========== W424HUB v3.8 - FULL EDITION (Dengan Silent Hitbox & Reduce Map) ==========
-print("=== W424HUB LOADING ===")
+-- ==========================================
+-- W424 HUB | v5.23 
+-- ==========================================
 
--- Cek Kairo
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
-if not Kairo then
-    warn("❌ Kairo gagal di-load!")
-    return
-else
-    print("✅ Kairo loaded")
-end
 
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local camera = workspace.CurrentCamera
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local StarterGui = game:GetService("StarterGui")
-local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
-print("✅ Services loaded")
+local LocalPlayer = Players.LocalPlayer
+local ItemsFolder = Workspace:FindFirstChild("Items") or Workspace:WaitForChild("Items")
+local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage:WaitForChild("RemoteEvents")
+local RemoteConsume = ReplicatedStorage:FindFirstChild("RequestConsumeItem")
 
--- ========== JENDELA UTAMA ==========
-local success, Window = pcall(function()
-    return Kairo:CreateWindow({
-        Title = "W424HUB",
-        Theme = "Crimson",
-        Size = UDim2.fromOffset(300, 580),
-        Center = true,
-        Draggable = true,
-        Resize = false,
-        Badges = {"v3.8"},
-        MinimizeKey = Enum.KeyCode.RightShift,
-        MinimizeButton = true,
-        Config = { Enabled = true, Folder = "W424HUB_Config", AutoLoad = true }
-    })
+local ScriptRunning = true
+local CAMPFIRE_POS = Vector3.new(0, 19, 0)
+local MACHINE_POS = Vector3.new(21, 16, -5)
+
+local LostChildPath = nil
+pcall(function()
+    LostChildPath = workspace.Map.Landmarks["Jail Cellar1"].Dino
 end)
 
-if not success or not Window then
-    warn("❌ Gagal membuat Window! Error:", success and "Window nil" or Window)
-    return
-else
-    print("✅ Window created")
+-- ==========================================
+-- TREE AURA VARIABLES
+-- ==========================================
+local TreesFolder = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Foliage")
+local treeAuraEnabled = false
+local treeAuraRadius = 350
+local valueAxe = "1_" .. LocalPlayer.UserId
+
+-- Tree ESP
+local treeESPEnabled = false
+local treeESPList = {}
+local espFolder = Instance.new("Folder")
+espFolder.Name = "W424_TreeESP"
+espFolder.Parent = CoreGui
+
+-- ==========================================
+-- GODMODE VARIABLES
+-- ==========================================
+local godmodeEnabled = false
+local godmodeRemote = RemoteEvents:FindFirstChild("DamagePlayer")
+
+-- ==========================================
+-- CORE FUNCTIONS
+-- ==========================================
+local function getRootPart()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Notifikasi awal (test)
-pcall(function()
-    Window:Notify({
-        Title = "W424HUB v3.8",
-        Description = "Loaded successfully!",
-        Content = "Silent Hitbox & Reduce Map included",
-        Color = Color3.fromRGB(0, 200, 50),
-        Delay = 3
-    })
-end)
-
--- ========== BUAT TAB ==========
-local TabAim, TabVisual, TabPlayer, TabArsenal
-
-pcall(function()
-    TabAim = Window:CreateTab("Aim", "rbxassetid://16932740082")
-    print("✅ Tab Aim")
-end)
-pcall(function()
-    TabVisual = Window:CreateTab("Vis", "rbxassetid://16932740082")
-    print("✅ Tab Visual")
-end)
-pcall(function()
-    TabPlayer = Window:CreateTab("Player", "rbxassetid://16932740082")
-    print("✅ Tab Player")
-end)
-pcall(function()
-    TabArsenal = Window:CreateTab("Arsenal", "rbxassetid://16932740082")
-    print("✅ Tab Arsenal")
-end)
-
-if not TabAim or not TabVisual or not TabPlayer or not TabArsenal then
-    warn("❌ Gagal membuat salah satu tab!")
-    return
+local function findValidPart(obj)
+    if not obj then return nil end
+    if obj:IsA("BasePart") then return obj end
+    if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart end
+    for _, child in ipairs(obj:GetDescendants()) do
+        if child:IsA("BasePart") or child:IsA("MeshPart") then return child end
+    end
+    return nil
 end
 
--- =====================================================
--- TAB AIM - AIMBOT
--- =====================================================
-Window:AddParagraph(TabAim, "Aimbot", "Camera & Silent")
-
-local aimbotAktif = false
-local aimModeType = "Camera"
-local aimModeTrigger = "Saat Nembak"
-local isShooting = false
-local targetPartName = "Head"
-local headshotOnly = false
-local aimSmoothness = 1
-local useTeamCheck = true
-local fovRadius = 100
-local maxAimDistance = 300
-local usePrediction = false
-local predictionFactor = 0.2
-local useVisibilityCheck = true
-local target = nil
-
--- FOV CIRCLE
-if CoreGui:FindFirstChild("W424_FOV_GUI") then CoreGui.W424_FOV_GUI:Destroy() end
-local fovGui = Instance.new("ScreenGui")
-fovGui.Name = "W424_FOV_GUI"
-fovGui.Parent = CoreGui
-fovGui.ResetOnSpawn = false
-fovGui.IgnoreGuiInset = true
-
-local fovFrame = Instance.new("Frame")
-fovFrame.BackgroundTransparency = 1
-fovFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-fovFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
-fovFrame.Visible = false
-fovFrame.Parent = fovGui
-
-local fovStroke = Instance.new("UIStroke")
-fovStroke.Color = Color3.fromRGB(255, 255, 255)
-fovStroke.Thickness = 1.5
-fovStroke.Parent = fovFrame
-local fovCorner = Instance.new("UICorner")
-fovCorner.CornerRadius = UDim.new(1, 0)
-fovCorner.Parent = fovFrame
-
-local function updateFOVSize()
-    fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
-end
-
-Window:AddToggle(TabAim, "Aimbot", "Aktifkan", false, function(s) aimbotAktif = s end, "AimbotToggle")
-Window:AddDropdown(TabAim, "Mode", "Camera/Silent", {"Camera","Silent"}, false, "Camera", function(v) aimModeType = v end, "AimModeType")
-Window:AddDropdown(TabAim, "Trigger", "Kapan aktif", {"Saat Nembak","Selalu Nempel"}, false, "Saat Nembak", function(v) aimModeTrigger = v end, "AimModeDrop")
-Window:AddToggle(TabAim, "FOV Circle", "Tampilkan", false, function(s) fovFrame.Visible = s end, "FOVSidesToggle")
-Window:AddSlider(TabAim, "FOV Radius", "30-400", 30, 400, 100, function(v) fovRadius = v; updateFOVSize() end, "FOVRadius", true)
-Window:AddSlider(TabAim, "Jarak Maks", "50-500", 50, 500, 300, function(v) maxAimDistance = v end, "MaxDistance", true)
-Window:AddToggle(TabAim, "Anti Team", "Hindari teman", true, function(s) useTeamCheck = s end, "AimTeamCheck")
-Window:AddToggle(TabAim, "Vis Check", "Cek tembok", true, function(s) useVisibilityCheck = s end, "VisCheck")
-Window:AddToggle(TabAim, "Prediction", "Aim ke depan", false, function(s) usePrediction = s end, "PredictToggle")
-Window:AddSlider(TabAim, "Pred Factor", "0-100", 0, 100, 20, function(v) predictionFactor = v/100 end, "PredictFactor", true)
-Window:AddToggle(TabAim, "Headshot Only", "Paksa ke kepala", false, function(s) headshotOnly = s; if s then targetPartName = "Head" end end, "HeadshotToggle")
-Window:AddDropdown(TabAim, "Target Part", "Bagian tubuh", {"Head","HumanoidRootPart","Torso","UpperTorso"}, false, "Head", function(v) if not headshotOnly then targetPartName = v end end, "TargetPartDrop")
-Window:AddSlider(TabAim, "Smooth", "1-10", 1, 10, 10, function(v) aimSmoothness = v/10 end, "AimSmooth", true)
-
-UserInputService.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isShooting = true end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isShooting = false end
-end)
-
-local function isVisible(part)
-    if not useVisibilityCheck then return true end
-    local origin = camera.CFrame.Position
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {LocalPlayer.Character}
-    params.IgnoreWater = true
-    local direction = (part.Position - origin)
-    local result = workspace:Raycast(origin, direction, params)
-    if result then
-        local hitChar = result.Instance:FindFirstAncestorOfClass("Model")
-        if hitChar then
-            local player = Players:GetPlayerFromCharacter(hitChar)
-            return player ~= nil
-        end
-        return false
+local function getItemPosition(item)
+    if not item or not item:IsDescendantOf(workspace) then return nil end
+    if item:IsA("Model") then
+        return item:GetPivot().Position
+    elseif item:IsA("BasePart") or item:IsA("MeshPart") then
+        return item.Position
     else
-        return true
+        local part = findValidPart(item)
+        return part and part.Position or nil
     end
 end
 
-local function getBestTarget()
-    local center = camera.ViewportSize / 2
-    local best, bestDist = nil, math.huge
-    local myChar = LocalPlayer.Character
-    if not myChar then return nil end
-    local myPos = myChar:FindFirstChild("HumanoidRootPart")
-    if not myPos then return nil end
-    myPos = myPos.Position
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p == LocalPlayer then continue end
-        local c = p.Character
-        if not c then continue end
-        local hum = c:FindFirstChildOfClass("Humanoid")
-        if not hum or hum.Health <= 0 then continue end
-        if useTeamCheck and LocalPlayer.Team and p.Team and LocalPlayer.Team == p.Team then continue end
-
-        local part
-        if headshotOnly then part = c:FindFirstChild("Head")
-        else part = c:FindFirstChild(targetPartName) end
-        if not part then part = c:FindFirstChild("Head") or c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso") end
-        if not part then continue end
-
-        local targetPos = part.Position
-        if usePrediction then
-            local velocity = part.Velocity or Vector3.new(0,0,0)
-            targetPos = targetPos + (velocity * predictionFactor)
-        end
-        if headshotOnly then targetPos = targetPos + Vector3.new(0, 0.5, 0) end
-
-        local jarak = (targetPos - myPos).Magnitude
-        if jarak > maxAimDistance then continue end
-        if not isVisible(part) then continue end
-
-        local pos, on = camera:WorldToViewportPoint(targetPos)
-        if on then
-            local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-            if dist <= fovRadius and dist < bestDist then
-                bestDist = dist
-                best = { Part = part, Position = targetPos, Player = p }
-            end
-        end
-    end
-    return best
-end
-
-RunService.RenderStepped:Connect(function()
-    if not aimbotAktif or aimModeType ~= "Camera" then return end
-    local canAim = (aimModeTrigger == "Saat Nembak" and isShooting) or (aimModeTrigger == "Selalu Nempel")
-    if not canAim then return end
-    local best = getBestTarget()
-    if best then
-        target = best
-        local targetPos = best.Position
-        local targetCF = CFrame.new(camera.CFrame.Position, targetPos)
-        camera.CFrame = aimSmoothness >= 1 and targetCF or camera.CFrame:Lerp(targetCF, aimSmoothness)
-    else target = nil end
-end)
-
-pcall(function()
-    local gc = getgc()
-    for i, v in pairs(gc) do
-        if type(v) == "function" and islclosure(v) then
-            local constants = debug.getconstants(v)
-            local upvalues = debug.getupvalues(v)
-            local hasKeyword = false
-            for _, c in pairs(constants) do
-                if type(c) == "string" then
-                    local lower = c:lower()
-                    if lower:find("fire") or lower:find("shoot") or lower:find("ray") or lower:find("bullet") then hasKeyword = true; break end
+local function resetVelocity(item)
+    pcall(function()
+        if item:IsA("BasePart") or item:IsA("MeshPart") then
+            item.AssemblyLinearVelocity = Vector3.zero
+            item.AssemblyAngularVelocity = Vector3.zero
+        elseif item:IsA("Model") then
+            for _, part in ipairs(item:GetDescendants()) do
+                if part:IsA("BasePart") or part:IsA("MeshPart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
                 end
             end
-            local hasRaycastParams = false
-            for _, u in pairs(upvalues) do
-                if type(u) == "table" and pcall(function() return u:IsA("RaycastParams") end) then hasRaycastParams = true; break end
+        end
+    end)
+end
+
+local function setItemCFrame(item, pos)
+    pcall(function()
+        if item:IsA("BasePart") or item:IsA("MeshPart") then
+            item.CFrame = CFrame.new(pos)
+        elseif item:IsA("Model") then
+            item:PivotTo(CFrame.new(pos))
+        end
+    end)
+end
+
+local function reliableDragItemToPos(item, pos)
+    if not item or not item:IsDescendantOf(workspace) then return false end
+    local success = false
+    pcall(function()
+        local dragStart = RemoteEvents:FindFirstChild("RequestStartDraggingItem")
+        local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
+        
+        if dragStart then dragStart:FireServer(item) end
+        task.wait(0.1) 
+        
+        if not item:IsDescendantOf(workspace) then return end
+        resetVelocity(item)
+        setItemCFrame(item, pos)
+        
+        task.wait(0.1) 
+        
+        if not item:IsDescendantOf(workspace) then return end
+        resetVelocity(item)
+        if dragStop then dragStop:FireServer(item) end
+        
+        success = true
+    end)
+    return success
+end
+
+local function teleportPlayerTo(pos)
+    local hrp = getRootPart()
+    if hrp then
+        pcall(function()
+            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+        end)
+    end
+end
+
+-- ==========================================
+-- MOBILE UI SETUP
+-- ==========================================
+local cam = workspace.CurrentCamera
+local screenSize = cam and cam.ViewportSize or Vector2.new(530, 430)
+local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
+local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
+
+local Window = Kairo:CreateWindow({
+    Title = "W424 Hub",
+    Theme = "Midnight",
+    Size = UDim2.fromOffset(uiWidth, uiHeight),
+    Center = true,
+    Draggable = true,
+    Resize = false,
+    Badges = {"v5.23", "GODMODE"},
+    MinimizeKey = Enum.KeyCode.RightShift,
+    MinimizeButton = true,
+    MinimizeButton_Image = "rbxassetid://116850882259653",
+    Config = { Enabled = true, Folder = "W424_Config", AutoLoad = true }
+})
+
+local MainTab = Window:CreateTab("Main", "rbxassetid://16932740082")
+local CombatTab = Window:CreateTab("Combat", "rbxassetid://16932740082")
+local TreeTab = Window:CreateTab("Tree Aura", "rbxassetid://16932740082")
+local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
+local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
+local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
+local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
+local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
+
+-- ==========================================
+-- MAIN TAB
+-- ==========================================
+Window:AddParagraph(MainTab, "Auto Farm", "Otomatisasi Makanan & Grind")
+
+local autoEatEnabled = false
+local autoCookEnabled = false
+local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
+local rawFoodsToCook = {"Morsel", "Steak"}
+local maxGrindRadius = 1000 
+
+Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
+Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
+
+Window:AddDivider(MainTab, "Grind & Fuel")
+Window:AddInput(MainTab, "Max Grab Radius", "Batas jarak ambil item", "1000", function(value)
+    local num = tonumber(value)
+    if num then maxGrindRadius = num end
+end, "MaxGrabRadius")
+
+local autoGrindItems = {}
+Window:AddMultiDropdown(MainTab, "Auto Grind", "Pilih item untuk mesin",
+    {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Gem of the Forest Fragment", "Broken Microwave"},
+    {}, function(selected)
+        autoGrindItems = {}
+        for _, v in ipairs(selected) do autoGrindItems[v] = true end
+    end, "AutoGrind"
+)
+
+local autoFuelItems = {}
+Window:AddMultiDropdown(MainTab, "Auto Fuel", "Pilih bahan bakar Campfire",
+    {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"},
+    {}, function(selected)
+        autoFuelItems = {}
+        for _, v in ipairs(selected) do autoFuelItems[v] = true end
+    end, "AutoFuel"
+)
+
+-- ==========================================
+-- TELEPORTS TAB
+-- ==========================================
+Window:AddParagraph(TeleportsTab, "Locations", "Teleportasi Karakter")
+Window:AddButton(TeleportsTab, "TP to Campfire", "Kembali ke area perapian", "rbxassetid://16932740082", function() teleportPlayerTo(CAMPFIRE_POS) end)
+Window:AddButton(TeleportsTab, "TP to Lost Child", "Teleport ke Dino (Jail Cellar)", "rbxassetid://16932740082", function()
+    if LostChildPath then
+        local targetPart = findValidPart(LostChildPath)
+        if targetPart then teleportPlayerTo(targetPart.Position) end
+    end
+end)
+
+-- ==========================================
+-- COMBAT TAB (Kill Aura)
+-- ==========================================
+Window:AddParagraph(CombatTab, "Kill Aura", "Serang mobs di sekitar")
+local killAuraEnabled = false
+local auraRadius = 350 
+local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
+local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
+
+local function getBestSpoofTool()
+    local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
+    for _, toolName in ipairs(toolPriority) do
+        for _, loc in ipairs(locations) do
+            if loc then
+                local tool = loc:FindFirstChild(toolName)
+                if tool then return tool, toolIds[toolName] .. "_" .. tostring(LocalPlayer.UserId) end
             end
-            if hasKeyword or hasRaycastParams then
-                local old
-                old = hookfunction(v, function(p1, p2)
-                    if aimbotAktif and aimModeType == "Silent" then
-                        local canAim = (aimModeTrigger == "Saat Nembak" and isShooting) or (aimModeTrigger == "Selalu Nempel")
-                        if canAim then
-                            local best = getBestTarget()
-                            if best then
-                                local myChar = LocalPlayer.Character
-                                if myChar then
-                                    local startPart = myChar:FindFirstChild("Head") or myChar:FindFirstChild("HumanoidRootPart")
-                                    if startPart then
-                                        pcall(function()
-                                            if type(p1) == "userdata" and p1:IsA("Ray") then
-                                                local direction = (best.Position - startPart.Position)
-                                                p1 = Ray.new(startPart.Position, direction)
-                                            elseif type(p2) == "userdata" and p2:IsA("CFrame") then
-                                                local direction = (best.Position - startPart.Position)
-                                                p2 = CFrame.new(startPart.Position, startPart.Position + direction)
-                                            elseif type(p1) == "Vector3" and type(p2) == "Vector3" then
-                                                local direction = (best.Position - startPart.Position)
-                                                p1 = startPart.Position
-                                                p2 = direction
-                                            end
+        end
+    end
+    return nil, nil
+end
+
+Window:AddToggle(CombatTab, "Kill Aura", "Serang mobs di sekitar", false, function(state) killAuraEnabled = state end, "KillAura")
+Window:AddInput(CombatTab, "Radius", "Jangkauan serangan", "350", function(value)
+    local num = tonumber(value)
+    if num then auraRadius = num end
+end, "AuraRadius")
+
+-- ==========================================
+-- TREE AURA TAB
+-- ==========================================
+Window:AddParagraph(TreeTab, "Tree Aura", "Nebang pohon otomatis di sekitar")
+Window:AddToggle(TreeTab, "Tree Aura", "Tebang pohon di radius tertentu", false, function(state) 
+    treeAuraEnabled = state 
+end, "TreeAura")
+Window:AddInput(TreeTab, "Tree Radius", "Jarak tebang pohon", "350", function(value)
+    local num = tonumber(value)
+    if num then treeAuraRadius = num end
+end, "TreeRadius")
+Window:AddParagraph(TreeTab, "Info", "Pohon yang ditebang: Small Tree\nGunakan Old Axe di inventory")
+
+-- ==========================================
+-- ITEM TP TAB
+-- ==========================================
+Window:AddParagraph(ItemTPTab, "Item TP", "Tarik item ke karakter dengan stabil")
+
+local itemCategories = {
+    Food_Consumables = {"Berry", "Carrot", "Cake", "Apple", "Steak", "Morsel", "Cooked Steak", "Cooked Morsel", "Pumpkin", "Ribs"},
+    Equipment_Weapons = {"Pistol", "Revolver", "Rifle", "Chainsaw", "Old Flashlight", "Rifle Ammo", "Revolver Ammo", "Spear"},
+    Medic_Items = {"MedKit", "Bandage"},
+    Armor_Clothing = {"Iron Body", "Leather Body"},
+    Fuel_Items = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel", "Chair", "Metal Chair"},
+    Junk_Materials = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Sheet Metal", "Old Radio", "Tyre", "Washing Machine", "Broken Microwave", "Mossy Coin"}
+}
+
+local selectedItems = {}
+
+for catName, listItems in pairs(itemCategories) do
+    selectedItems[catName] = listItems[1]
+    Window:AddDropdown(ItemTPTab, catName:gsub("_", " "), "Pilih item", listItems, false, listItems[1], function(value) selectedItems[catName] = value end, "TP_" .. catName)
+    Window:AddButton(ItemTPTab, "Bring " .. catName:gsub("_", " "), "Tarik semua item", "rbxassetid://16932740082", function()
+        local hrp = getRootPart()
+        if not hrp then return end
+        local selected = selectedItems[catName]
+        local count = 0
+        local allItems = ItemsFolder:GetDescendants()
+        local toProcess = {}
+        for _, item in ipairs(allItems) do
+            if item.Name == selected and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+                table.insert(toProcess, item)
+            end
+        end
+        local basePos = hrp.Position + (hrp.CFrame.LookVector * 5)
+        for i, item in ipairs(toProcess) do
+            local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
+            task.spawn(function() reliableDragItemToPos(item, tpPos) end)
+            count = count + 1
+            if i % 2 == 0 then task.wait(0.15) end 
+        end
+        Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
+    end)
+    Window:AddDivider(ItemTPTab, "")
+end
+
+-- ==========================================
+-- VISUALS TAB
+-- ==========================================
+Window:AddParagraph(VisualsTab, "ESP", "Deteksi lokasi visual")
+
+-- ESP Mobs & Items
+local espMobsEnabled, espItemsEnabled = false, false
+local espFolderMobs = Instance.new("Folder")
+espFolderMobs.Name = "W424_ESP_MobsItems"
+espFolderMobs.Parent = CoreGui
+
+local function createESP(instance, name, color)
+    local part = findValidPart(instance)
+    if not part then return end
+    local hl = Instance.new("Highlight", espFolderMobs)
+    hl.Adornee, hl.FillColor, hl.OutlineColor = instance, color, Color3.new(1,1,1)
+    hl.FillTransparency, hl.OutlineTransparency = 0.6, 0
+    local bg = Instance.new("BillboardGui", espFolderMobs)
+    bg.Adornee, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = part, UDim2.new(0, 120, 0, 25), true, Vector3.new(0, 3, 0)
+    local txt = Instance.new("TextLabel", bg)
+    txt.Size, txt.BackgroundTransparency, txt.TextColor3, txt.TextStrokeTransparency, txt.Font, txt.TextScaled = UDim2.new(1,0,1,0), 1, color, 0.2, Enum.Font.GothamBold, true
+    task.spawn(function()
+        while bg.Parent and instance.Parent do
+            local hrp = getRootPart()
+            if hrp then txt.Text = string.format("%s [%dm]", name, math.floor((part.Position - hrp.Position).Magnitude)) end
+            task.wait(0.5)
+        end
+        hl:Destroy() bg:Destroy()
+    end)
+end
+
+local function refreshESP()
+    espFolderMobs:ClearAllChildren()
+    if espMobsEnabled then
+        local chars = Workspace:FindFirstChild("Characters")
+        if chars then for _, mob in ipairs(chars:GetChildren()) do createESP(mob, mob.Name, Color3.fromRGB(255,50,50)) end end
+    end
+    if espItemsEnabled then
+        for _, item in ipairs(ItemsFolder:GetChildren()) do createESP(item, item.Name, Color3.fromRGB(50,255,50)) end
+    end
+end
+
+Window:AddToggle(VisualsTab, "ESP Mobs", "Tampilkan lokasi mobs", false, function(state) espMobsEnabled = state; refreshESP() end, "ESPMobs")
+Window:AddToggle(VisualsTab, "ESP Items", "Tampilkan lokasi items", false, function(state) espItemsEnabled = state; refreshESP() end, "ESPItems")
+
+-- Tree ESP
+local treeESPEnabled = false
+local treeESPList = {}
+local espFolderTree = Instance.new("Folder")
+espFolderTree.Name = "W424_TreeESP"
+espFolderTree.Parent = CoreGui
+
+local function createTreeESP(tree)
+    if treeESPList[tree] then return end
+    local trunk = tree:FindFirstChild("Trunk") or tree.PrimaryPart
+    if not trunk then return end
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "TreeESP"
+    bb.Size = UDim2.fromScale(4, 1)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.Parent = espFolderTree
+    bb.Adornee = trunk
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.fromScale(1, 1)
+    text.BackgroundTransparency = 1
+    text.TextScaled = true
+    text.Font = Enum.Font.GothamBold
+    text.TextStrokeTransparency = 0
+    text.TextColor3 = Color3.fromRGB(0, 255, 0)
+    text.Parent = bb
+
+    treeESPList[tree] = {
+        gui = bb,
+        label = text,
+        trunk = trunk
+    }
+end
+
+local function updateTreeESP(tree)
+    local esp = treeESPList[tree]
+    if not esp then return end
+    local hp = tree:GetAttribute("Health")
+    if not hp then
+        esp.gui:Destroy()
+        treeESPList[tree] = nil
+        return
+    end
+    esp.label.Text = ("HP: %d"):format(hp)
+    if hp > 5 then
+        esp.label.TextColor3 = Color3.fromRGB(0, 255, 0)
+    elseif hp > 2 then
+        esp.label.TextColor3 = Color3.fromRGB(255, 170, 0)
+    else
+        esp.label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end
+
+local function refreshTreeESP()
+    for _, esp in pairs(treeESPList) do
+        pcall(function() esp.gui:Destroy() end)
+    end
+    treeESPList = {}
+    if treeESPEnabled and TreesFolder then
+        for _, tree in ipairs(TreesFolder:GetChildren()) do
+            if tree.Name == "Small Tree" then
+                createTreeESP(tree)
+                updateTreeESP(tree)
+            end
+        end
+    end
+end
+
+Window:AddToggle(VisualsTab, "ESP Trees", "Tampilkan HP pohon", false, function(state) 
+    treeESPEnabled = state
+    if state then
+        refreshTreeESP()
+    else
+        for _, esp in pairs(treeESPList) do
+            pcall(function() esp.gui:Destroy() end)
+        end
+        treeESPList = {}
+    end
+end, "ESPTrees")
+
+-- ==========================================
+-- PLAYER TAB (WalkSpeed, Infinite Jump, GODMODE)
+-- ==========================================
+Window:AddParagraph(PlayerTab, "Stats", "Modifikasi Karakter")
+Window:AddSlider(PlayerTab, "WalkSpeed", "Kecepatan berjalan", 0, 200, 16, function(value)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+    if hum then hum.WalkSpeed = value end
+end, "WalkSpeed", true)
+
+local infiniteJumpEnabled = false
+Window:AddToggle(PlayerTab, "Infinite Jump", "Lompat tanpa batas di udara", false, function(state) infiniteJumpEnabled = state end, "InfJump")
+UserInputService.JumpRequest:Connect(function()
+    if infiniteJumpEnabled then
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+        end
+    end
+end)
+
+-- ==========================================
+-- GODMODE TOGGLE (NEW)
+-- ==========================================
+Window:AddToggle(PlayerTab, "Godmode", "Mengirim damage negatif ke server (tidak mati)", false, function(state)
+    godmodeEnabled = state
+    if state and not godmodeRemote then
+        Window:Notify({
+            Title = "Error",
+            Description = "Remote DamagePlayer tidak ditemukan!",
+            Content = "Godmode mungkin tidak bekerja.",
+            Color = Color3.fromRGB(255, 0, 0),
+            Delay = 3
+        })
+    elseif state and godmodeRemote then
+        Window:Notify({
+            Title = "Godmode",
+            Description = "Godmode diaktifkan!",
+            Content = "Mengirim damage negatif setiap 0.5 detik.",
+            Color = Color3.fromRGB(0, 200, 255),
+            Delay = 3
+        })
+    end
+end, "Godmode")
+
+-- ==========================================
+-- MISC TAB
+-- ==========================================
+Window:AddParagraph(MiscTab, "Miscellaneous", "Fitur Tambahan & Optimasi")
+
+local fullbrightConn = nil
+Window:AddToggle(MiscTab, "Fullbright", "Membuat seluruh map menjadi terang benderang", false, function(state)
+    if state then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        fullbrightConn = RunService.RenderStepped:Connect(function()
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 14
+            Lighting.GlobalShadows = false
+        end)
+    else
+        if fullbrightConn then
+            fullbrightConn:Disconnect()
+            fullbrightConn = nil
+        end
+        Lighting.Brightness = 1
+        Lighting.ClockTime = 12
+        Lighting.GlobalShadows = true
+    end
+end, "FullbrightToggle")
+
+Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur, part kecil & efek berat untuk boost FPS", "rbxassetid://16932740082", function()
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
+                if obj.Size.Magnitude < 1.5 and not obj.Anchored and not obj:IsDescendantOf(LocalPlayer.Character) then
+                    obj:Destroy()
+                end
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                obj:Destroy()
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj:Destroy()
+            elseif obj:IsA("PostEffect") then
+                obj.Enabled = false
+            end
+        end
+        
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
+                effect:Destroy()
+            end
+        end
+        
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 999999
+        
+        Window:Notify({Title = "Success", Description = "Potato Mode", Content = "Map di-optimize! FPS meningkat drastis.", Color = Color3.fromRGB(0, 200, 0), Delay = 3})
+    end)
+end)
+
+-- FPS & Ping Counter
+local fpsPingGui = Instance.new("ScreenGui")
+fpsPingGui.Name = "W424_FPS_Ping"
+fpsPingGui.ResetOnSpawn = false
+fpsPingGui.Parent = CoreGui
+fpsPingGui.Enabled = false
+
+local fpsLabel = Instance.new("TextLabel")
+fpsLabel.Size = UDim2.new(0, 150, 0, 30)
+fpsLabel.Position = UDim2.new(0, 10, 0, 120)
+fpsLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+fpsLabel.BackgroundTransparency = 0.4
+fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+fpsLabel.TextSize = 14
+fpsLabel.Font = Enum.Font.GothamBold
+fpsLabel.Text = "FPS: 0 | Ping: 0ms"
+fpsLabel.Parent = fpsPingGui
+Instance.new("UICorner", fpsLabel).CornerRadius = UDim.new(0, 6)
+
+local lastTick = tick()
+local frameCount = 0
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    if tick() - lastTick >= 1 then
+        local fps = math.round(frameCount / (tick() - lastTick))
+        local ping = 0
+        pcall(function()
+            ping = math.round(LocalPlayer:GetNetworkPing() * 1000)
+        end)
+        fpsLabel.Text = string.format("FPS: %d | Ping: %dms", fps, ping)
+        frameCount = 0
+        lastTick = tick()
+    end
+end)
+
+Window:AddToggle(MiscTab, "FPS & Ping Counter", "Tampilkan indikator FPS & Ping di layar", false, function(state)
+    fpsPingGui.Enabled = state
+end, "FpsPingToggle")
+
+-- Auto Night/Day Notification
+local wasNight = nil
+local function checkTime()
+    local currentTime = Lighting.ClockTime
+    local isNight = (currentTime >= 18 or currentTime < 6)
+    if wasNight == nil then
+        wasNight = isNight
+        return
+    end
+    if isNight and not wasNight then
+        Window:Notify({
+            Title = "🌙 Night Time",
+            Description = "Hari telah berubah menjadi malam, hati hati dengan mob!",
+            Content = string.format("Jam: %.1f", currentTime),
+            Color = Color3.fromRGB(20, 20, 80),
+            Delay = 4
+        })
+    elseif not isNight and wasNight then
+        Window:Notify({
+            Title = "☀️ Day Time",
+            Description = "Hari telah berubah menjadi siang!",
+            Content = string.format("Jam: %.1f", currentTime),
+            Color = Color3.fromRGB(200, 180, 50),
+            Delay = 4
+        })
+    end
+    wasNight = isNight
+end
+checkTime()
+Lighting:GetPropertyChangedSignal("ClockTime"):Connect(checkTime)
+
+-- ==========================================
+-- BACKGROUND LOOPS
+-- ==========================================
+
+-- 1. KILL AURA (MOBS)
+task.spawn(function()
+    while ScriptRunning do
+        if killAuraEnabled then
+            local hrp = getRootPart()
+            local tool, damageID = getBestSpoofTool()
+            if hrp and tool and damageID then
+                pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
+                
+                local searchFolders = {Workspace:FindFirstChild("Characters"), Workspace}
+                for _, folder in ipairs(searchFolders) do
+                    if folder then
+                        for _, mob in ipairs(folder:GetChildren()) do
+                            local hum = mob:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 and mob ~= LocalPlayer.Character then
+                                local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
+                                if mobHrp then
+                                    if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
+                                        task.spawn(function() 
+                                            pcall(function() 
+                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) 
+                                            end) 
                                         end)
                                     end
                                 end
                             end
                         end
                     end
-                    return old(p1, p2)
-                end)
-                break
-            end
-        end
-    end
-end)
-
--- =====================================================
--- TAB VISUAL - ESP + OPTIMASI + REDUCE MAP
--- =====================================================
-Window:AddParagraph(TabVisual, "ESP Chams", "Warnai tubuh musuh")
-
-local espEnabled = false
-local espColor = Color3.fromRGB(255, 0, 0)
-local espTeam = true
-local fillTrans = 0.3
-local highlightObjects = {}
-
-local function clearESP()
-    for _, h in pairs(highlightObjects) do if h then h:Destroy() end end
-    highlightObjects = {}
-end
-
-Window:AddToggle(TabVisual, "Aktifkan ESP", "Warnai tubuh", false, function(s) espEnabled = s; if not s then clearESP() end end, "ESPChamsToggle")
-Window:AddColorPicker(TabVisual, "Warna ESP", "", Color3.fromRGB(255, 0, 0), function(c) espColor = c; for _, h in pairs(highlightObjects) do if h then h.FillColor = c end end end, "ESPColorPicker")
-Window:AddSlider(TabVisual, "Transparansi", "0-10", 0, 10, 3, function(v) fillTrans = v/10; for _, h in pairs(highlightObjects) do if h then h.FillTransparency = fillTrans end end end, "ESPTrans", true)
-Window:AddToggle(TabVisual, "Team Check", "Sembunyi teman", true, function(s) espTeam = s; if espEnabled then clearESP(); for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then local char = p.Character; if char then local h = Instance.new("Highlight"); h.Parent = char; h.FillColor = espColor; h.OutlineColor = espColor; h.FillTransparency = fillTrans; h.OutlineTransparency = 0.5; h.Enabled = true; highlightObjects[p] = h end end end end end, "ESPTeamCheck")
-
-local function updateESP()
-    if not espEnabled then clearESP(); return end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p == LocalPlayer then continue end
-        local char = p.Character
-        if not char then if highlightObjects[p] then highlightObjects[p]:Destroy(); highlightObjects[p] = nil end continue end
-        if espTeam and LocalPlayer.Team and p.Team and LocalPlayer.Team == p.Team then if highlightObjects[p] then highlightObjects[p].Enabled = false end continue end
-        if not highlightObjects[p] then
-            local h = Instance.new("Highlight"); h.Parent = char; h.FillColor = espColor; h.OutlineColor = espColor; h.FillTransparency = fillTrans; h.OutlineTransparency = 0.5; h.Enabled = true; highlightObjects[p] = h
-        else
-            highlightObjects[p].Parent = char; highlightObjects[p].Enabled = true
-        end
-    end
-    for p, h in pairs(highlightObjects) do if not p.Parent or not Players:FindFirstChild(p.Name) then h:Destroy(); highlightObjects[p] = nil end end
-end
-
-Players.PlayerAdded:Connect(updateESP)
-Players.PlayerRemoving:Connect(function(p) if highlightObjects[p] then highlightObjects[p]:Destroy(); highlightObjects[p] = nil end end)
-RunService.RenderStepped:Connect(updateESP)
-
--- ===== ULTRA LOW MODE & REDUCE MAP =====
-Window:AddDivider(TabVisual, "Optimasi")
-local ultraLow = false
-local function disableParticles(instance)
-    if not ultraLow then return end
-    for _, child in ipairs(instance:GetDescendants()) do
-        if child:IsA("ParticleEmitter") or child:IsA("Trail") or child:IsA("Smoke") or child:IsA("Fire") or child:IsA("Sparkles") then child.Enabled = false end
-        if child:IsA("Decal") then child.Transparency = 1 end
-        if child:IsA("Texture") then child.Transparency = 1 end
-    end
-end
-
-Window:AddToggle(TabVisual, "Mode Ultra Low", "Potato mode", false, function(s)
-    ultraLow = s
-    if s then
-        pcall(function() StarterGui:SetCore("MinimapEnabled", false) end)
-        for _, gui in ipairs(CoreGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end
-        for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do if gui.Name:lower():find("minimap") then gui.Enabled = false end end
-        pcall(function() Lighting.GlobalShadows = false; Lighting.Brightness = 0.5; Lighting.Ambient = Color3.new(0.5,0.5,0.5); Lighting.OutdoorAmbient = Color3.new(0.5,0.5,0.5); for _, child in ipairs(Lighting:GetChildren()) do if child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") or child:IsA("BlurEffect") or child:IsA("DepthOfFieldEffect") then child.Enabled = false end; if child:IsA("Atmosphere") then child.Enabled = false end end end)
-        pcall(function() local settings = UserSettings(); if settings and settings.GameSettings then settings.GameSettings.GraphicsQualityLevel = 1 end end)
-        pcall(function() disableParticles(Workspace) end)
-        pcall(function() if Workspace.Terrain then Workspace.Terrain.WaterWaveSize = 0; Workspace.Terrain.WaterWaveSpeed = 0; Workspace.Terrain.WaterReflectance = 0; Workspace.Terrain.WaterTransparency = 1 end end)
-    else
-        pcall(function() Lighting.GlobalShadows = true; Lighting.Brightness = 1; Lighting.Ambient = Color3.new(1,1,1); Lighting.OutdoorAmbient = Color3.new(1,1,1) end)
-        pcall(function() local settings = UserSettings(); if settings and settings.GameSettings then settings.GameSettings.GraphicsQualityLevel = 10 end end)
-    end
-end, "UltraLowToggle")
-
--- ========== REDUCE MAP ==========
-local reduceMap = false
-Window:AddToggle(TabVisual, "Reduce Map", "Matikan minimap", false, function(s)
-    reduceMap = s
-    if s then
-        pcall(function() StarterGui:SetCore("MinimapEnabled", false) end)
-        for _, gui in ipairs(CoreGui:GetChildren()) do
-            if gui.Name:lower():find("minimap") then gui.Enabled = false end
-        end
-        for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
-            if gui.Name:lower():find("minimap") then gui.Enabled = false end
-        end
-    else
-        pcall(function() StarterGui:SetCore("MinimapEnabled", true) end)
-        for _, gui in ipairs(CoreGui:GetChildren()) do
-            if gui.Name:lower():find("minimap") then gui.Enabled = true end
-        end
-        for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
-            if gui.Name:lower():find("minimap") then gui.Enabled = true end
-        end
-    end
-end, "ReduceMapToggle")
-
--- =====================================================
--- TAB PLAYER - NO RECOIL, NO SPREAD, ANTI RAGDOLL
--- =====================================================
-Window:AddParagraph(TabPlayer, "Player Mods", "Fitur karakter")
-local noRecoil = false; local noSpread = false; local antiRagdoll = false
-Window:AddToggle(TabPlayer, "No Recoil", "Hilangkan getaran", false, function(s) noRecoil = s end, "NoRecoilToggle")
-Window:AddToggle(TabPlayer, "No Spread", "Peluru lurus", false, function(s) noSpread = s end, "NoSpreadToggle")
-Window:AddToggle(TabPlayer, "Anti Ragdoll", "Cegah jatuh", false, function(s) antiRagdoll = s end, "AntiRagdollToggle")
-
-RunService.RenderStepped:Connect(function()
-    local char = LocalPlayer.Character; if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
-    if antiRagdoll then
-        if hum.PlatformStand or hum.Sit then hum.PlatformStand = false; hum.Sit = false; local hrp = char:FindFirstChild("HumanoidRootPart"); if hrp then hrp.Velocity = Vector3.new(0,0,0); hrp.RotVelocity = Vector3.new(0,0,0) end end
-        if hum.SeatPart then hum.Sit = false end
-    end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then
-        if noRecoil then
-            for _, prop in ipairs({"Recoil","recoil","Kickback","GunRecoil","Shake","CameraRecoil"}) do local success, val = pcall(function() return tool[prop] end); if success and val ~= nil and type(val) == "number" then tool[prop] = 0; break end end
-            if tool:FindFirstChild("Recoil") and tool.Recoil:IsA("NumberValue") then tool.Recoil.Value = 0 end
-        end
-        if noSpread then
-            for _, prop in ipairs({"Spread","spread","Accuracy","Inaccuracy","BulletSpread","Deviation"}) do local success, val = pcall(function() return tool[prop] end); if success and val ~= nil and type(val) == "number" then tool[prop] = 0; break end end
-            if tool:FindFirstChild("Spread") and tool.Spread:IsA("NumberValue") then tool.Spread.Value = 0 end
-            if tool:FindFirstChild("Inaccuracy") and tool.Inaccuracy:IsA("NumberValue") then tool.Inaccuracy.Value = 0 end
-        end
-        for _, child in ipairs(tool:GetDescendants()) do
-            if child:IsA("NumberValue") or child:IsA("IntValue") or child:IsA("FloatValue") then
-                local name = child.Name:lower()
-                if noRecoil and (name:find("recoil") or name:find("kick") or name:find("shake")) then child.Value = 0 end
-                if noSpread and (name:find("spread") or name:find("inaccuracy") or name:find("accuracy") or name:find("deviation")) then child.Value = 0 end
-            end
-        end
-    end
-end)
-
--- =====================================================
--- TAB ARSENAL - FITUR SPESIFIK ARSENAL + SILENT HITBOX
--- =====================================================
-Window:AddParagraph(TabArsenal, "Arsenal Mods", "Fast Fire, Fast Reload, Unlock, Skin Changer")
-
--- Variabel untuk fitur Arsenal
-local fastFire = false
-local fastReload = false
-local infiniteAmmo = false
-local arsenalNoRecoil = false
-local arsenalNoSpread = false
-
--- Referensi ke data Arsenal
-local Weapons = ReplicatedStorage:FindFirstChild("Weapons")
-local Items = ReplicatedStorage:FindFirstChild("ItemData") and ReplicatedStorage.ItemData:FindFirstChild("Images")
-local InventoryData = nil
-local LoadoutData = nil
-local EquippedSkin = ""
-local EquippedMelee = ""
-local EquippedGunSkin = ""
-local EquippedKillEffect = ""
-local EquippedAnnouncer = ""
-
--- Ambil InventoryData dan Loadout dari memori
-pcall(function()
-    for i,v in next, getgc(true) do
-        if typeof(v) == 'table' and rawget(v, 'Loadout') and typeof(v.Items) == 'table' then
-            InventoryData = v.Items
-            LoadoutData = v.Loadout
-        end
-    end
-end)
-
--- Fungsi Add Every Item (Unlock All)
-local function AddEveryItem()
-    if not InventoryData or not Items then return end
-    for _, v in ipairs(Items:GetChildren()) do
-        if InventoryData[v.Name] then
-            for _, f in ipairs(v:GetChildren()) do
-                if not InventoryData[v.Name][f.Name] then
-                    InventoryData[v.Name][f.Name] = 1
                 end
             end
         end
+        task.wait(0.02) 
     end
-    Window:Notify({Title="Unlock All Items", Description="Semua item berhasil dibuka!", Color=Color3.fromRGB(0,200,50), Delay=2})
-end
+end)
 
--- Fungsi Change Skin
-local function ChangeArsenalSkin(skinType, skinName)
-    if skinType == "Character" then
-        if LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Skin") then
-            LocalPlayer.Data.Skin.Value = skinName
-            EquippedSkin = skinName
-        end
-    elseif skinType == "Melee" then
-        if LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Melee") then
-            LocalPlayer.Data.Melee.Value = skinName
-            EquippedMelee = skinName
-        end
-    elseif skinType == "GunSkin" then
-        if LocalPlayer:FindFirstChild("Equipped") then
-            LocalPlayer.Equipped.Value = skinName
-            EquippedGunSkin = skinName
-        end
-    elseif skinType == "KillEffect" then
-        if LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("KillEffect") then
-            LocalPlayer.Data.KillEffect.Value = skinName
-            EquippedKillEffect = skinName
-        end
-    elseif skinType == "Announcer" then
-        if LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Announcer") then
-            LocalPlayer.Data.Announcer.Value = skinName
-            EquippedAnnouncer = skinName
-        end
-    end
-end
-
-local function GetSkinList(category)
-    local list = {"Default"}
-    if not Items then return list end
-    for _, v in ipairs(Items:GetChildren()) do
-        if v.Name == category then
-            for _, f in ipairs(v:GetChildren()) do
-                table.insert(list, f.Name)
-            end
-        end
-    end
-    return list
-end
-
--- UI Arsenal
-Window:AddToggle(TabArsenal, "Infinite Ammo", "Amunisi tidak pernah habis", false, function(s)
-    infiniteAmmo = s
-    if s then
-        pcall(function()
-            if ReplicatedStorage:FindFirstChild("wkspc") and ReplicatedStorage.wkspc:FindFirstChild("CurrentCurse") then
-                ReplicatedStorage.wkspc.CurrentCurse.Value = 'Infinite Ammo'
-            end
-        end)
-    end
-end, "InfiniteAmmoToggle")
-
-Window:AddToggle(TabArsenal, "Fast Fire Rate", "Kecepatan tembak super cepat", false, function(s)
-    fastFire = s
-    if Weapons then
-        for _, v in ipairs(Weapons:GetChildren()) do
-            if v:FindFirstChild("FireRate") then
-                v.FireRate.Value = s and 0.01 or 0.1
-            end
-            if v:FindFirstChild("BFireRate") then
-                v.BFireRate.Value = s and 0.01 or 0.1
-            end
-        end
-    end
-end, "FastFireToggle")
-
-Window:AddToggle(TabArsenal, "Fast Reload", "Reload hampir instan", false, function(s)
-    fastReload = s
-    if Weapons then
-        for _, v in ipairs(Weapons:GetChildren()) do
-            if v:FindFirstChild("ReloadTime") then
-                v.ReloadTime.Value = s and 0.01 or 1.5
-            end
-        end
-    end
-end, "FastReloadToggle")
-
-Window:AddToggle(TabArsenal, "No Recoil (Arsenal)", "Set RecoilControl ke 0", false, function(s)
-    arsenalNoRecoil = s
-    if Weapons then
-        for _, v in ipairs(Weapons:GetChildren()) do
-            if v:FindFirstChild("RecoilControl") then
-                v.RecoilControl.Value = s and 0 or 1
-            end
-        end
-    end
-end, "ArsenalNoRecoilToggle")
-
-Window:AddToggle(TabArsenal, "No Spread (Arsenal)", "Set MaxSpread & SpreadRecovery", false, function(s)
-    arsenalNoSpread = s
-    if Weapons then
-        for _, v in ipairs(Weapons:GetChildren()) do
-            if v:FindFirstChild("MaxSpread") then
-                v.MaxSpread.Value = s and 0.01 or 1
-            end
-            if v:FindFirstChild("SpreadRecovery") then
-                v.SpreadRecovery.Value = s and 0.01 or 0.5
-            end
-        end
-    end
-end, "ArsenalNoSpreadToggle")
-
-Window:AddDivider(TabArsenal, "Unlock & Skin Changer")
-Window:AddButton(TabArsenal, "Unlock All Items", "Buka semua skin & item", function() AddEveryItem() end, "UnlockButton")
-
-local charSkins = GetSkinList("Character")
-Window:AddDropdown(TabArsenal, "Character Skin", "Pilih skin karakter", charSkins, false, charSkins[1] or "Default", function(v) ChangeArsenalSkin("Character", v) end, "CharSkinDrop")
-local meleeSkins = GetSkinList("Melee")
-Window:AddDropdown(TabArsenal, "Melee Skin", "Pilih skin melee", meleeSkins, false, meleeSkins[1] or "Default", function(v) ChangeArsenalSkin("Melee", v) end, "MeleeSkinDrop")
-local gunSkins = GetSkinList("Gun")
-Window:AddDropdown(TabArsenal, "Gun Skin", "Pilih skin senjata", gunSkins, false, gunSkins[1] or "Default", function(v) ChangeArsenalSkin("GunSkin", v) end, "GunSkinDrop")
-local killSkins = GetSkinList("KillEffect")
-Window:AddDropdown(TabArsenal, "Kill Effect", "Pilih efek kematian", killSkins, false, killSkins[1] or "Default", function(v) ChangeArsenalSkin("KillEffect", v) end, "KillEffectDrop")
-local announcerSkins = GetSkinList("Announcer")
-Window:AddDropdown(TabArsenal, "Announcer", "Pilih suara announcer", announcerSkins, false, announcerSkins[1] or "Default", function(v) ChangeArsenalSkin("Announcer", v) end, "AnnouncerDrop")
-
--- ========== SILENT HITBOX ==========
-Window:AddDivider(TabArsenal, "Silent Hitbox")
-
-local silentHitbox = false
-local hitboxExpansion = 13
-local hitboxAlpha = 0.3
-local targetPartsChoice = "All"
-local silentLoopRunning = false
-local silentLoopStop = false
-
-local function getTargetParts(char)
-    local parts = {}
-    if not char then return parts end
-
-    if targetPartsChoice == "All" or targetPartsChoice == "Head" then
-        local head = char:FindFirstChild("Head")
-        if head then table.insert(parts, head) end
-        local headHB = char:FindFirstChild("HeadHB")
-        if headHB then table.insert(parts, headHB) end
-    end
-    if targetPartsChoice == "All" or targetPartsChoice == "Torso" then
-        local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-        if torso then table.insert(parts, torso) end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then table.insert(parts, hrp) end
-    end
-    if targetPartsChoice == "All" or targetPartsChoice == "Legs" then
-        for _, name in pairs({"RightUpperLeg","LeftUpperLeg","RightLowerLeg","LeftLowerLeg"}) do
-            local leg = char:FindFirstChild(name)
-            if leg then table.insert(parts, leg) end
-        end
-    end
-    return parts
-end
-
-local function silentHitboxLoop()
-    while silentLoopRunning and not silentLoopStop do
-        if silentHitbox then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    local parts = getTargetParts(player.Character)
-                    for _, part in ipairs(parts) do
-                        pcall(function()
-                            part.Transparency = hitboxAlpha
-                            part.CanCollide = false
-                            part.Size = Vector3.new(hitboxExpansion, hitboxExpansion, hitboxExpansion)
-                        end)
+-- 2. TREE AURA
+task.spawn(function()
+    while ScriptRunning do
+        if treeAuraEnabled and TreesFolder then
+            local hrp = getRootPart()
+            if hrp then
+                local tool = nil
+                local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
+                for _, loc in ipairs(locations) do
+                    if loc then
+                        local axe = loc:FindFirstChild("Old Axe")
+                        if axe then tool = axe; break end
                     end
                 end
-            end
-        else
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    local parts = getTargetParts(player.Character)
-                    for _, part in ipairs(parts) do
-                        pcall(function()
-                            part.Transparency = 0
-                            part.CanCollide = true
-                            local name = part.Name
-                            if name == "HumanoidRootPart" then part.Size = Vector3.new(2,2,1)
-                            elseif name:find("Leg") then part.Size = Vector3.new(1,2,1)
-                            elseif name == "Head" or name == "HeadHB" then part.Size = Vector3.new(2,1,1)
-                            elseif name == "Torso" or name == "UpperTorso" then part.Size = Vector3.new(2,1.5,1)
-                            else part.Size = Vector3.new(1,1,1) end
-                        end)
+                if not tool then
+                    task.wait(1)
+                else
+                    for _, tree in ipairs(TreesFolder:GetChildren()) do
+                        if tree.Name == "Small Tree" and tree:FindFirstChild("Trunk") then
+                            local trunk = tree.Trunk
+                            local dist = (trunk.Position - hrp.Position).Magnitude
+                            if dist <= treeAuraRadius then
+                                local hp = tree:GetAttribute("Health") or 10
+                                if hp > 0 then
+                                    pcall(function()
+                                        RemoteEvents.ToolDamageObject:InvokeServer(tree, tool, valueAxe, trunk.CFrame)
+                                    end)
+                                    task.wait(0.05)
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
-        task.wait(0.3)
+        task.wait(0.2)
     end
-end
+end)
 
-local function startSilentHitbox()
-    if silentLoopRunning then return end
-    silentLoopRunning = true
-    silentLoopStop = false
-    task.spawn(silentHitboxLoop)
-end
-
-local function stopSilentHitbox()
-    silentLoopStop = true
-    task.wait(0.4)
-    silentLoopRunning = false
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local parts = getTargetParts(player.Character)
-            for _, part in ipairs(parts) do
-                pcall(function()
-                    part.Transparency = 0
-                    part.CanCollide = true
-                    local name = part.Name
-                    if name == "HumanoidRootPart" then part.Size = Vector3.new(2,2,1)
-                    elseif name:find("Leg") then part.Size = Vector3.new(1,2,1)
-                    elseif name == "Head" or name == "HeadHB" then part.Size = Vector3.new(2,1,1)
-                    elseif name == "Torso" or name == "UpperTorso" then part.Size = Vector3.new(2,1.5,1)
-                    else part.Size = Vector3.new(1,1,1) end
-                end)
+-- 3. AUTO GRIND / COOK / FUEL
+local processingItems = {}
+task.spawn(function()
+    while ScriptRunning do
+        local hrp = getRootPart()
+        if hrp then
+            for _, item in ipairs(ItemsFolder:GetDescendants()) do
+                if not item or not item:IsDescendantOf(workspace) then continue end
+                if not (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then continue end
+                local itemId = tostring(item)
+                if processingItems[itemId] then continue end
+                local shouldGrind = autoGrindItems[item.Name] == true
+                local shouldFuel = autoFuelItems[item.Name] == true
+                local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
+                
+                if shouldGrind or shouldFuel or shouldCook then
+                    local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
+                    local itemPos = getItemPosition(item)
+                    if itemPos then
+                        if (itemPos - hrp.Position).Magnitude > maxGrindRadius then continue end
+                        if (itemPos - targetPos).Magnitude < 12 then continue end
+                        processingItems[itemId] = true
+                        task.spawn(function()
+                            reliableDragItemToPos(item, targetPos)
+                            task.wait(1) 
+                            processingItems[itemId] = nil
+                        end)
+                        task.wait(0.1) 
+                    end
+                end
             end
         end
+        task.wait(0.5) 
     end
-end
+end)
 
-Window:AddToggle(TabArsenal, "Silent Hitbox", "Perbesar hitbox musuh", false, function(v)
-    silentHitbox = v
-    if v then startSilentHitbox() else stopSilentHitbox() end
-end, "SilentHitboxToggle")
-
-Window:AddDropdown(TabArsenal, "Target Parts", "Pilih bagian tubuh", {"All","Head","Torso","Legs"}, false, "All", function(v)
-    targetPartsChoice = v
-    if silentHitbox then stopSilentHitbox(); startSilentHitbox() end
-end, "HitboxTargetDrop")
-
-Window:AddSlider(TabArsenal, "Hitbox Expansion", "Ukuran (1-30)", 1, 30, 13, function(v) hitboxExpansion = v end, "HitboxExpand", true)
-Window:AddSlider(TabArsenal, "Hitbox Alpha", "Transparansi (0-10)", 0, 10, 3, function(v) hitboxAlpha = v / 10 end, "HitboxAlpha", true)
-
-Window:AddButton(TabArsenal, "Reset Hitbox", "Kembalikan ukuran asli", function()
-    stopSilentHitbox()
-    if silentHitbox then startSilentHitbox() end
-    Window:Notify({Title="Reset Hitbox", Description="Hitbox dikembalikan ke default", Color=Color3.fromRGB(255,255,0), Delay=2})
-end, "ResetHitboxBtn")
-
--- =====================================================
--- FPS & PING DRAGGABLE
--- =====================================================
-if CoreGui:FindFirstChild("W424_STATS_GUI") then CoreGui.W424_STATS_GUI:Destroy() end
-local statsGui = Instance.new("ScreenGui")
-statsGui.Name = "W424_STATS_GUI"
-statsGui.Parent = CoreGui
-statsGui.ResetOnSpawn = false
-statsGui.IgnoreGuiInset = true
-
-local statsFrame = Instance.new("Frame")
-statsFrame.Size = UDim2.new(0, 140, 0, 28)
-statsFrame.Position = UDim2.new(0, 10, 0, 10)
-statsFrame.BackgroundTransparency = 0.5
-statsFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-statsFrame.Visible = false
-statsFrame.Parent = statsGui
-Instance.new("UICorner", statsFrame).CornerRadius = UDim.new(0, 4)
-
-local statsText = Instance.new("TextLabel")
-statsText.Size = UDim2.new(1, 0, 1, 0)
-statsText.BackgroundTransparency = 1
-statsText.TextColor3 = Color3.fromRGB(0, 255, 100)
-statsText.Font = Enum.Font.GothamBold
-statsText.TextSize = 12
-statsText.Text = " FPS:0  Ping:0ms"
-statsText.Parent = statsFrame
-
-local dragging = false
-local dragStart, startPos
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        local mousePos = input.Position
-        local framePos = statsFrame.AbsolutePosition
-        local frameSize = statsFrame.AbsoluteSize
-        if mousePos.X >= framePos.X and mousePos.X <= framePos.X + frameSize.X and
-           mousePos.Y >= framePos.Y and mousePos.Y <= framePos.Y + frameSize.Y then
-            dragging = true
-            dragStart = input.Position
-            startPos = statsFrame.Position
+-- 4. AUTO EAT
+task.spawn(function()
+    while ScriptRunning do
+        if autoEatEnabled then
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health < (hum.MaxHealth * 0.7) then
+                local available = {}
+                for _, item in ipairs(ItemsFolder:GetChildren()) do
+                    if table.find(autoEatFoods, item.Name) and item:IsDescendantOf(workspace) then table.insert(available, item) end
+                end
+                if #available > 0 then pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end) end
+            end
         end
+        task.wait(2)
     end
 end)
-UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        if dragging then
-            local delta = input.Position - dragStart
-            statsFrame.Position = UDim2.new(0, startPos.X.Offset + delta.X, 0, startPos.Y.Offset + delta.Y)
+
+-- 5. TREE ESP REFRESH
+task.spawn(function()
+    while ScriptRunning do
+        if treeESPEnabled and TreesFolder then
+            for _, tree in ipairs(TreesFolder:GetChildren()) do
+                if tree.Name == "Small Tree" then
+                    createTreeESP(tree)
+                    updateTreeESP(tree)
+                end
+            end
         end
-    end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
+        task.wait(0.5)
     end
 end)
 
-local statsOn = false
-Window:AddToggle(TabVisual, "FPS & Ping", "Tampilkan", false, function(s)
-    statsOn = s
-    statsFrame.Visible = s
-end, "StatsToggle")
-
-local frameCount = 0
-local timeAcc = 0
-RunService.RenderStepped:Connect(function(dt)
-    if statsOn then
-        frameCount = frameCount + 1
-        timeAcc = timeAcc + dt
-        if timeAcc >= 1 then
-            local ping = 0
-            pcall(function() ping = LocalPlayer:GetNetworkPing() * 1000 end)
-            statsText.Text = string.format(" FPS:%d  Ping:%.0fms", frameCount, ping)
-            frameCount = 0
-            timeAcc = 0
+-- 6. GODMODE LOOP (NEW)
+task.spawn(function()
+    while ScriptRunning do
+        if godmodeEnabled and godmodeRemote then
+            pcall(function()
+                godmodeRemote:FireServer(-math.huge)
+            end)
         end
+        task.wait(0.5) -- kirim setiap 0.5 detik
     end
 end)
 
-print("✅ W424HUB v3.8 FULL EDITION loaded - Silent Hitbox & Reduce Map aktif!")
+-- ==========================================
+-- INITIAL NOTIFICATION
+-- ==========================================
+Window:Notify({ 
+    Title = "W424 Hub", 
+    Description = "Loaded", 
+    Content = "v5.23: KONTOL", 
+    Color = Color3.fromRGB(10, 30, 60), 
+    Delay = 5 
+})
