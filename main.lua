@@ -1,9 +1,12 @@
 -- ==========================================
--- W424 HUB | v5.24 (Fixed Tree Aura + Drop)
+-- W424 HUB | v5.25 FINAL
+-- ALL FEATURES + FIXED TREE AURA
 -- ==========================================
 
+-- Load UI Library
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
 
+-- Services
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,15 +37,8 @@ local treeAuraEnabled = false
 local treeAuraRadius = 350
 local valueAxe = "1_" .. LocalPlayer.UserId
 
--- Tree ESP
-local treeESPEnabled = false
-local treeESPList = {}
-local espFolder = Instance.new("Folder")
-espFolder.Name = "W424_TreeESP"
-espFolder.Parent = CoreGui
-
 -- ==========================================
--- GODMODE VARIABLES
+-- GODMODE
 -- ==========================================
 local godmodeEnabled = false
 local godmodeRemote = RemoteEvents:FindFirstChild("DamagePlayer")
@@ -111,13 +107,13 @@ local function reliableDragItemToPos(item, pos)
         local dragStop = RemoteEvents:FindFirstChild("StopDraggingItem")
         
         if dragStart then dragStart:FireServer(item) end
-        task.wait(0.1) 
+        task.wait(0.1)
         
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
         setItemCFrame(item, pos)
         
-        task.wait(0.1) 
+        task.wait(0.1)
         
         if not item:IsDescendantOf(workspace) then return end
         resetVelocity(item)
@@ -138,10 +134,25 @@ local function teleportPlayerTo(pos)
 end
 
 -- ==========================================
--- MOBILE UI SETUP
+-- GET TREE PART (FIXED)
+-- ==========================================
+local function getTreePart(tree)
+    local trunk = tree:FindFirstChild("Trunk")
+    if trunk and trunk:IsA("BasePart") then return trunk end
+    if tree.PrimaryPart then return tree.PrimaryPart end
+    for _, child in ipairs(tree:GetDescendants()) do
+        if child:IsA("BasePart") or child:IsA("MeshPart") then
+            return child
+        end
+    end
+    return nil
+end
+
+-- ==========================================
+-- UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
-local screenSize = cam and cam.ViewportSize or Vector2.new(500, 420)
+local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
 local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
 local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
 
@@ -152,7 +163,7 @@ local Window = Kairo:CreateWindow({
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"v5.24", "FIXED"},
+    Badges = {"v5.25", "FINAL"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -163,7 +174,7 @@ local MainTab = Window:CreateTab("Main", "rbxassetid://16932740082")
 local CombatTab = Window:CreateTab("Combat", "rbxassetid://16932740082")
 local TreeTab = Window:CreateTab("Tree Aura", "rbxassetid://16932740082")
 local ItemTPTab = Window:CreateTab("Item TP", "rbxassetid://16932740082")
-local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082") 
+local TeleportsTab = Window:CreateTab("Teleports", "rbxassetid://16932740082")
 local VisualsTab = Window:CreateTab("Visuals", "rbxassetid://16932740082")
 local PlayerTab = Window:CreateTab("Player", "rbxassetid://16932740082")
 local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
@@ -177,7 +188,7 @@ local autoEatEnabled = false
 local autoCookEnabled = false
 local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
 local rawFoodsToCook = {"Morsel", "Steak"}
-local maxGrindRadius = 1000 
+local maxGrindRadius = 1000
 
 Window:AddToggle(MainTab, "Auto Eat", "Makan otomatis saat HP < 70%", false, function(state) autoEatEnabled = state end, "AutoEat")
 Window:AddToggle(MainTab, "Auto Cook", "Masak makanan mentah di Campfire", false, function(state) autoCookEnabled = state end, "AutoCook")
@@ -223,7 +234,7 @@ end)
 -- ==========================================
 Window:AddParagraph(CombatTab, "Kill Aura", "Serang mobs di sekitar")
 local killAuraEnabled = false
-local auraRadius = 350 
+local auraRadius = 350
 local toolPriority = {"Chainsaw", "Strong Axe", "Good Axe", "Spear", "Old Axe"}
 local toolIds = { ["Chainsaw"]="647", ["Strong Axe"]="116", ["Good Axe"]="112", ["Spear"]="196", ["Old Axe"]="1" }
 
@@ -250,14 +261,14 @@ end, "AuraRadius")
 -- TREE AURA TAB (FIXED)
 -- ==========================================
 Window:AddParagraph(TreeTab, "Tree Aura", "Nebang pohon otomatis di sekitar")
-Window:AddToggle(TreeTab, "Tree Aura", "Tebang pohon di radius tertentu", false, function(state) 
-    treeAuraEnabled = state 
+Window:AddToggle(TreeTab, "Tree Aura", "Tebang pohon di radius tertentu", false, function(state)
+    treeAuraEnabled = state
 end, "TreeAura")
 Window:AddInput(TreeTab, "Tree Radius", "Jarak tebang pohon", "350", function(value)
     local num = tonumber(value)
     if num then treeAuraRadius = num end
 end, "TreeRadius")
-Window:AddParagraph(TreeTab, "Info", "Pohon yang ditebang: Small Tree\nGunakan Old Axe di inventory")
+Window:AddParagraph(TreeTab, "Info", "Pohon yang ditebang: Small Tree\nGunakan Old Axe di inventory\nCFrame dinamis (sesuai posisi pohon)")
 
 -- ==========================================
 -- ITEM TP TAB
@@ -295,7 +306,7 @@ for catName, listItems in pairs(itemCategories) do
             local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
             task.spawn(function() reliableDragItemToPos(item, tpPos) end)
             count = count + 1
-            if i % 2 == 0 then task.wait(0.15) end 
+            if i % 2 == 0 then task.wait(0.15) end
         end
         Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
     end)
@@ -303,7 +314,7 @@ for catName, listItems in pairs(itemCategories) do
 end
 
 -- ==========================================
--- VISUALS TAB (FIXED TREE ESP)
+-- VISUALS TAB
 -- ==========================================
 Window:AddParagraph(VisualsTab, "ESP", "Deteksi lokasi visual")
 
@@ -353,20 +364,6 @@ local treeESPList = {}
 local espFolderTree = Instance.new("Folder")
 espFolderTree.Name = "W424_TreeESP"
 espFolderTree.Parent = CoreGui
-
-local function getTreePart(tree)
-    -- Cari bagian pohon yang valid (Trunk atau PrimaryPart)
-    local trunk = tree:FindFirstChild("Trunk")
-    if trunk and trunk:IsA("BasePart") then return trunk end
-    if tree.PrimaryPart then return tree.PrimaryPart end
-    -- Cari part pertama yang bukan anak dari model lain
-    for _, child in ipairs(tree:GetDescendants()) do
-        if child:IsA("BasePart") or child:IsA("MeshPart") then
-            return child
-        end
-    end
-    return nil
-end
 
 local function createTreeESP(tree)
     if treeESPList[tree] then return end
@@ -430,7 +427,7 @@ local function refreshTreeESP()
     end
 end
 
-Window:AddToggle(VisualsTab, "ESP Trees", "Tampilkan HP pohon", false, function(state) 
+Window:AddToggle(VisualsTab, "ESP Trees", "Tampilkan HP pohon", false, function(state)
     treeESPEnabled = state
     if state then
         refreshTreeESP()
@@ -530,16 +527,16 @@ Window:AddButton(MiscTab, "Reduce Map (Potato Mode)", "Hapus tekstur, part kecil
                 obj.Enabled = false
             end
         end
-        
+
         for _, effect in ipairs(Lighting:GetChildren()) do
             if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
                 effect:Destroy()
             end
         end
-        
+
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 999999
-        
+
         Window:Notify({Title = "Success", Description = "Potato Mode", Content = "Map di-optimize! FPS meningkat drastis.", Color = Color3.fromRGB(0, 200, 0), Delay = 3})
     end)
 end)
@@ -626,7 +623,7 @@ task.spawn(function()
             local tool, damageID = getBestSpoofTool()
             if hrp and tool and damageID then
                 pcall(function() RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool) end)
-                
+
                 local searchFolders = {Workspace:FindFirstChild("Characters"), Workspace}
                 for _, folder in ipairs(searchFolders) do
                     if folder then
@@ -636,10 +633,10 @@ task.spawn(function()
                                 local mobHrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart or findValidPart(mob)
                                 if mobHrp then
                                     if (mobHrp.Position - hrp.Position).Magnitude <= auraRadius then
-                                        task.spawn(function() 
-                                            pcall(function() 
-                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame) 
-                                            end) 
+                                        task.spawn(function()
+                                            pcall(function()
+                                                RemoteEvents.ToolDamageObject:InvokeServer(mob, tool, damageID, mobHrp.CFrame)
+                                            end)
                                         end)
                                     end
                                 end
@@ -649,17 +646,17 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.02) 
+        task.wait(0.02)
     end
 end)
 
--- 2. TREE AURA (FIXED)
+-- 2. TREE AURA (FIXED - Dynamic CFrame)
 task.spawn(function()
     while ScriptRunning do
         if treeAuraEnabled and TreesFolder then
             local hrp = getRootPart()
             if hrp then
-                -- Cari Old Axe
+                -- Cari Old Axe di Inventory/Backpack/Character
                 local tool = nil
                 local locations = {LocalPlayer.Inventory, LocalPlayer.Backpack, LocalPlayer.Character}
                 for _, loc in ipairs(locations) do
@@ -673,19 +670,23 @@ task.spawn(function()
                 else
                     for _, tree in ipairs(TreesFolder:GetChildren()) do
                         if tree.Name == "Small Tree" and tree:IsDescendantOf(workspace) then
-                            -- Cari bagian pohon yang valid
                             local treePart = getTreePart(tree)
                             if not treePart then continue end
                             local dist = (treePart.Position - hrp.Position).Magnitude
                             if dist <= treeAuraRadius then
                                 local hp = tree:GetAttribute("Health")
-                                if hp == nil then hp = 10 end -- default jika tidak ada atribut
+                                if hp == nil then hp = 10 end
                                 if hp > 0 then
                                     pcall(function()
-                                        RemoteEvents.ToolDamageObject:InvokeServer(tree, tool, valueAxe, treePart.CFrame)
+                                        -- KIRIM CFrame DINAMIS (posisi pohon sebenarnya)
+                                        RemoteEvents.ToolDamageObject:InvokeServer(
+                                            tree,
+                                            tool,
+                                            valueAxe,
+                                            treePart.CFrame
+                                        )
                                     end)
-                                    -- Beri jeda agar proses drop terjadi
-                                    task.wait(0.15)
+                                    task.wait(0.15) -- jeda agar drop terjadi
                                 end
                             end
                         end
@@ -711,7 +712,7 @@ task.spawn(function()
                 local shouldGrind = autoGrindItems[item.Name] == true
                 local shouldFuel = autoFuelItems[item.Name] == true
                 local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
-                
+
                 if shouldGrind or shouldFuel or shouldCook then
                     local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
                     local itemPos = getItemPosition(item)
@@ -721,15 +722,15 @@ task.spawn(function()
                         processingItems[itemId] = true
                         task.spawn(function()
                             reliableDragItemToPos(item, targetPos)
-                            task.wait(1) 
+                            task.wait(1)
                             processingItems[itemId] = nil
                         end)
-                        task.wait(0.1) 
+                        task.wait(0.1)
                     end
                 end
             end
         end
-        task.wait(0.5) 
+        task.wait(0.5)
     end
 end)
 
@@ -750,7 +751,7 @@ task.spawn(function()
     end
 end)
 
--- 5. TREE ESP REFRESH (FIXED)
+-- 5. TREE ESP REFRESH
 task.spawn(function()
     while ScriptRunning do
         if treeESPEnabled and TreesFolder then
@@ -780,10 +781,12 @@ end)
 -- ==========================================
 -- INITIAL NOTIFICATION
 -- ==========================================
-Window:Notify({ 
-    Title = "W424 Hub", 
-    Description = "Loaded", 
-    Content = "v5.24: Fixed Tree Aura + Drop", 
-    Color = Color3.fromRGB(10, 30, 60), 
-    Delay = 5 
+Window:Notify({
+    Title = "W424 Hub",
+    Description = "Loaded",
+    Content = "v5.25 FINAL: Fixed Tree Aura (Dynamic CFrame)",
+    Color = Color3.fromRGB(10, 30, 60),
+    Delay = 5
 })
+
+print("W424 Hub v5.25 FINAL loaded successfully!")
