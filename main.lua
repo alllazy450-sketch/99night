@@ -141,7 +141,7 @@ end
 -- MOBILE UI SETUP
 -- ==========================================
 local cam = workspace.CurrentCamera
-local screenSize = cam and cam.ViewportSize or Vector2.new(800, 600)
+local screenSize = cam and cam.ViewportSize or Vector2.new(500, 420)
 local uiWidth = math.min(340, math.max(300, screenSize.X * 0.9))
 local uiHeight = math.min(420, math.max(320, screenSize.Y * 0.78))
 
