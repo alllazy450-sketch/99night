@@ -166,34 +166,29 @@ end
 TreeUtility.GetTreesInRadius = function(self, radius)
     local success, result = pcall(function()
         local treesInRadius = {}
-        local Trees = workspace:QueryDescendants('[$Resource]')
+        local hrp = getRootPart()
+        if not hrp then return treesInRadius end
 
-        if Trees and typeof(Trees) == "table" and #Trees ~= 0 then
-            for _, tree in pairs(Trees) do
-                if tree:FindFirstChild("Trunk") and self:CanChop(tree) then
-                    local Trunk = tree:FindFirstChild("Trunk")
-                    local distance = game.Players.LocalPlayer:DistanceFromCharacter(Trunk.Position)
+        -- hanya scan TreesFolder, bukan seluruh Workspace
+        local folder = TreesFolder or Workspace:FindFirstChild("Foliage") or Workspace:FindFirstChild("Trees")
+        if not folder then return treesInRadius end
 
-                    local health = tree:GetAttribute("Health")
-                    if health == nil then health = 10 end
-
-                    if distance < radius and health > 0 then
-                        table.insert(treesInRadius, {
-                            Tree = tree,
-                            Trunk = Trunk,
-                            Distance = distance
-                        })
-                    end
+        for _, tree in ipairs(folder:GetChildren()) do
+            if tree:IsA("Model") and tree:FindFirstChild("Trunk") and self:CanChop(tree) then
+                local Trunk = tree:FindFirstChild("Trunk")
+                local distance = (Trunk.Position - hrp.Position).Magnitude
+                local health = tree:GetAttribute("Health") or 10
+                if distance < radius and health > 0 then
+                    table.insert(treesInRadius, {Tree=tree, Trunk=Trunk, Distance=distance})
                 end
             end
         end
 
+        table.sort(treesInRadius, function(a, b) return a.Distance < b.Distance end)
         return treesInRadius
     end)
 
-    if success then
-        return result
-    end
+    if success then return result end
     return {}
 end
 
@@ -414,7 +409,7 @@ end, "AuraRadius")
 Window:AddParagraph(TreeTab, "Tree Aura", "Nebang pohon di sekitar")
 
 local treeAuraEnabled = false
-local treeAuraRadius = 350
+local treeAuraRadius = 80
 
 Window:AddToggle(TreeTab, "Tree Aura", "Aktifkan / Nonaktifkan", false, function(state)
     treeAuraEnabled = state
@@ -425,7 +420,7 @@ Window:AddToggle(TreeTab, "Tree Aura", "Aktifkan / Nonaktifkan", false, function
     end
 end, "TreeAura")
 
-Window:AddInput(TreeTab, "Radius", "Jarak tebang pohon", tostring(treeAuraRadius), function(value)
+Window:AddInput(TreeTab, "Radius", "Jarak tebang pohon", "80", function(value)
     local num = tonumber(value)
     if num and num > 0 then
         treeAuraRadius = num
@@ -476,22 +471,23 @@ for catName, listItems in pairs(itemCategories) do
         local hrp = getRootPart()
         if not hrp then return end
         local selected = selectedItems[catName]
-        local count = 0
-        local allItems = ItemsFolder:GetDescendants()
         local toProcess = {}
-        for _, item in ipairs(allItems) do
+        for _, item in ipairs(ItemsFolder:GetDescendants()) do
             if item.Name == selected and (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
-                table.insert(toProcess, item)
+                local pos = getItemPosition(item)
+                if pos then
+                    table.insert(toProcess, {item = item, dist = (pos - hrp.Position).Magnitude})
+                end
             end
         end
-        local basePos = hrp.Position + (hrp.CFrame.LookVector * 5)
-        for i, item in ipairs(toProcess) do
-            local tpPos = basePos + Vector3.new(0, 1 + (count * 1.5), 0)
-            task.spawn(function() reliableDragItemToPos(item, tpPos) end)
-            count = count + 1
-            if i % 2 == 0 then task.wait(0.15) end 
+        -- sort terdekat dulu
+        table.sort(toProcess, function(a, b) return a.dist < b.dist end)
+        local basePos = hrp.Position + Vector3.new(0, 2, 0)
+        for i, data in ipairs(toProcess) do
+            local tpPos = basePos + Vector3.new((i-1) % 3 * 1.5, math.floor((i-1) / 3) * 1.5, 0)
+            task.spawn(function() reliableDragItemToPos(data.item, tpPos) end)
         end
-        Window:Notify({Title = "Success", Description = "Item TP", Content = "Berhasil menarik " .. count .. "x " .. selected, Color = Color3.fromRGB(10, 30, 60), Delay = 3})
+        Window:Notify({Title="Item TP", Description="Tarik "..#toProcess.."x "..selected, Color=Color3.fromRGB(0,200,255), Delay=2})
     end)
     Window:AddDivider(ItemTPTab, "")
 end
@@ -610,19 +606,18 @@ fpsLabel.Text = "FPS: 0 | Ping: 0ms"
 fpsLabel.Parent = fpsPingGui
 Instance.new("UICorner", fpsLabel).CornerRadius = UDim.new(0, 6)
 
-local lastTick = tick()
+local lastFpsTime = workspace.DistributedGameTime
 local frameCount = 0
 RunService.RenderStepped:Connect(function()
     frameCount = frameCount + 1
-    if tick() - lastTick >= 1 then
-        local fps = math.round(frameCount / (tick() - lastTick))
+    local now = workspace.DistributedGameTime
+    if now - lastFpsTime >= 1 then
+        local fps = math.round(frameCount / (now - lastFpsTime))
         local ping = 0
-        pcall(function()
-            ping = math.round(LocalPlayer:GetNetworkPing() * 1000)
-        end)
+        pcall(function() ping = math.round(LocalPlayer:GetNetworkPing() * 1000) end)
         fpsLabel.Text = string.format("FPS: %d | Ping: %dms", fps, ping)
         frameCount = 0
-        lastTick = tick()
+        lastFpsTime = now
     end
 end)
 
@@ -740,7 +735,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.02) 
+        task.wait(0.1)
     end
 end)
 
@@ -751,19 +746,17 @@ task.spawn(function()
     while true do
         if treeAuraEnabled then
             local trees = TreeUtility:GetTreesInRadius(treeAuraRadius)
-            if #trees > 0 then
-                for _, info in ipairs(trees) do
-                    if info.Tree and info.Tree:IsDescendantOf(workspace) then
-                        local health = info.Tree:GetAttribute("Health")
-                        if health == nil or health > 0 then
-                            TreeUtility:ChopTree(info.Tree, info.Trunk)
-                            task.wait(0.05)
-                        end
+            for _, info in ipairs(trees) do
+                if info.Tree and info.Tree:IsDescendantOf(workspace) then
+                    local health = info.Tree:GetAttribute("Health")
+                    if health == nil or health > 0 then
+                        TreeUtility:ChopTree(info.Tree, info.Trunk)
+                        task.wait(0.1)
                     end
                 end
             end
         end
-        task.wait(0.10)
+        task.wait(0.3)
     end
 end)
 
@@ -776,51 +769,86 @@ task.spawn(function()
         local hrp = getRootPart()
         if hrp then
             for _, item in ipairs(ItemsFolder:GetDescendants()) do
-                if not item or not item:IsDescendantOf(workspace) then continue end
-                if not (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then continue end
-                local itemId = tostring(item)
-                if processingItems[itemId] then continue end
-                local shouldGrind = autoGrindItems[item.Name] == true
-                local shouldFuel = autoFuelItems[item.Name] == true
-                local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
-                
-                if shouldGrind or shouldFuel or shouldCook then
-                    local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
-                    local itemPos = getItemPosition(item)
-                    if itemPos then
-                        if (itemPos - hrp.Position).Magnitude > maxGrindRadius then continue end
-                        if (itemPos - targetPos).Magnitude < 12 then continue end
-                        processingItems[itemId] = true
-                        task.spawn(function()
-                            reliableDragItemToPos(item, targetPos)
-                            task.wait(1) 
-                            processingItems[itemId] = nil
-                        end)
-                        task.wait(0.1) 
+                if item and item:IsDescendantOf(workspace) and
+                   (item:IsA("Model") or item:IsA("Tool") or item:IsA("BasePart")) then
+                    local itemId = tostring(item)
+                    if not processingItems[itemId] then
+                        local shouldGrind = autoGrindItems[item.Name] == true
+                        local shouldFuel = autoFuelItems[item.Name] == true
+                        local shouldCook = autoCookEnabled and table.find(rawFoodsToCook, item.Name)
+                        if shouldGrind or shouldFuel or shouldCook then
+                            local targetPos = shouldGrind and MACHINE_POS or CAMPFIRE_POS
+                            local itemPos = getItemPosition(item)
+                            if itemPos then
+                                local distToPlayer = (itemPos - hrp.Position).Magnitude
+                                local distToTarget = (itemPos - targetPos).Magnitude
+                                if distToPlayer <= maxGrindRadius and distToTarget >= 12 then
+                                    processingItems[itemId] = true
+                                    task.spawn(function()
+                                        reliableDragItemToPos(item, targetPos)
+                                        task.wait(1)
+                                        processingItems[itemId] = nil
+                                    end)
+                                    task.wait(0.1)
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
-        task.wait(0.5) 
+        task.wait(0.5)
     end
 end)
 
 -- ==========================================
--- AUTO EAT LOOP
+-- AUTO EAT LOOP (IMPROVED)
 -- ==========================================
+local autoEatHPThreshold = 70 -- persen
+Window:AddSlider(MainTab, "Eat HP Threshold", "Makan saat HP di bawah %", 10, 95, 70, function(v)
+    autoEatHPThreshold = v
+end, "EatThreshold")
+
 task.spawn(function()
     while ScriptRunning do
         if autoEatEnabled then
-            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health < (hum.MaxHealth * 0.7) then
-                local available = {}
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChild("Humanoid")
+            if hum and hum.Health < (hum.MaxHealth * (autoEatHPThreshold / 100)) then
+                local hrp = getRootPart()
+                local bestFood = nil
+                local bestDist = math.huge
+                -- cari makanan terdekat
                 for _, item in ipairs(ItemsFolder:GetChildren()) do
-                    if table.find(autoEatFoods, item.Name) and item:IsDescendantOf(workspace) then table.insert(available, item) end
+                    if table.find(autoEatFoods, item.Name) and item:IsDescendantOf(workspace) then
+                        if hrp then
+                            local pos = getItemPosition(item)
+                            if pos then
+                                local dist = (pos - hrp.Position).Magnitude
+                                if dist < bestDist then
+                                    bestDist = dist
+                                    bestFood = item
+                                end
+                            end
+                        else
+                            bestFood = item
+                            break
+                        end
+                    end
                 end
-                if #available > 0 then pcall(function() RemoteConsume:InvokeServer(available[math.random(1, #available)]) end) end
+                if bestFood then
+                    -- tp makanan ke player dulu
+                    if hrp then
+                        reliableDragItemToPos(bestFood, hrp.Position + Vector3.new(0, 2, 0))
+                        task.wait(0.2)
+                    end
+                    if RemoteConsume then
+                        pcall(function() RemoteConsume:InvokeServer(bestFood) end)
+                    end
+                end
             end
         end
-        task.wait(2)
+        task.wait(1)
     end
 end)
 
